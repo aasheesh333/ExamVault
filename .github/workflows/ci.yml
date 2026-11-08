@@ -2,10 +2,12 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    # `master` is this repo's default branch; `main` is kept so a future rename
+    # does not silently disable CI.
+    branches: [master, main]
     tags: ['v*']
   pull_request:
-    branches: [main]
+    branches: [master, main]
   workflow_dispatch:
 
 concurrency:
@@ -84,8 +86,12 @@ jobs:
 
       # The signing keystore is materialised from secrets at build time and is
       # never committed. `key.properties` is git-ignored.
+      #
+      # NOTE: this step must NOT be gated with `if: ${{ secrets.X != '' }}`.
+      # GitHub rejects `secrets` inside an `if:` expression and the whole
+      # workflow fails to compile — zero jobs are created. The env var is
+      # checked inside the shell instead.
       - name: Configure release signing
-        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
@@ -93,13 +99,17 @@ jobs:
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           set -euo pipefail
+          if [ -z "${ANDROID_KEYSTORE_BASE64:-}" ]; then
+            echo "No signing keystore configured — the APK will fall back to debug keys."
+            exit 0
+          fi
           echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > android/app/upload-keystore.jks
-          cat > android/key.properties <<EOF
-          storePassword=$ANDROID_STORE_PASSWORD
-          keyPassword=$ANDROID_KEY_PASSWORD
-          keyAlias=$ANDROID_KEY_ALIAS
-          storeFile=upload-keystore.jks
-          EOF
+          {
+            echo "storePassword=$ANDROID_STORE_PASSWORD"
+            echo "keyPassword=$ANDROID_KEY_PASSWORD"
+            echo "keyAlias=$ANDROID_KEY_ALIAS"
+            echo "storeFile=upload-keystore.jks"
+          } > android/key.properties
 
       - name: Build APK
         env:
@@ -136,7 +146,7 @@ jobs:
   # ---------------------------------------------------------------------------
   deploy-edge:
     name: Deploy Cloudflare worker
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main')
     needs: verify
     runs-on: ubuntu-latest
     timeout-minutes: 15

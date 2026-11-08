@@ -1,0 +1,78 @@
+name: examvault
+description: >-
+  ExamVault — ultra-fast utility for Indian competitive exam aspirants.
+  Offline-first admit-card vault, edge-cached live radar, and an
+  isolate-powered instant roll-number result checker.
+publish_to: "none"
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.9.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # --- state ---
+  flutter_riverpod: ^3.5.0
+
+  # --- design system ---
+  google_fonts: ^9.0.0
+
+  # --- local persistence ---
+  hive_ce_flutter: ^2.5.0
+  flutter_secure_storage: ^11.2.0
+  path_provider: ^2.1.6
+
+  # --- network ---
+  http: ^1.6.0
+
+  # --- push (free FCM topics on the Spark plan) ---
+  firebase_core: ^5.1.0
+  firebase_messaging: ^17.0.1
+
+  # --- sharing the viral result card ---
+  share_plus: ^13.3.1
+
+  # --- misc ---
+  intl: ^0.20.3
+  collection: ^1.19.0
+  meta: ^1.16.0
+  url_launcher: ^6.3.3
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  hive_ce: ^2.23.2
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    # Fonts are bundled so the app never fetches them at runtime:
+    # google_fonts resolves these by basename before it ever touches the network.
+    - assets/google_fonts/
+    - assets/seed/
+
+  fonts:
+    - family: PlusJakartaSans
+      fonts:
+        - asset: assets/google_fonts/PlusJakartaSans-Regular.ttf
+          weight: 400
+        - asset: assets/google_fonts/PlusJakartaSans-Medium.ttf
+          weight: 500
+        - asset: assets/google_fonts/PlusJakartaSans-SemiBold.ttf
+          weight: 600
+        - asset: assets/google_fonts/PlusJakartaSans-Bold.ttf
+          weight: 700
+        - asset: assets/google_fonts/PlusJakartaSans-ExtraBold.ttf
+          weight: 800
+    - family: IBMPlexMono
+      fonts:
+        - asset: assets/google_fonts/IBMPlexMono-Regular.ttf
+          weight: 400
+        - asset: assets/google_fonts/IBMPlexMono-Medium.ttf
+          weight: 500
+        - asset: assets/google_fonts/IBMPlexMono-SemiBold.ttf
+          weight: 600

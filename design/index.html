@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ExamVault — Mobile UI · Dark Navy</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-vault" viewBox="0 0 24 24"><path d="M12 3l7 3v5.5c0 4.3-2.9 7.6-7 9.5-4.1-1.9-7-5.2-7-9.5V6l7-3z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><circle cx="12" cy="11" r="2.4" stroke="currentColor" stroke-width="1.6"/><path d="M12 13.4V16" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
+    <symbol id="i-bell" viewBox="0 0 24 24"><path d="M18 8a6 6 0 10-12 0c0 6-2 7-2 7h16s-2-1-2-7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M13.7 20a2 2 0 01-3.4 0" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2.5" stroke="currentColor" stroke-width="1.7"/><path d="M15 6.5V5a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2h1.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></symbol>
+    <symbol id="i-chev" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-share" viewBox="0 0 24 24"><path d="M12 15V3m0 0L8 7m4-4l4 4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5" stroke="currentColor" stroke-width="1.7"/><path d="M16 16l4 4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v11m0 0l-4-4m4 4l4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 18v1a2 2 0 002 2h12a2 2 0 002-2v-1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M4.5 12.5l5 5 10-11" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-pdf" viewBox="0 0 24 24"><path d="M6 2.8h8l4 4V21a1.2 1.2 0 01-1.2 1.2H6A1.2 1.2 0 014.8 21V4A1.2 1.2 0 016 2.8z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M14 3v4.2h4.2" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M8.5 16.5h7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.6"/><path d="M12 7.5V12l3 2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-home" viewBox="0 0 24 24"><path d="M4 10.5L12 4l8 6.5V20a1 1 0 01-1 1h-5v-6h-4v6H5a1 1 0 01-1-1v-9.5z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><rect x="4.5" y="10.5" width="15" height="10" rx="2.2" stroke="currentColor" stroke-width="1.6"/><path d="M8 10.5V7.5a4 4 0 018 0v3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="12" cy="15.5" r="1.3" fill="currentColor"/></symbol>
+    <symbol id="i-radar" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="12" r="4.2" stroke="currentColor" stroke-width="1.6"/><path d="M12 12l5-5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="12" cy="12" r="1.4" fill="currentColor"/></symbol>
+    <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2" stroke="currentColor" stroke-width="1.6"/><path d="M3.5 20c0-3.2 2.5-5.4 5.5-5.4s5.5 2.2 5.5 5.4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M16 5.2a3 3 0 010 5.6M17.5 14.9c1.8.5 3 2.2 3 5.1" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
+    <symbol id="i-external" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-8 8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M18 14v5a1 1 0 01-1 1H5a1 1 0 01-1-1V7a1 1 0 011-1h5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></symbol>
+    <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 13.5a4 4 0 005.7 0l3-3a4 4 0 10-5.7-5.7L11.5 6.3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M14 10.5a4 4 0 00-5.7 0l-3 3a4 4 0 105.7 5.7l1.5-1.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></symbol>
+    <symbol id="i-spark" viewBox="0 0 24 24"><path d="M12 3l1.7 5.3L19 10l-5.3 1.7L12 17l-1.7-5.3L5 10l5.3-1.7L12 3z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></symbol>
+    <symbol id="i-whatsapp" viewBox="0 0 24 24"><path d="M20.4 11.7a8.3 8.3 0 01-12.3 7.3L3.5 20.5l1.6-4.5a8.3 8.3 0 1115.3-4.3z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M8.7 8.1c.2-.5.5-.5.8-.5h.6c.2 0 .4.1.5.4l.7 1.7c.1.2 0 .5-.2.7l-.5.5c.6 1.2 1.5 2 2.7 2.6l.5-.6c.2-.2.4-.3.7-.2l1.7.8c.2.1.4.3.4.6v.6c0 .7-.6 1.3-1.4 1.4-3.6.4-7.4-3.4-6.9-7 .1-.5.3-.8.4-1z" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-send" viewBox="0 0 24 24"><path d="M21 3L3 10.5l7.2 2.8L13 20l8-17z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M10.2 13.3L21 3" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></symbol>
+    <symbol id="i-save" viewBox="0 0 24 24"><path d="M12 3v11m0 0l-4-4m4 4l4-4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></symbol>
+    <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 21s7-6.1 7-11a7 7 0 10-14 0c0 4.9 7 11 7 11z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><circle cx="12" cy="10" r="2.6" stroke="currentColor" stroke-width="1.6"/></symbol>
+    <symbol id="i-wa-solid" viewBox="0 0 24 24"><path fill="currentColor" fill-rule="evenodd" clip-rule="evenodd" d="M12 2.2a9.8 9.8 0 00-8.4 14.9L2.2 21.8l4.9-1.3A9.8 9.8 0 1012 2.2zm-4.3 5.2c.2-.4.4-.5.7-.5h.5c.2 0 .4.1.5.4l.7 1.7c.1.2 0 .4-.1.6l-.5.5c-.1.1-.1.3 0 .5.6 1.1 1.4 1.9 2.5 2.5.2.1.4.1.5 0l.6-.6c.1-.2.3-.2.5-.2l1.7.8c.2.1.3.3.3.5v.6c0 .7-.6 1.3-1.3 1.4-3.5.4-7-3-6.8-6.5 0-.5.2-1 .2-1.2z"/></symbol>
+  </defs>
+</svg>
+
+<header class="deck-head">
+  <div class="deck-brand">
+    <div class="deck-mark"><svg class="ic"><use href="#i-vault"/></svg></div>
+    <div>
+      <div class="deck-title">ExamVault</div>
+      <div class="deck-sub">Ultra-fast exam utility · Design system v1.0</div>
+    </div>
+  </div>
+  <div class="deck-meta">
+    <span class="meta-chip">393 × 852</span>
+    <span class="meta-chip">8px grid</span>
+    <span class="meta-chip">Deep Navy</span>
+    <span class="meta-chip meta-chip--accent">4 screens</span>
+  </div>
+</header>
+
+<main class="deck">
+  <div class="screen-wrap">
+    <div class="screen-label"><span>01 / HOME</span><span class="screen-label-name">Command Center</span></div>
+    <section class="phone" id="frame-1">
+      <div class="screen">
+        <div class="island"></div>
+        <div class="statusbar">
+          <span class="status-time">9:41</span>
+          <div class="status-icons">
+            <svg viewBox="0 0 18 12" class="sig"><rect x="0" y="7" width="3" height="5" rx="1"/><rect x="5" y="5" width="3" height="7" rx="1"/><rect x="10" y="2.5" width="3" height="9.5" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1" opacity=".35"/></svg>
+            <svg viewBox="0 0 16 12" class="wifi"><path d="M8 10.6l2-2.4a3 3 0 00-4 0l2 2.4z"/><path d="M3.2 5.3a7 7 0 019.6 0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M5.4 7.6a4.2 4.2 0 015.2 0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            <span class="battery"><span></span></span>
+          </div>
+        </div>
+
+        <div class="scroll">
+          <div class="appbar">
+            <div class="brand">
+              <span class="brand-mark"><svg class="ic"><use href="#i-vault"/></svg></span>
+              <span class="brand-word">EXAMVAULT</span>
+            </div>
+            <div class="appbar-actions">
+              <button class="icon-btn"><svg class="ic"><use href="#i-bell"/></svg><i class="notif-dot"></i></button>
+              <div class="avatar">A</div>
+            </div>
+          </div>
+
+          <div class="hero">
+            <div class="eyebrow">SUNDAY · 08 NOV 2026</div>
+            <h1>Command Center</h1>
+            <p class="hero-sub">3 exams tracked <span class="dot-sep">·</span> <span class="text-green">1 live update</span></p>
+          </div>
+
+          <div class="chips">
+            <button class="chip chip--active">All Exams</button>
+            <button class="chip">SSC</button>
+            <button class="chip">UPSC</button>
+            <button class="chip">IBPS/SBI</button>
+            <button class="chip">Railways</button>
+            <button class="chip">State PSC</button>
+          </div>
+
+          <div class="section-head">
+            <span class="mono-label">MY ADMIT CARDS</span>
+            <span class="section-action">3 saved <svg class="ic ic--xs"><use href="#i-chev"/></svg></span>
+          </div>
+
+          <div class="wallet">
+            <div class="wallet-card wallet-card--3">
+              <div class="wc-top">
+                <span class="exam-badge exam-badge--rail">RRB</span>
+                <span class="wc-back-name">RRB NTPC 2026</span>
+                <span class="wc-back-meta">In 34 days</span>
+              </div>
+            </div>
+            <div class="wallet-card wallet-card--2">
+              <div class="wc-top">
+                <span class="exam-badge exam-badge--blue">IBPS</span>
+                <span class="wc-back-name">IBPS PO Prelims 2026</span>
+                <span class="wc-back-meta">In 21 days</span>
+              </div>
+            </div>
+            <div class="wallet-card wallet-card--front">
+              <div class="wc-glow"></div>
+              <div class="wc-top">
+                <span class="exam-badge exam-badge--blue">SSC</span>
+                <span class="wc-code">CGL · TIER-1</span>
+                <span class="countdown"><i></i>IN 12 DAYS</span>
+              </div>
+              <div class="wc-name">SSC CGL Tier-1 2026</div>
+              <div class="roll-row">
+                <div>
+                  <div class="field-label">ROLL NUMBER</div>
+                  <div class="roll-value">2201049821</div>
+                </div>
+                <button class="copy-pill"><svg class="ic ic--sm"><use href="#i-copy"/></svg>Copy</button>
+              </div>
+              <div class="wc-foot">
+                <span class="mono-meta">24 NOV 2026 · 09:00 AM</span>
+                <span class="wc-status"><i></i>AUTOSAVED</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="section-head section-head--radar">
+            <div class="radar-label"><span class="pulse-dot"></span><span class="mono-label">LIVE RADAR</span></div>
+            <span class="updated">UPDATED 12s AGO</span>
+          </div>
+
+          <div class="feed">
+            <button class="feed-row">
+              <div class="feed-ico feed-ico--green"><svg class="ic"><use href="#i-pdf"/></svg></div>
+              <div class="feed-main">
+                <div class="feed-title">SSC CGL Tier-1 2026</div>
+                <div class="feed-sub">Direct PDF · 18.4 MB</div>
+              </div>
+              <div class="feed-right">
+                <span class="status-pill status-pill--green"><i></i>RESULT OUT</span>
+                <span class="feed-time">2m</span>
+              </div>
+            </button>
+            <div class="feed-div"></div>
+            <button class="feed-row">
+              <div class="feed-ico feed-ico--amber"><svg class="ic"><use href="#i-clock"/></svg></div>
+              <div class="feed-main">
+                <div class="feed-title">IBPS PO Prelims 2026</div>
+                <div class="feed-sub">4 mirrors live · no queue</div>
+              </div>
+              <div class="feed-right">
+                <span class="status-pill status-pill--amber"><i></i>CARD LIVE</span>
+                <span class="feed-time">18m</span>
+              </div>
+            </button>
+            <div class="feed-div"></div>
+            <button class="feed-row">
+              <div class="feed-ico feed-ico--red"><svg class="ic"><use href="#i-radar"/></svg></div>
+              <div class="feed-main">
+                <div class="feed-title">RRB NTPC 2026</div>
+                <div class="feed-sub">Application closes 11:59 PM</div>
+              </div>
+              <div class="feed-right">
+                <span class="status-pill status-pill--red"><i></i>CLOSING</span>
+                <span class="feed-time">1h</span>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        <nav class="tabbar">
+          <button class="tab tab--active"><svg class="ic"><use href="#i-home"/></svg><span>Home</span></button>
+          <button class="tab"><svg class="ic"><use href="#i-lock"/></svg><span>Vault</span></button>
+          <button class="tab"><span class="tab-dot-wrap"><svg class="ic"><use href="#i-radar"/></svg><i class="tab-dot"></i></span><span>Radar</span></button>
+          <button class="tab"><svg class="ic"><use href="#i-users"/></svg><span>Groups</span></button>
+        </nav>
+        <div class="home-indicator"></div>
+      </div>
+    </section>
+  </div>
+
+  <div class="screen-wrap">
+    <div class="screen-label"><span>02 / VAULT</span><span class="screen-label-name">1-Tap Card Detail</span></div>
+    <section class="phone" id="frame-2">
+      <div class="screen">
+        <div class="island"></div>
+        <div class="statusbar">
+          <span class="status-time">9:41</span>
+          <div class="status-icons">
+            <svg viewBox="0 0 18 12" class="sig"><rect x="0" y="7" width="3" height="5" rx="1"/><rect x="5" y="5" width="3" height="7" rx="1"/><rect x="10" y="2.5" width="3" height="9.5" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1" opacity=".35"/></svg>
+            <svg viewBox="0 0 16 12" class="wifi"><path d="M8 10.6l2-2.4a3 3 0 00-4 0l2 2.4z"/><path d="M3.2 5.3a7 7 0 019.6 0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M5.4 7.6a4.2 4.2 0 015.2 0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            <span class="battery"><span></span></span>
+          </div>
+        </div>
+
+        <div class="scroll">
+          <div class="navbar">
+            <button class="icon-btn icon-btn--ghost"><svg class="ic"><use href="#i-back"/></svg></button>
+            <div class="nav-title">Saved Pass <span class="nav-count">1 / 3</span></div>
+            <button class="icon-btn icon-btn--ghost"><svg class="ic"><use href="#i-share"/></svg></button>
+          </div>
+
+          <div class="pass">
+            <div class="pass-halo"></div>
+            <div class="pass-head">
+              <div>
+                <div class="pass-kicker">SSC · CGL TIER-1 2026</div>
+                <div class="pass-org">Staff Selection Commission</div>
+              </div>
+              <span class="status-pill status-pill--green status-pill--solid"><i></i>SAVED</span>
+            </div>
+
+            <div class="pass-roll">
+              <div class="field-label">ROLL NUMBER</div>
+              <div class="pass-roll-line">
+                <span class="pass-roll-value">2201049821</span>
+                <button class="copy-btn"><svg class="ic"><use href="#i-copy"/></svg></button>
+              </div>
+            </div>
+
+            <div class="perforation"><span class="notch notch--l"></span><span class="notch notch--r"></span></div>
+
+            <div class="pass-grid">
+              <div class="kv">
+                <div class="field-label">REGISTRATION ID</div>
+                <div class="kv-line"><span class="kv-value">SSC-CGL-26-884213</span><svg class="ic ic--xs kv-copy"><use href="#i-copy"/></svg></div>
+              </div>
+              <div class="kv">
+                <div class="field-label">D.O.B / PASSWORD</div>
+                <div class="kv-line"><span class="kv-value">14/03/1999</span><svg class="ic ic--xs kv-copy"><use href="#i-copy"/></svg></div>
+              </div>
+              <div class="kv">
+                <div class="field-label">EXAM CENTER CODE</div>
+                <div class="kv-line"><span class="kv-value">DL-04-1187</span><svg class="ic ic--xs kv-copy"><use href="#i-copy"/></svg></div>
+              </div>
+              <div class="kv">
+                <div class="field-label">EXAM DATE</div>
+                <div class="kv-line"><span class="kv-value">24/11/2026</span><svg class="ic ic--xs kv-copy"><use href="#i-copy"/></svg></div>
+              </div>
+            </div>
+
+            <div class="pass-foot">
+              <div class="barcode"></div>
+              <div class="pass-foot-meta">AUTOSAVED ON DEVICE <span class="pass-dot">·</span> 2:14 PM</div>
+            </div>
+          </div>
+
+          <div class="countdown-card">
+            <div class="cd-left">
+              <div class="field-label">EXAM COUNTDOWN</div>
+              <div class="cd-sub">Report by 8:15 AM</div>
+            </div>
+            <div class="cd-clock">
+              <div class="cd-unit"><span class="cd-num">12</span><span class="cd-lbl">DAYS</span></div>
+              <span class="cd-colon">:</span>
+              <div class="cd-unit"><span class="cd-num">04</span><span class="cd-lbl">HRS</span></div>
+              <span class="cd-colon">:</span>
+              <div class="cd-unit"><span class="cd-num">32</span><span class="cd-lbl">MIN</span></div>
+            </div>
+          </div>
+
+          <div class="checklist">
+            <div class="checklist-head">
+              <span class="mono-label">DOCUMENT CHECKLIST</span>
+              <span class="checklist-count">3 / 3 READY</span>
+            </div>
+            <div class="check-row">
+              <span class="check-box"><svg class="ic"><use href="#i-check"/></svg></span>
+              <div class="check-main"><div class="check-title">Admit Card PDF saved</div><div class="check-sub">18.4 MB · offline</div></div>
+              <span class="check-state">DONE</span>
+            </div>
+            <div class="check-row">
+              <span class="check-box"><svg class="ic"><use href="#i-check"/></svg></span>
+              <div class="check-main"><div class="check-title">2 Passport photos</div><div class="check-sub">Recent · 50×50 mm</div></div>
+              <span class="check-state">DONE</span>
+            </div>
+            <div class="check-row">
+              <span class="check-box"><svg class="ic"><use href="#i-check"/></svg></span>
+              <div class="check-main"><div class="check-title">Original Aadhaar ID</div><div class="check-sub">Carry physical copy</div></div>
+              <span class="check-state">DONE</span>
+            </div>
+          </div>
+
+          <div class="center-card">
+            <span class="center-ico"><svg class="ic"><use href="#i-pin"/></svg></span>
+            <div class="center-main">
+              <div class="center-kicker">EXAM CENTER · DL-04-1187</div>
+              <div class="center-name">Sector 12, Dwarka, New Delhi</div>
+              <div class="center-sub">Gate 3 · report by 8:15 AM</div>
+            </div>
+            <span class="center-link">MAP <svg class="ic ic--xs"><use href="#i-external"/></svg></span>
+          </div>
+        </div>
+
+        <div class="action-dock">
+          <div class="cta-row">
+            <button class="btn btn--primary"><svg class="ic"><use href="#i-download"/></svg>Open Admit Card</button>
+            <button class="btn btn--icon"><svg class="ic"><use href="#i-share"/></svg></button>
+          </div>
+          <div class="vault-foot"><svg class="ic ic--xs"><use href="#i-lock"/></svg>Tap any field to copy <span>·</span> AES-256 <span>·</span> offline</div>
+        </div>
+        <div class="home-indicator"></div>
+      </div>
+    </section>
+  </div>
+
+  <div class="screen-wrap">
+    <div class="screen-label"><span>03 / RADAR</span><span class="screen-label-name">Result Checker</span></div>
+    <section class="phone" id="frame-3">
+      <div class="screen">
+        <div class="island"></div>
+        <div class="statusbar">
+          <span class="status-time">9:41</span>
+          <div class="status-icons">
+            <svg viewBox="0 0 18 12" class="sig"><rect x="0" y="7" width="3" height="5" rx="1"/><rect x="5" y="5" width="3" height="7" rx="1"/><rect x="10" y="2.5" width="3" height="9.5" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1" opacity=".35"/></svg>
+            <svg viewBox="0 0 16 12" class="wifi"><path d="M8 10.6l2-2.4a3 3 0 00-4 0l2 2.4z"/><path d="M3.2 5.3a7 7 0 019.6 0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M5.4 7.6a4.2 4.2 0 015.2 0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            <span class="battery"><span></span></span>
+          </div>
+        </div>
+
+        <div class="scroll">
+          <div class="navbar">
+            <button class="icon-btn icon-btn--ghost"><svg class="ic"><use href="#i-back"/></svg></button>
+            <div class="nav-title">Result Radar</div>
+            <span class="live-chip"><i></i>LIVE</span>
+          </div>
+
+          <div class="result-head">
+            <div class="eyebrow">UPSC · CIVIL SERVICES</div>
+            <h1>UPSC CSE Prelims 2026 <span class="text-green">Result</span></h1>
+            <p class="result-meta"><span class="mono-meta">RELEASED 09:12 IST · 08 NOV 2026</span></p>
+          </div>
+
+          <div class="server-card">
+            <div class="server-head">
+              <span class="mono-label">MIRROR STATUS</span>
+              <span class="server-auto"><i></i>AUTO-REFRESH 30s</span>
+            </div>
+
+            <div class="server-row">
+              <span class="server-name">Server 1 <span>· upsc.gov.in</span></span>
+              <div class="latency"><div class="latency-bar latency-bar--amber" style="width:74%"></div></div>
+              <span class="server-state server-state--amber">BUSY</span>
+              <span class="server-ms">1,204ms</span>
+            </div>
+            <div class="server-row">
+              <span class="server-name">Direct PDF Mirror</span>
+              <div class="latency"><div class="latency-bar latency-bar--green" style="width:22%"></div></div>
+              <span class="server-state server-state--green">FAST</span>
+              <span class="server-ms">82ms</span>
+            </div>
+            <div class="server-row">
+              <span class="server-name">Vault Cache <span>· instant</span></span>
+              <div class="latency"><div class="latency-bar latency-bar--blue" style="width:8%"></div></div>
+              <span class="server-state server-state--blue">READY</span>
+              <span class="server-ms">4ms</span>
+            </div>
+          </div>
+
+          <div class="auto-note auto-note--server">
+            <svg class="ic ic--sm"><use href="#i-spark"/></svg>
+            Server checked 4s ago · retrying automatically
+          </div>
+
+          <button class="btn btn--primary btn--wide">
+            <svg class="ic"><use href="#i-download"/></svg>
+            Download Official PDF
+            <span class="btn-meta">4.2 MB</span>
+          </button>
+          <div class="btn-pair">
+            <button class="btn btn--outline"><svg class="ic"><use href="#i-external"/></svg>Open Mirror</button>
+            <button class="btn btn--outline"><svg class="ic"><use href="#i-link"/></svg>Copy Link</button>
+          </div>
+
+          <div class="search-block">
+            <div class="section-head">
+              <span class="mono-label">FIND MY ROLL NUMBER</span>
+              <span class="section-action">In PDF</span>
+            </div>
+            <div class="search-bar">
+              <svg class="ic search-ic"><use href="#i-search"/></svg>
+              <span class="search-value">0812045678</span>
+              <span class="caret"></span>
+              <button class="find-btn">Find</button>
+            </div>
+            <div class="found">
+              <span class="found-ico"><svg class="ic"><use href="#i-check"/></svg></span>
+              <div class="found-main">
+                <div class="found-title">Roll number found</div>
+                <div class="found-sub">Page 14 · UPSC CSE Prelims 2026</div>
+              </div>
+              <span class="found-link">JUMP <svg class="ic ic--xs"><use href="#i-chev"/></svg></span>
+            </div>
+          </div>
+
+          <div class="recent">
+            <div class="section-head">
+              <span class="mono-label">RECENT CHECKS</span>
+              <span class="section-action">Clear</span>
+            </div>
+            <div class="recent-list">
+              <button class="recent-row">
+                <div class="recent-main">
+                  <div class="recent-title">SSC CGL Tier-1 2025</div>
+                  <div class="recent-sub">Checked 12 Mar 2026</div>
+                </div>
+                <span class="status-pill status-pill--green">FOUND</span>
+                <svg class="ic recent-chev"><use href="#i-chev"/></svg>
+              </button>
+              <button class="recent-row">
+                <div class="recent-main">
+                  <div class="recent-title">UPSC CSE Mains 2025</div>
+                  <div class="recent-sub">Checked 04 Jan 2026</div>
+                </div>
+                <span class="status-pill status-pill--amber">AWAITED</span>
+                <svg class="ic recent-chev"><use href="#i-chev"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+        <div class="home-indicator"></div>
+      </div>
+    </section>
+  </div>
+
+  <div class="screen-wrap">
+    <div class="screen-label"><span>04 / SHARE</span><span class="screen-label-name">WhatsApp Card</span></div>
+    <section class="phone" id="frame-4">
+      <div class="screen">
+        <div class="island"></div>
+        <div class="statusbar">
+          <span class="status-time">9:41</span>
+          <div class="status-icons">
+            <svg viewBox="0 0 18 12" class="sig"><rect x="0" y="7" width="3" height="5" rx="1"/><rect x="5" y="5" width="3" height="7" rx="1"/><rect x="10" y="2.5" width="3" height="9.5" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1" opacity=".35"/></svg>
+            <svg viewBox="0 0 16 12" class="wifi"><path d="M8 10.6l2-2.4a3 3 0 00-4 0l2 2.4z"/><path d="M3.2 5.3a7 7 0 019.6 0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M5.4 7.6a4.2 4.2 0 015.2 0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            <span class="battery"><span></span></span>
+          </div>
+        </div>
+
+        <div class="scroll">
+          <div class="navbar">
+            <button class="icon-btn icon-btn--ghost"><svg class="ic"><use href="#i-x"/></svg></button>
+            <div class="nav-title">Share Card</div>
+            <span class="ph-pill">PREVIEW</span>
+          </div>
+
+          <div class="share-stage">
+            <div class="share-glow"></div>
+            <div class="share-card">
+              <div class="sc-alert">
+                <span>🚨 RESULT IS LIVE</span>
+                <span class="sc-alert-date">08 NOV 2026</span>
+              </div>
+              <div class="sc-body">
+                <div class="sc-brandrow">
+                  <div class="sc-brand"><span class="sc-mark"><svg class="ic"><use href="#i-vault"/></svg></span>EXAMVAULT</div>
+                  <span class="sc-link">examvault.in</span>
+                </div>
+                <div class="sc-exam">SSC CGL · TIER-1 2026</div>
+                <div class="sc-headline">RESULT<br/>IS <span class="sc-mark-word">LIVE</span></div>
+                <div class="sc-sub">Cut-off &amp; direct PDF link inside</div>
+                <div class="sc-cutoff">
+                  <div class="sc-cutoff-label">CUT-OFF · TIER-1</div>
+                  <div class="sc-cutoff-grid">
+                    <div><span>UR</span><b>152.5</b></div>
+                    <div><span>OBC</span><b>149.0</b></div>
+                    <div><span>SC</span><b>141.0</b></div>
+                    <div><span>ST</span><b>138.5</b></div>
+                  </div>
+                </div>
+                <div class="sc-cta">
+                  <span>Check your roll no.</span>
+                  <span class="sc-cta-arrow">→</span>
+                </div>
+                <div class="sc-foot">JOIN 12,480 ASPIRANTS <span>·</span> VERIFIED SOURCE <span>·</span> FREE</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="share-row">
+            <button class="share-target share-target--on">
+              <span class="share-ico share-ico--wa"><svg class="ic"><use href="#i-wa-solid"/></svg></span>
+              <span>WhatsApp</span>
+            </button>
+            <button class="share-target">
+              <span class="share-ico share-ico--tg"><svg class="ic"><use href="#i-send"/></svg></span>
+              <span>Telegram</span>
+            </button>
+            <button class="share-target">
+              <span class="share-ico"><svg class="ic"><use href="#i-link"/></svg></span>
+              <span>Copy link</span>
+            </button>
+            <button class="share-target">
+              <span class="share-ico"><svg class="ic"><use href="#i-save"/></svg></span>
+              <span>Save</span>
+            </button>
+          </div>
+
+          <div class="share-group">
+            <span class="group-ico"><svg class="ic"><use href="#i-wa-solid"/></svg></span>
+            <div class="group-main">
+              <div class="group-title">SSC CGL 2026 Warriors</div>
+              <div class="group-sub">248 members · WhatsApp group</div>
+            </div>
+            <span class="group-change">CHANGE</span>
+          </div>
+
+          <button class="btn btn--wa btn--wide"><svg class="ic"><use href="#i-wa-solid"/></svg>Share to study group</button>
+
+          <div class="attach">
+            <div class="attach-main">
+              <div class="attach-title">Attach cut-off PDF</div>
+              <div class="attach-sub">4.2 MB · mirrors included</div>
+            </div>
+            <span class="switch switch--on"><i></i></span>
+          </div>
+          <div class="auto-note auto-note--center">Card auto-updates when the result drops</div>
+        </div>
+        <div class="home-indicator"></div>
+      </div>
+    </section>
+  </div>
+</main>
+
+<footer class="deck-foot">
+  <div>Plus Jakarta Sans <span>·</span> IBM Plex Mono <span>·</span> #0B0F19 / #3B82F6 / #10B981 / #F59E0B / #EF4444</div>
+  <div>ExamVault · Neo-Utility · Flutter-ready components</div>
+</footer>
+
+<script>
+  document.fonts.ready.then(() => document.documentElement.classList.add('fonts-ready'));
+</script>
+</body>
+</html>

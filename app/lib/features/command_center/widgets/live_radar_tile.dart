@@ -1,0 +1,164 @@
+import 'package:flutter/material.dart';
+
+import '../../../core/theme/app_theme.dart';
+import '../../../core/theme/theme_tokens.dart';
+import '../../../data/models/live_feed_dto.dart';
+import '../../../domain/entities/live_update.dart';
+import '../../../shared/widgets/status_pill.dart';
+
+/// One row of the Live Radar.
+///
+/// Layout is a 3-column grid inside a 62px row: 34px icon tile, flexible copy,
+/// right-aligned status + age. The age is the quietest element on purpose — it is
+/// context, not content.
+class LiveRadarTile extends StatelessWidget {
+  const LiveRadarTile({
+    super.key,
+    required this.update,
+    required this.onTap,
+    this.isFirst = false,
+    this.isLast = false,
+  });
+
+  final LiveUpdate update;
+  final VoidCallback onTap;
+  final bool isFirst;
+  final bool isLast;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.ev;
+    final accent = update.status.pillColor;
+
+    return Semantics(
+      button: true,
+      label:
+          '${update.examName}. ${update.status.label}. ${update.contextLine}. ${update.relativeAge()} ago.',
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 62),
+          padding: const EdgeInsets.symmetric(
+            horizontal: EvSpace.x4 - 2,
+            vertical: 12,
+          ),
+          decoration: BoxDecoration(
+            border: Border(
+              top: isFirst ? BorderSide.none : BorderSide(color: context.hairline),
+            ),
+          ),
+          child: Row(
+            children: [
+              _IconTile(status: update.status, accent: accent),
+              const SizedBox(width: 11),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      update.examName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: context.type.tileTitle,
+                    ),
+                    const SizedBox(height: 2),
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            update.contextLine,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: context.type.bodyMuted.copyWith(fontSize: 10),
+                          ),
+                        ),
+                        if (update.mirrorLatencyMs != null) ...[
+                          const SizedBox(width: 6),
+                          _LatencyChip(ms: update.mirrorLatencyMs!),
+                        ],
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  EvStatusPill.status(
+                    update.status,
+                    compact: true,
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    update.relativeAge(),
+                    style: context.type.monoMeta.copyWith(
+                      fontSize: 8.5,
+                      color: p.textTertiary,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _IconTile extends StatelessWidget {
+  const _IconTile({required this.status, required this.accent});
+
+  final UpdateStatus status;
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 36,
+      height: 36,
+      decoration: BoxDecoration(
+        color: accent.withValues(alpha: 0.11),
+        borderRadius: BorderRadius.circular(EvRadius.tile),
+        border: Border.all(color: accent.withValues(alpha: 0.2)),
+      ),
+      child: Icon(status.icon, size: 17, color: accent),
+    );
+  }
+}
+
+/// Tiny green "82ms" chip proving the mirror is fast — the single most useful
+/// data point on result day.
+class _LatencyChip extends StatelessWidget {
+  const _LatencyChip({required this.ms});
+
+  final int ms;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.ev;
+    final fast = ms < 500;
+    final color = fast ? p.success : p.warning;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        // Never below 8px anywhere in the app — this label sits on the busiest
+        // row and is the number that tells a user the mirror is actually fast.
+        '${ms}ms',
+        style: context.type.statusPill.copyWith(
+          color: fast ? p.successText : p.warningText,
+          fontSize: 8.5,
+          letterSpacing: 0.2,
+        ),
+      ),
+    );
+  }
+}

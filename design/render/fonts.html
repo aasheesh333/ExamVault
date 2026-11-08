@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><style>
+@font-face{font-family:'PJS';src:url('/fonts/jak-400.ttf');font-weight:400}
+@font-face{font-family:'PJS';src:url('/fonts/jak-500.ttf');font-weight:500}
+@font-face{font-family:'PJS';src:url('/fonts/jak-600.ttf');font-weight:600}
+@font-face{font-family:'PJS';src:url('/fonts/jak-700.ttf');font-weight:700}
+@font-face{font-family:'PJS';src:url('/fonts/jak-800.ttf');font-weight:800}
+@font-face{font-family:'PXM';src:url('/fonts/plex-r.ttf');font-weight:400}
+@font-face{font-family:'PXM';src:url('/fonts/plex-m.ttf');font-weight:500}
+@font-face{font-family:'PXM';src:url('/fonts/plex-sb.ttf');font-weight:600}
+</style></head><body style="margin:0;background:#0B0F19">
+<div id="stage" style="position:relative;width:1692px;height:852px;background:#05070C"></div>
+<script>
+window.fontsReady = Promise.all([
+  document.fonts.load('700 34px PJS'), document.fonts.load('500 12px PJS'),
+  document.fonts.load('600 12px PJS'), document.fonts.load('800 40px PJS'),
+  document.fonts.load('500 12px PXM'), document.fonts.load('600 8px PXM')
+]);
+</script>
+</body></html>

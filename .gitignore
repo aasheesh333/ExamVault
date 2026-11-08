@@ -1,0 +1,72 @@
+# ---------------------------------------------------------------------------
+# ExamVault
+# ---------------------------------------------------------------------------
+
+# Flutter / Dart
+.dart_tool/
+.packages
+.pub-cache/
+.pub/
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+*.iml
+.idea/
+.vscode/
+.metadata
+coverage/
+*.lock.bak
+
+# Android
+**/android/.gradle/
+**/android/local.properties
+**/android/key.properties
+**/android/app/*.jks
+**/android/app/*.keystore
+**/android/app/upload-keystore.jks
+**/android/.cxx/
+**/android/app/release/
+**/android/app/debug/
+**/android/app/profile/
+
+# iOS
+**/ios/Pods/
+**/ios/.symlinks/
+**/ios/Flutter/Flutter.framework
+**/ios/Flutter/Flutter.podspec
+**/ios/Flutter/Generated.xcconfig
+**/ios/Flutter/ephemeral/
+**/ios/Runner.xcworkspace/xcuserdata/
+**/ios/Runner.xcodeproj/xcuserdata/
+**/ios/Runner/GoogleService-Info.plist
+**/ios/Runner/GoogleService-Info.plist.*
+
+# ---------------------------------------------------------------------------
+# SECRETS — none of this may ever be committed.
+# ---------------------------------------------------------------------------
+
+# Firebase
+**/android/app/google-services.json
+**/ios/Runner/GoogleService-Info.plist
+.firebaserc
+firebase.json.bak
+
+# Cloudflare
+.wrangler/
+.dev.vars
+.env
+.env.*
+!.env.example
+
+# OneSignal / signing / tokens
+**/onesignal.properties
+**/*.p12
+**/*.p8
+key.properties
+*.secrets
+secrets.json
+
+# Local scratch
+/tmp/
+*.log
+.DS_Store

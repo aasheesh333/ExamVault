@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Launch window. Deep Navy in BOTH light and dark mode: the app itself is
+  dark-first, so a white flash for 300 ms before the first Flutter frame reads as
+  a glitch — and on a cold boot at 11:59 PM before a form closes, the flash is
+  physically uncomfortable.
+-->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/ev_background" />
+</layer-list>

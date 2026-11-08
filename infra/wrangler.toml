@@ -1,0 +1,20 @@
+name = "examvault-edge"
+main = "src/index.js"
+compatibility_date = "2026-01-01"
+workers_dev = true
+
+# Everything the app fetches lives in one private bucket. Objects are public only
+# through this worker, so the bucket itself can stay non-public and the cache
+# policy is enforced in exactly one place.
+[[r2_buckets]]
+binding = "EXAMVAULT_BUCKET"
+bucket_name = "examvault-cdn"
+
+[observability]
+enabled = true
+head_sampling_rate = 0.05
+
+# Result day is spiky. These limits keep a single misbehaving client from
+# consuming the free-tier budget for everyone else.
+[limits]
+cpu_ms = 50

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ExamVault holds exam credentials. They must never travel in a cloud backup or
+  a device-to-device transfer, because the Keystore key that decrypts them does
+  not — a restored blob would be permanently unreadable, and worse, would look
+  like data corruption to the user.
+
+  Everything the app owns is therefore excluded from both paths. The user's
+  vault is rebuilt by re-entering cards; the cached feed is re-downloaded.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="sharedpref" path="FlutterSecureStorage.xml" />
+        <exclude domain="sharedpref" path="FlutterSecureKeyStorage.xml" />
+        <exclude domain="file" path="." />
+        <exclude domain="database" path="." />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="sharedpref" path="FlutterSecureStorage.xml" />
+        <exclude domain="sharedpref" path="FlutterSecureKeyStorage.xml" />
+        <exclude domain="file" path="." />
+        <exclude domain="database" path="." />
+    </device-transfer>
+</data-extraction-rules>

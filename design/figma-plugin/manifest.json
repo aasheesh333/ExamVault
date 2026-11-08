@@ -1,0 +1,7 @@
+{
+  "name": "ExamVault — 4 Screen Builder",
+  "id": "examvault-4-screen-builder",
+  "api": "1.0.0",
+  "main": "code.js",
+  "editorType": ["figma"]
+}

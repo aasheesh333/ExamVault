@@ -14,27 +14,27 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 /// Android Auto Backup (see `AndroidManifest.xml`).
 abstract final class AdmitCardCodec {
   static String encode(AdmitCard c) => jsonEncode({
-        'v': 1,
-        'id': c.id,
-        'examId': c.examId,
-        'category': c.category.id,
-        'examName': c.examName,
-        'conductingBody': c.conductingBody,
-        'examCode': c.examCode,
-        'roll': c.rollNumber,
-        'regId': c.registrationId,
-        'dob': c.dobOrPortalPassword,
-        'centerCode': c.centerCode,
-        'centerAddress': c.centerAddress,
-        'gate': c.gate,
-        'reportBy': c.reportBy,
-        'examDate': c.examDate.toIso8601String(),
-        'shift': c.shift,
-        'createdAt': c.createdAt.toIso8601String(),
-        'updatedAt': c.updatedAt.toIso8601String(),
-        'verified': c.rollNumberVerified,
-        'checklist': c.checklist.map((e) => e.id).toList(),
-      });
+    'v': 1,
+    'id': c.id,
+    'examId': c.examId,
+    'category': c.category.id,
+    'examName': c.examName,
+    'conductingBody': c.conductingBody,
+    'examCode': c.examCode,
+    'roll': c.rollNumber,
+    'regId': c.registrationId,
+    'dob': c.dobOrPortalPassword,
+    'centerCode': c.centerCode,
+    'centerAddress': c.centerAddress,
+    'gate': c.gate,
+    'reportBy': c.reportBy,
+    'examDate': c.examDate.toIso8601String(),
+    'shift': c.shift,
+    'createdAt': c.createdAt.toIso8601String(),
+    'updatedAt': c.updatedAt.toIso8601String(),
+    'verified': c.rollNumberVerified,
+    'checklist': c.checklist.map((e) => e.id).toList(),
+  });
 
   /// Returns null for anything that cannot be trusted, so a half-written entry
   /// from a killed process can never crash the vault.
@@ -85,8 +85,8 @@ abstract final class AdmitCardCodec {
         examDate: examDate,
         shift: map['shift'] as String? ?? '',
         createdAt: createdAt,
-        updatedAt: DateTime.tryParse(map['updatedAt'] as String? ?? '') ??
-            createdAt,
+        updatedAt:
+            DateTime.tryParse(map['updatedAt'] as String? ?? '') ?? createdAt,
         rollNumberVerified: map['verified'] == true,
         checklist: checklist,
       );
@@ -104,15 +104,16 @@ abstract final class AdmitCardCodec {
 /// corruption surface instead of two.
 class SecureVaultStore {
   SecureVaultStore({FlutterSecureStorage? storage})
-      : _storage = storage ??
-            const FlutterSecureStorage(
-              // Hardware-backed AES-GCM with RSA-OAEP key wrapping; the default
-              // in v11 and the strongest non-biometric option.
-              aOptions: AndroidOptions(resetOnError: true),
-              iOptions: IOSOptions(
-                accessibility: KeychainAccessibility.first_unlock,
-              ),
-            );
+    : _storage =
+          storage ??
+          const FlutterSecureStorage(
+            // Hardware-backed AES-GCM with RSA-OAEP key wrapping; the default
+            // in v11 and the strongest non-biometric option.
+            aOptions: AndroidOptions(resetOnError: true),
+            iOptions: IOSOptions(
+              accessibility: KeychainAccessibility.first_unlock,
+            ),
+          );
 
   final FlutterSecureStorage _storage;
 
@@ -130,10 +131,8 @@ class SecureVaultStore {
     }
   }
 
-  Future<void> writeIndex(List<String> ids) => _storage.write(
-        key: AppConfig.secureIndexKey,
-        value: jsonEncode(ids),
-      );
+  Future<void> writeIndex(List<String> ids) =>
+      _storage.write(key: AppConfig.secureIndexKey, value: jsonEncode(ids));
 
   Future<String?> readRaw(String id) => _storage.read(key: _key(id));
 

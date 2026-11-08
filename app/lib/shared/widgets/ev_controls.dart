@@ -59,10 +59,7 @@ class EvPrimaryButton extends StatelessWidget {
                     style: context.type.button,
                   ),
                 ),
-                if (trailing != null) ...[
-                  const SizedBox(width: 10),
-                  trailing!,
-                ],
+                if (trailing != null) ...[const SizedBox(width: 10), trailing!],
               ],
             ),
     );
@@ -84,7 +81,11 @@ class EvPrimaryButton extends StatelessWidget {
               gradient: const LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
-                colors: [Color(0xFF4E90F9), Color(0xFF2F74E8), Color(0xFF2563EB)],
+                colors: [
+                  Color(0xFF4E90F9),
+                  Color(0xFF2F74E8),
+                  Color(0xFF2563EB),
+                ],
                 stops: [0, 0.55, 1],
               ),
               boxShadow: active
@@ -311,9 +312,7 @@ class EvChip extends StatelessWidget {
                   : p.surface.withValues(alpha: p.isDark ? 0.55 : 1),
               borderRadius: BorderRadius.circular(EvRadius.pill),
               border: Border.all(
-                color: selected
-                    ? p.accent.withValues(alpha: 0.45)
-                    : p.border,
+                color: selected ? p.accent.withValues(alpha: 0.45) : p.border,
               ),
             ),
             child: Text(

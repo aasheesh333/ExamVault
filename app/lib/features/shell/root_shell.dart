@@ -89,7 +89,11 @@ class EvTabBar extends ConsumerWidget {
             decoration: BoxDecoration(
               color: p.surface.withValues(alpha: p.isDark ? 0.82 : 0.9),
               borderRadius: BorderRadius.circular(19),
-              border: Border.all(color: p.isDark ? p.borderStrong.withValues(alpha: 0.8) : p.border),
+              border: Border.all(
+                color: p.isDark
+                    ? p.borderStrong.withValues(alpha: 0.8)
+                    : p.border,
+              ),
             ),
             child: Row(
               children: [
@@ -98,8 +102,11 @@ class EvTabBar extends ConsumerWidget {
                     child: _TabButton(
                       tab: t,
                       selected: active == t,
-                      badge: t == EvTab.radar && liveCount > 0 ? liveCount : null,
-                      onTap: () => ref.read(tabIndexProvider.notifier).select(t),
+                      badge: t == EvTab.radar && liveCount > 0
+                          ? liveCount
+                          : null,
+                      onTap: () =>
+                          ref.read(tabIndexProvider.notifier).select(t),
                     ),
                   ),
               ],
@@ -138,7 +145,9 @@ class _TabButton extends StatelessWidget {
         child: AnimatedContainer(
           duration: EvMotion.fast,
           decoration: BoxDecoration(
-            color: selected ? p.accent.withValues(alpha: 0.13) : Colors.transparent,
+            color: selected
+                ? p.accent.withValues(alpha: 0.13)
+                : Colors.transparent,
             borderRadius: BorderRadius.circular(EvRadius.button),
           ),
           child: Column(

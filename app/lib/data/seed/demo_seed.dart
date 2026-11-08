@@ -159,7 +159,10 @@ abstract final class MockRollIndex {
     bool withRanks = true,
   }) {
     Uint8List build() {
-      final seed = examId.codeUnits.fold<int>(17, (a, b) => (a * 31 + b) & 0x7fffffff);
+      final seed = examId.codeUnits.fold<int>(
+        17,
+        (a, b) => (a * 31 + b) & 0x7fffffff,
+      );
       final rng = Random(seed);
 
       final rolls = <String>{};
@@ -193,4 +196,3 @@ abstract final class MockRollIndex {
     return kIsWeb ? Future.value(build()) : Isolate.run(build);
   }
 }
-

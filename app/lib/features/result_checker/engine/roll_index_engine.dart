@@ -37,20 +37,20 @@ class RollLookupResult {
   });
 
   const RollLookupResult.invalid(String roll)
-      : state = RollLookupState.invalidInput,
-        rollNumber = roll,
-        totalRolls = 0,
-        elapsedMicros = 0,
-        meritRank = null,
-        errorMessage = 'Enter a roll number with at least 4 characters.';
+    : state = RollLookupState.invalidInput,
+      rollNumber = roll,
+      totalRolls = 0,
+      elapsedMicros = 0,
+      meritRank = null,
+      errorMessage = 'Enter a roll number with at least 4 characters.';
 
   const RollLookupResult.unavailable(String roll, String reason)
-      : state = RollLookupState.indexUnavailable,
-        rollNumber = roll,
-        totalRolls = 0,
-        elapsedMicros = 0,
-        meritRank = null,
-        errorMessage = reason;
+    : state = RollLookupState.indexUnavailable,
+      rollNumber = roll,
+      totalRolls = 0,
+      elapsedMicros = 0,
+      meritRank = null,
+      errorMessage = reason;
 
   final RollLookupState state;
   final String rollNumber;
@@ -93,7 +93,12 @@ class RollIndex {
   /// hash set so correctness never depends on a producer's sort contract.
   final bool sorted;
 
-  static const empty = RollIndex._(rolls: [], ranks: [], total: 0, sorted: true);
+  static const empty = RollIndex._(
+    rolls: [],
+    ranks: [],
+    total: 0,
+    sorted: true,
+  );
 
   bool get isEmpty => total == 0;
 
@@ -141,7 +146,9 @@ class RollIndex {
 
     return RollIndex._(
       rolls: rolls,
-      ranks: hasRank ? ranks : List<int?>.filled(rolls.length, null, growable: false),
+      ranks: hasRank
+          ? ranks
+          : List<int?>.filled(rolls.length, null, growable: false),
       total: rolls.length,
       sorted: sorted,
     );

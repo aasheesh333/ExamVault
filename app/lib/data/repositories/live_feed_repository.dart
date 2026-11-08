@@ -38,13 +38,12 @@ class LiveFeedSnapshot {
     FeedSource? source,
     DateTime? fetchedAt,
     String? error,
-  }) =>
-      LiveFeedSnapshot(
-        feed: feed ?? this.feed,
-        source: source ?? this.source,
-        fetchedAt: fetchedAt ?? this.fetchedAt,
-        error: error ?? this.error,
-      );
+  }) => LiveFeedSnapshot(
+    feed: feed ?? this.feed,
+    source: source ?? this.source,
+    fetchedAt: fetchedAt ?? this.fetchedAt,
+    error: error ?? this.error,
+  );
 }
 
 /// The radar.
@@ -54,11 +53,9 @@ class LiveFeedSnapshot {
 ///   2. CDN (fresh if < 60 s, else conditional GET)
 ///   3. bundled seed                  -> never show an empty screen to a new user
 class LiveFeedRepository {
-  LiveFeedRepository({
-    required CdnClient cdn,
-    required Box<dynamic> cache,
-  })  : _cdn = cdn,
-        _cache = cache;
+  LiveFeedRepository({required CdnClient cdn, required Box<dynamic> cache})
+    : _cdn = cdn,
+      _cache = cache;
 
   final CdnClient _cdn;
   final Box<dynamic> _cache;
@@ -98,9 +95,7 @@ class LiveFeedRepository {
         bypassCache: force,
       );
 
-      final feed = LiveFeedDto.parse(
-        String.fromCharCodes(payload.bytes),
-      );
+      final feed = LiveFeedDto.parse(String.fromCharCodes(payload.bytes));
 
       if (!payload.fromCache) {
         await _cache.put(LiveFeedStore.key, LiveFeedStore.toJson(feed));

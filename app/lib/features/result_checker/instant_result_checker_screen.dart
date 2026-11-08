@@ -29,8 +29,9 @@ class InstantResultCheckerScreen extends ConsumerStatefulWidget {
 
 class _InstantResultCheckerScreenState
     extends ConsumerState<InstantResultCheckerScreen> {
-  late final TextEditingController _roll =
-      TextEditingController(text: _initialRoll());
+  late final TextEditingController _roll = TextEditingController(
+    text: _initialRoll(),
+  );
 
   String _initialRoll() {
     final card = _targetCard(ref.read(admitCardsProvider).value, null);
@@ -98,7 +99,8 @@ class _InstantResultCheckerScreenState
     final update = ref.watch(resultExamIdProvider);
     final card = _targetCard(cards, null);
 
-    final examName = update?.examName ?? card?.examName ?? 'SSC CGL Tier-1 2026';
+    final examName =
+        update?.examName ?? card?.examName ?? 'SSC CGL Tier-1 2026';
     final examId = update?.examId ?? card?.examId ?? 'ssc_cgl_tier1_2026';
 
     return Scaffold(
@@ -110,7 +112,12 @@ class _InstantResultCheckerScreenState
           children: [
             _NavBar(update: update),
             Padding(
-              padding: const EdgeInsets.fromLTRB(EvSpace.gutter, 14, EvSpace.gutter, 0),
+              padding: const EdgeInsets.fromLTRB(
+                EvSpace.gutter,
+                14,
+                EvSpace.gutter,
+                0,
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -129,10 +136,7 @@ class _InstantResultCheckerScreenState
                   const SizedBox(height: 8),
                   _RetryNote(state: state),
                   const SizedBox(height: 14),
-                  _RollField(
-                    controller: _roll,
-                    busy: state.isBusy,
-                  ),
+                  _RollField(controller: _roll, busy: state.isBusy),
                   const SizedBox(height: 10),
                   EvPrimaryButton(
                     label: state.isBusy
@@ -250,12 +254,14 @@ class _NavBar extends StatelessWidget {
                   height: 24,
                   padding: const EdgeInsets.symmetric(horizontal: 9),
                   decoration: BoxDecoration(
-                    color: (isLive ? p.success : p.textTertiary)
-                        .withValues(alpha: 0.12),
+                    color: (isLive ? p.success : p.textTertiary).withValues(
+                      alpha: 0.12,
+                    ),
                     borderRadius: BorderRadius.circular(EvRadius.pill),
                     border: Border.all(
-                      color: (isLive ? p.success : p.textTertiary)
-                          .withValues(alpha: 0.3),
+                      color: (isLive ? p.success : p.textTertiary).withValues(
+                        alpha: 0.3,
+                      ),
                     ),
                   ),
                   child: Row(
@@ -515,11 +521,13 @@ class _RetryNote extends StatelessWidget {
     final label = switch (state.phase) {
       ResultPhase.downloading => 'Downloading the edge index…',
       ResultPhase.searching => 'Searching 12,000+ roll numbers…',
-      ResultPhase.done => state.indexSource == IndexSource.demo
-          ? 'Demo index — the real result is not published yet.'
-          : 'Checked against the published merit list.',
+      ResultPhase.done =>
+        state.indexSource == IndexSource.demo
+            ? 'Demo index — the real result is not published yet.'
+            : 'Checked against the published merit list.',
       ResultPhase.failed => state.error ?? 'Could not check.',
-      ResultPhase.idle => 'Index is 150 KB, not a 60 MB PDF. It fits in one tap.',
+      ResultPhase.idle =>
+        'Index is 150 KB, not a 60 MB PDF. It fits in one tap.',
     };
 
     return Row(
@@ -572,7 +580,9 @@ class _RollField extends StatelessWidget {
                   textCapitalization: TextCapitalization.characters,
                   keyboardType: TextInputType.visiblePassword,
                   inputFormatters: [
-                    FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z0-9\-/]')),
+                    FilteringTextInputFormatter.allow(
+                      RegExp(r'[A-Za-z0-9\-/]'),
+                    ),
                   ],
                   style: context.type.fieldValue.copyWith(fontSize: 15),
                   decoration: InputDecoration(
@@ -695,11 +705,7 @@ class _ErrorCard extends StatelessWidget {
 }
 
 class _RecentChecks extends StatelessWidget {
-  const _RecentChecks({
-    required this.card,
-    this.lastResult,
-    this.indexSource,
-  });
+  const _RecentChecks({required this.card, this.lastResult, this.indexSource});
 
   final AdmitCard? card;
   final RollLookupResult? lastResult;
@@ -751,10 +757,14 @@ class _RecentChecks extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 7),
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: (verified ? p.success : p.textTertiary).withValues(alpha: 0.14),
+                  color: (verified ? p.success : p.textTertiary).withValues(
+                    alpha: 0.14,
+                  ),
                   borderRadius: BorderRadius.circular(EvRadius.badge),
                   border: Border.all(
-                    color: (verified ? p.success : p.textTertiary).withValues(alpha: 0.3),
+                    color: (verified ? p.success : p.textTertiary).withValues(
+                      alpha: 0.3,
+                    ),
                   ),
                 ),
                 child: Text(
@@ -834,8 +844,11 @@ class _SelectedDialog extends StatelessWidget {
                     ),
                   ],
                 ),
-                child: const Icon(Icons.emoji_events_rounded,
-                    color: Colors.white, size: 30),
+                child: const Icon(
+                  Icons.emoji_events_rounded,
+                  color: Colors.white,
+                  size: 30,
+                ),
               ),
               const SizedBox(height: 16),
               Text(

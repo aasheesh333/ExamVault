@@ -38,7 +38,8 @@ class CommandCenterScreen extends ConsumerWidget {
         child: RefreshIndicator(
           color: context.ev.accent,
           backgroundColor: context.ev.surface,
-          onRefresh: () => ref.read(liveFeedProvider.notifier).refresh(force: true),
+          onRefresh: () =>
+              ref.read(liveFeedProvider.notifier).refresh(force: true),
           child: ListView(
             padding: EdgeInsets.zero,
             physics: const AlwaysScrollableScrollPhysics(),
@@ -91,12 +92,7 @@ class _TopBar extends ConsumerWidget {
     final liveCount = ref.watch(liveRadarBadgeProvider);
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        EvSpace.gutter,
-        6,
-        EvSpace.gutter,
-        0,
-      ),
+      padding: const EdgeInsets.fromLTRB(EvSpace.gutter, 6, EvSpace.gutter, 0),
       child: SizedBox(
         height: 34,
         child: Row(
@@ -164,7 +160,11 @@ class _VaultMark extends StatelessWidget {
           ),
         ],
       ),
-      child: Icon(Icons.shield_outlined, size: size * 0.56, color: Colors.white),
+      child: Icon(
+        Icons.shield_outlined,
+        size: size * 0.56,
+        color: Colors.white,
+      ),
     );
   }
 }
@@ -207,11 +207,27 @@ class _Hero extends StatelessWidget {
     final p = context.ev;
     final now = DateTime.now();
     const months = [
-      'JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN',
-      'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC',
+      'JAN',
+      'FEB',
+      'MAR',
+      'APR',
+      'MAY',
+      'JUN',
+      'JUL',
+      'AUG',
+      'SEP',
+      'OCT',
+      'NOV',
+      'DEC',
     ];
     const weekdays = [
-      'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY',
+      'MONDAY',
+      'TUESDAY',
+      'WEDNESDAY',
+      'THURSDAY',
+      'FRIDAY',
+      'SATURDAY',
+      'SUNDAY',
     ];
     final dateLine =
         '${weekdays[now.weekday - 1]} · ${now.day.toString().padLeft(2, '0')} '
@@ -244,7 +260,9 @@ class _Hero extends StatelessWidget {
             TextSpan(
               children: [
                 TextSpan(
-                  text: cardCount == 1 ? '1 exam tracked' : '$cardCount exams tracked',
+                  text: cardCount == 1
+                      ? '1 exam tracked'
+                      : '$cardCount exams tracked',
                   style: context.type.body.copyWith(color: p.textSecondary),
                 ),
                 TextSpan(
@@ -252,7 +270,9 @@ class _Hero extends StatelessWidget {
                   style: context.type.body.copyWith(color: p.textTertiary),
                 ),
                 TextSpan(
-                  text: liveCount == 1 ? '1 live update' : '$liveCount live updates',
+                  text: liveCount == 1
+                      ? '1 live update'
+                      : '$liveCount live updates',
                   style: context.type.body.copyWith(
                     color: liveCount > 0 ? p.successText : p.textTertiary,
                     fontWeight: FontWeight.w600,
@@ -290,7 +310,8 @@ class _CategoryChips extends ConsumerWidget {
               EvChip(
                 label: 'All Exams',
                 selected: active == null,
-                onTap: () => ref.read(categoryFilterProvider.notifier).select(null),
+                onTap: () =>
+                    ref.read(categoryFilterProvider.notifier).select(null),
               ),
               for (final c in ExamCategory.values) ...[
                 const SizedBox(width: 7),
@@ -377,11 +398,17 @@ class _EmptyVault extends ConsumerWidget {
                 color: p.accent.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(EvRadius.tile),
               ),
-              child: Icon(Icons.add_card_rounded, color: p.accentText, size: 22),
+              child: Icon(
+                Icons.add_card_rounded,
+                color: p.accentText,
+                size: 22,
+              ),
             ),
             const SizedBox(height: 12),
             Text(
-              hasAnyCard ? 'No cards in this category' : 'Add your first admit card',
+              hasAnyCard
+                  ? 'No cards in this category'
+                  : 'Add your first admit card',
               textAlign: TextAlign.center,
               style: context.type.sectionTitle.copyWith(fontSize: 13),
             ),

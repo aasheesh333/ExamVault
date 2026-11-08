@@ -20,10 +20,10 @@ class EvStatusPill extends StatelessWidget {
   });
 
   EvStatusPill.status(UpdateStatus status, {super.key, this.compact = false})
-      : label = status.label,
-        color = status.pillColor,
-        textColor = null,
-        dot = true;
+    : label = status.label,
+      color = status.pillColor,
+      textColor = null,
+      dot = true;
 
   final String label;
   final Color color;
@@ -86,12 +86,12 @@ extension UpdateStatusColors on UpdateStatus {
   Color get pillColor => accentOf(this);
 
   static Color accentOf(UpdateStatus status) => switch (status) {
-        UpdateStatus.resultOut => const Color(0xFF10B981),
-        UpdateStatus.admitCardLive => const Color(0xFFF59E0B),
-        UpdateStatus.formClosing => const Color(0xFFEF4444),
-        UpdateStatus.answerKey => const Color(0xFF3B82F6),
-        UpdateStatus.awaited => const Color(0xFF8695AB),
-      };
+    UpdateStatus.resultOut => const Color(0xFF10B981),
+    UpdateStatus.admitCardLive => const Color(0xFFF59E0B),
+    UpdateStatus.formClosing => const Color(0xFFEF4444),
+    UpdateStatus.answerKey => const Color(0xFF3B82F6),
+    UpdateStatus.awaited => const Color(0xFF8695AB),
+  };
 }
 
 extension UpdateStatusText on UpdateStatus {
@@ -108,10 +108,10 @@ extension UpdateStatusText on UpdateStatus {
   }
 
   IconData get icon => switch (this) {
-        UpdateStatus.resultOut => Icons.picture_as_pdf_rounded,
-        UpdateStatus.admitCardLive => Icons.access_time_rounded,
-        UpdateStatus.formClosing => Icons.timer_outlined,
-        UpdateStatus.answerKey => Icons.key_rounded,
-        UpdateStatus.awaited => Icons.hourglass_empty_rounded,
-      };
+    UpdateStatus.resultOut => Icons.picture_as_pdf_rounded,
+    UpdateStatus.admitCardLive => Icons.access_time_rounded,
+    UpdateStatus.formClosing => Icons.timer_outlined,
+    UpdateStatus.answerKey => Icons.key_rounded,
+    UpdateStatus.awaited => Icons.hourglass_empty_rounded,
+  };
 }

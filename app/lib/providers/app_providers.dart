@@ -109,8 +109,8 @@ class AdmitCardsNotifier extends AsyncNotifier<List<AdmitCard>> {
 
 final admitCardsProvider =
     AsyncNotifierProvider<AdmitCardsNotifier, List<AdmitCard>>(
-  AdmitCardsNotifier.new,
-);
+      AdmitCardsNotifier.new,
+    );
 
 /// The card whose pass sits on top of the stack.
 final primaryCardProvider = Provider<AdmitCard?>((ref) {
@@ -138,8 +138,8 @@ class CategoryFilterNotifier extends Notifier<ExamCategory?> {
 
 final categoryFilterProvider =
     NotifierProvider<CategoryFilterNotifier, ExamCategory?>(
-  CategoryFilterNotifier.new,
-);
+      CategoryFilterNotifier.new,
+    );
 
 /// Vault cards after the active category filter.
 final filteredCardsProvider = Provider<List<AdmitCard>>((ref) {
@@ -192,8 +192,8 @@ class LiveFeedNotifier extends AsyncNotifier<LiveFeedSnapshot> {
 
 final liveFeedProvider =
     AsyncNotifierProvider<LiveFeedNotifier, LiveFeedSnapshot>(
-  LiveFeedNotifier.new,
-);
+      LiveFeedNotifier.new,
+    );
 
 /// Radar rows after the active category filter.
 final filteredUpdatesProvider = Provider<List<LiveUpdate>>((ref) {
@@ -202,7 +202,9 @@ final filteredUpdatesProvider = Provider<List<LiveUpdate>>((ref) {
 
   final filter = ref.watch(categoryFilterProvider);
   if (filter == null) return feed.updates;
-  return feed.updates.where((u) => u.category == filter).toList(growable: false);
+  return feed.updates
+      .where((u) => u.category == filter)
+      .toList(growable: false);
 });
 
 /// ---------------------------------------------------------------------------
@@ -219,11 +221,11 @@ class ResultCheckState {
   });
 
   const ResultCheckState.idle()
-      : phase = ResultPhase.idle,
-        result = null,
-        indexSource = null,
-        warmIndex = null,
-        error = null;
+    : phase = ResultPhase.idle,
+      result = null,
+      indexSource = null,
+      warmIndex = null,
+      error = null;
 
   final ResultPhase phase;
   final RollLookupResult? result;
@@ -247,9 +249,7 @@ class ResultCheckerNotifier extends Notifier<ResultCheckState> {
     required String examId,
     required String rollNumber,
   }) async {
-    state = const ResultCheckState(
-      phase: ResultPhase.downloading,
-    );
+    state = const ResultCheckState(phase: ResultPhase.downloading);
 
     try {
       final repo = ref.read(resultIndexRepositoryProvider);
@@ -282,7 +282,8 @@ class ResultCheckerNotifier extends Notifier<ResultCheckState> {
       AppLogger.e('checker', 'lookup failed', e, st);
       state = const ResultCheckState(
         phase: ResultPhase.failed,
-        error: 'Could not reach the result index. Check your connection and '
+        error:
+            'Could not reach the result index. Check your connection and '
             'tap again — nothing was lost.',
       );
       return null;
@@ -294,8 +295,8 @@ class ResultCheckerNotifier extends Notifier<ResultCheckState> {
 
 final resultCheckerProvider =
     NotifierProvider<ResultCheckerNotifier, ResultCheckState>(
-  ResultCheckerNotifier.new,
-);
+      ResultCheckerNotifier.new,
+    );
 
 /// ---------------------------------------------------------------------------
 /// Navigation state shared between screens
@@ -310,7 +311,9 @@ class SelectedCardIdNotifier extends Notifier<String?> {
 }
 
 final selectedCardIdProvider =
-    NotifierProvider<SelectedCardIdNotifier, String?>(SelectedCardIdNotifier.new);
+    NotifierProvider<SelectedCardIdNotifier, String?>(
+      SelectedCardIdNotifier.new,
+    );
 
 /// The exam whose result the checker should open.
 ///
@@ -323,8 +326,9 @@ class ResultExamNotifier extends Notifier<LiveUpdate?> {
   void select(LiveUpdate? update) => state = update;
 }
 
-final resultExamIdProvider =
-    NotifierProvider<ResultExamNotifier, LiveUpdate?>(ResultExamNotifier.new);
+final resultExamIdProvider = NotifierProvider<ResultExamNotifier, LiveUpdate?>(
+  ResultExamNotifier.new,
+);
 
 /// Number shown on the radar tab badge.
 final liveRadarBadgeProvider = Provider<int>((ref) {

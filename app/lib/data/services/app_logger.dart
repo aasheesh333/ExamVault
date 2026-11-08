@@ -16,7 +16,12 @@ abstract final class AppLogger {
     if (kDebugMode) developer.log(message, name: 'EV/$scope', level: 900);
   }
 
-  static void e(String scope, String message, [Object? error, StackTrace? stack]) {
+  static void e(
+    String scope,
+    String message, [
+    Object? error,
+    StackTrace? stack,
+  ]) {
     developer.log(
       message,
       name: 'EV/$scope',

@@ -41,20 +41,25 @@ class _VaultFormSheetState extends ConsumerState<_VaultFormSheet> {
   final _formKey = GlobalKey<FormState>();
 
   late final _examName = TextEditingController(text: widget.existing?.examName);
-  late final _body = TextEditingController(text: widget.existing?.conductingBody);
+  late final _body = TextEditingController(
+    text: widget.existing?.conductingBody,
+  );
   late final _examCode = TextEditingController(text: widget.existing?.examCode);
   late final _roll = TextEditingController(text: widget.existing?.rollNumber);
-  late final _regId =
-      TextEditingController(text: widget.existing?.registrationId);
-  late final _secret =
-      TextEditingController(text: widget.existing?.dobOrPortalPassword);
-  late final _centreCode =
-      TextEditingController(text: widget.existing?.centerCode);
-  late final _centreAddress =
-      TextEditingController(text: widget.existing?.centerAddress);
+  late final _regId = TextEditingController(
+    text: widget.existing?.registrationId,
+  );
+  late final _secret = TextEditingController(
+    text: widget.existing?.dobOrPortalPassword,
+  );
+  late final _centreCode = TextEditingController(
+    text: widget.existing?.centerCode,
+  );
+  late final _centreAddress = TextEditingController(
+    text: widget.existing?.centerAddress,
+  );
 
-  late ExamCategory _category =
-      widget.existing?.category ?? ExamCategory.ssc;
+  late ExamCategory _category = widget.existing?.category ?? ExamCategory.ssc;
   late DateTime _examDate =
       widget.existing?.examDate ?? DateTime.now().add(const Duration(days: 14));
 
@@ -90,10 +95,15 @@ class _VaultFormSheetState extends ConsumerState<_VaultFormSheet> {
     final base = widget.existing;
 
     final card = AdmitCard(
-      id: base?.id ??
+      id:
+          base?.id ??
           '${_category.id}_${now.millisecondsSinceEpoch.toRadixString(36)}',
-      examId: base?.examId ??
-          _examName.text.trim().toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '_'),
+      examId:
+          base?.examId ??
+          _examName.text.trim().toLowerCase().replaceAll(
+            RegExp(r'[^a-z0-9]+'),
+            '_',
+          ),
       category: _category,
       examName: _examName.text.trim(),
       conductingBody: _body.text.trim(),
@@ -167,7 +177,9 @@ class _VaultFormSheetState extends ConsumerState<_VaultFormSheet> {
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 28),
               children: [
                 Text(
-                  widget.existing == null ? 'Add admit card' : 'Edit admit card',
+                  widget.existing == null
+                      ? 'Add admit card'
+                      : 'Edit admit card',
                   style: context.type.sectionTitle.copyWith(fontSize: 17),
                 ),
                 const SizedBox(height: 4),
@@ -339,8 +351,10 @@ class _Field extends StatelessWidget {
             decoration: InputDecoration(
               hintText: hint,
               suffixIcon: suffix,
-              suffixIconConstraints:
-                  const BoxConstraints(minWidth: 44, minHeight: 44),
+              suffixIconConstraints: const BoxConstraints(
+                minWidth: 44,
+                minHeight: 44,
+              ),
             ),
           ),
         ],
@@ -359,8 +373,18 @@ class _DateField extends StatelessWidget {
   Widget build(BuildContext context) {
     final p = context.ev;
     const months = [
-      'JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN',
-      'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC',
+      'JAN',
+      'FEB',
+      'MAR',
+      'APR',
+      'MAY',
+      'JUN',
+      'JUL',
+      'AUG',
+      'SEP',
+      'OCT',
+      'NOV',
+      'DEC',
     ];
 
     return Padding(
@@ -392,8 +416,11 @@ class _DateField extends StatelessWidget {
                       style: context.type.fieldValue,
                     ),
                   ),
-                  Icon(Icons.calendar_today_rounded,
-                      size: 16, color: p.textTertiary),
+                  Icon(
+                    Icons.calendar_today_rounded,
+                    size: 16,
+                    color: p.textTertiary,
+                  ),
                 ],
               ),
             ),

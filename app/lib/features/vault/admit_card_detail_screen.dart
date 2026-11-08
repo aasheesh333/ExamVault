@@ -30,9 +30,7 @@ class AdmitCardDetailScreen extends ConsumerWidget {
       return Scaffold(
         backgroundColor: context.ev.bg,
         body: SafeArea(
-          child: _EmptyState(
-            onAdd: () => showVaultFormSheet(context, ref),
-          ),
+          child: _EmptyState(onAdd: () => showVaultFormSheet(context, ref)),
         ),
       );
     }
@@ -75,8 +73,9 @@ class _PassPager extends ConsumerWidget {
               child: PageView.builder(
                 controller: controller,
                 itemCount: cards.length,
-                onPageChanged: (i) =>
-                    ref.read(selectedCardIdProvider.notifier).select(cards[i].id),
+                onPageChanged: (i) => ref
+                    .read(selectedCardIdProvider.notifier)
+                    .select(cards[i].id),
                 itemBuilder: (context, i) => _PassPage(card: cards[i]),
               ),
             ),
@@ -152,7 +151,8 @@ class _DetailNavBar extends StatelessWidget {
                     AnimatedBuilder(
                       animation: controller,
                       builder: (context, _) {
-                        final page = controller.hasClients &&
+                        final page =
+                            controller.hasClients &&
                                 controller.position.haveDimensions
                             ? controller.page ?? 0
                             : 0;
@@ -259,7 +259,10 @@ class _BoardingPass extends ConsumerWidget {
               top: 1,
               left: EvRadius.pass,
               right: EvRadius.pass,
-              child: Container(height: 1, color: Colors.white.withValues(alpha: 0.15)),
+              child: Container(
+                height: 1,
+                color: Colors.white.withValues(alpha: 0.15),
+              ),
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(18, 17, 18, 14),
@@ -277,7 +280,7 @@ class _BoardingPass extends ConsumerWidget {
                               card.examCode.isEmpty
                                   ? card.category.label.toUpperCase()
                                   : '${card.category.label} · ${card.examCode}'
-                                      .toUpperCase(),
+                                        .toUpperCase(),
                               style: context.type.statusPill.copyWith(
                                 color: p.accentText,
                                 fontSize: 9,
@@ -306,7 +309,9 @@ class _BoardingPass extends ConsumerWidget {
                         decoration: BoxDecoration(
                           color: p.success.withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(EvRadius.badge),
-                          border: Border.all(color: p.success.withValues(alpha: 0.34)),
+                          border: Border.all(
+                            color: p.success.withValues(alpha: 0.34),
+                          ),
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
@@ -335,7 +340,9 @@ class _BoardingPass extends ConsumerWidget {
                   const SizedBox(height: 16),
                   Text(
                     'ROLL NUMBER',
-                    style: context.type.microLabel.copyWith(color: p.onWalletFaint),
+                    style: context.type.microLabel.copyWith(
+                      color: p.onWalletFaint,
+                    ),
                   ),
                   const SizedBox(height: 4),
                   Row(
@@ -344,14 +351,14 @@ class _BoardingPass extends ConsumerWidget {
                         child: FittedBox(
                           fit: BoxFit.scaleDown,
                           alignment: Alignment.centerLeft,
-                          child: Text(card.rollNumber, style: context.type.rollHero),
+                          child: Text(
+                            card.rollNumber,
+                            style: context.type.rollHero,
+                          ),
                         ),
                       ),
                       const SizedBox(width: 10),
-                      _SquareCopy(
-                        value: card.rollNumber,
-                        label: 'Roll number',
-                      ),
+                      _SquareCopy(value: card.rollNumber, label: 'Roll number'),
                     ],
                   ),
                   const SizedBox(height: 16),
@@ -394,22 +401,22 @@ class _FieldGrid extends StatelessWidget {
       (
         label: 'REGISTRATION ID',
         value: card.registrationId,
-        copyLabel: 'Registration ID'
+        copyLabel: 'Registration ID',
       ),
       (
         label: 'DOB / PORTAL PASSWORD',
         value: card.dobOrPortalPassword,
-        copyLabel: 'Password'
+        copyLabel: 'Password',
       ),
       (
         label: 'EXAM CENTRE CODE',
         value: card.centerCode,
-        copyLabel: 'Centre code'
+        copyLabel: 'Centre code',
       ),
       (
         label: 'EXAM DATE',
         value: _formatDate(card.examDate),
-        copyLabel: 'Exam date'
+        copyLabel: 'Exam date',
       ),
     ];
 
@@ -454,10 +461,10 @@ class _CopyField extends StatelessWidget {
       child: InkWell(
         onTap: hasValue
             ? () => ClipboardService.copy(
-                  context,
-                  value: field.value,
-                  label: field.copyLabel,
-                )
+                context,
+                value: field.value,
+                label: field.copyLabel,
+              )
             : null,
         borderRadius: BorderRadius.circular(6),
         child: Padding(
@@ -492,11 +499,7 @@ class _CopyField extends StatelessWidget {
                   ),
                   if (hasValue) ...[
                     const SizedBox(width: 6),
-                    Icon(
-                      Icons.copy_rounded,
-                      size: 12,
-                      color: p.onWalletFaint,
-                    ),
+                    Icon(Icons.copy_rounded, size: 12, color: p.onWalletFaint),
                   ],
                 ],
               ),
@@ -553,14 +556,8 @@ class _Perforation extends StatelessWidget {
         alignment: Alignment.center,
         children: [
           Positioned.fill(child: CustomPaint(painter: _DashPainter())),
-          Positioned(
-            left: -26,
-            child: _Notch(color: pageColor),
-          ),
-          Positioned(
-            right: -26,
-            child: _Notch(color: pageColor),
-          ),
+          Positioned(left: -26, child: _Notch(color: pageColor)),
+          Positioned(right: -26, child: _Notch(color: pageColor)),
         ],
       ),
     );
@@ -623,7 +620,8 @@ class _Barcode extends StatelessWidget {
 class _BarcodePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()..color = const Color(0xFFDDE3EC).withValues(alpha: 0.5);
+    final paint = Paint()
+      ..color = const Color(0xFFDDE3EC).withValues(alpha: 0.5);
     // Deterministic pattern derived from width so it looks like a real CODE128.
     var x = 0.0;
     var i = 0;
@@ -670,8 +668,8 @@ class _CountdownCard extends StatelessWidget {
                   days < 0
                       ? 'Exam completed'
                       : card.reportBy.isEmpty
-                          ? 'Report on time'
-                          : 'Report by ${card.reportBy}',
+                      ? 'Report on time'
+                      : 'Report by ${card.reportBy}',
                   style: context.type.bodyMuted.copyWith(fontSize: 10.5),
                 ),
               ],
@@ -689,7 +687,11 @@ class _CountdownCard extends StatelessWidget {
               ),
             ),
             child: Text(
-              days < 0 ? 'PAST' : days == 0 ? 'TODAY' : 'IN $days DAYS',
+              days < 0
+                  ? 'PAST'
+                  : days == 0
+                  ? 'TODAY'
+                  : 'IN $days DAYS',
               style: context.type.statusPill.copyWith(
                 color: urgent ? p.dangerText : p.accentText,
                 fontSize: 11,
@@ -720,12 +722,17 @@ class _DocumentChecklist extends ConsumerWidget {
           Row(
             children: [
               Expanded(
-                child: Text('DOCUMENT CHECKLIST', style: context.type.microLabel),
+                child: Text(
+                  'DOCUMENT CHECKLIST',
+                  style: context.type.microLabel,
+                ),
               ),
               Text(
                 '$done / ${ChecklistItem.values.length} READY',
                 style: context.type.statusPill.copyWith(
-                  color: done == ChecklistItem.values.length ? p.successText : p.textTertiary,
+                  color: done == ChecklistItem.values.length
+                      ? p.successText
+                      : p.textTertiary,
                   fontSize: 8.5,
                 ),
               ),
@@ -776,10 +783,14 @@ class _CheckRow extends StatelessWidget {
                 width: 24,
                 height: 24,
                 decoration: BoxDecoration(
-                  color: checked ? p.success.withValues(alpha: 0.15) : Colors.transparent,
+                  color: checked
+                      ? p.success.withValues(alpha: 0.15)
+                      : Colors.transparent,
                   borderRadius: BorderRadius.circular(7),
                   border: Border.all(
-                    color: checked ? p.success.withValues(alpha: 0.5) : p.borderStrong,
+                    color: checked
+                        ? p.success.withValues(alpha: 0.5)
+                        : p.borderStrong,
                     width: 1.2,
                   ),
                 ),
@@ -801,7 +812,10 @@ class _CheckRow extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 1),
-                    Text(item.subtitle, style: context.type.bodyMuted.copyWith(fontSize: 9.5)),
+                    Text(
+                      item.subtitle,
+                      style: context.type.bodyMuted.copyWith(fontSize: 9.5),
+                    ),
                   ],
                 ),
               ),
@@ -837,7 +851,9 @@ class _CenterCard extends StatelessWidget {
     return EvCard(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 13),
       onTap: () async {
-        final uri = Uri.parse('https://www.google.com/maps/search/?api=1&query=$query');
+        final uri = Uri.parse(
+          'https://www.google.com/maps/search/?api=1&query=$query',
+        );
         if (await canLaunchUrl(uri)) {
           await launchUrl(uri, mode: LaunchMode.externalApplication);
         }
@@ -861,8 +877,7 @@ class _CenterCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'EXAM CENTRE · ${card.centerCode}'
-                      .toUpperCase(),
+                  'EXAM CENTRE · ${card.centerCode}'.toUpperCase(),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: context.type.microLabel.copyWith(fontSize: 8),
@@ -879,7 +894,8 @@ class _CenterCard extends StatelessWidget {
                   Text(
                     [
                       if (card.gate.isNotEmpty) card.gate,
-                      if (card.reportBy.isNotEmpty) 'report by ${card.reportBy}',
+                      if (card.reportBy.isNotEmpty)
+                        'report by ${card.reportBy}',
                     ].join(' · '),
                     style: context.type.bodyMuted.copyWith(fontSize: 9.5),
                   ),

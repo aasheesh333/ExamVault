@@ -21,10 +21,10 @@ enum IndexSource {
   bool get isReal => this != IndexSource.demo;
 
   String get label => switch (this) {
-        IndexSource.edge => 'Edge CDN',
-        IndexSource.cache => 'Cached index',
-        IndexSource.demo => 'Demo index',
-      };
+    IndexSource.edge => 'Edge CDN',
+    IndexSource.cache => 'Cached index',
+    IndexSource.demo => 'Demo index',
+  };
 }
 
 class IndexBundle {
@@ -39,7 +39,6 @@ class IndexBundle {
   final IndexSource source;
   final DateTime fetchedAt;
   final String? etag;
-
 }
 
 /// Downloads roll-number indexes.
@@ -119,7 +118,8 @@ class ResultIndexRepository {
     return payload.bytes;
   }
 
-  String pdfUrl(String examId) => '${AppConfig.cdnBase}${AppConfig.resultPdfPath(examId)}';
+  String pdfUrl(String examId) =>
+      '${AppConfig.cdnBase}${AppConfig.resultPdfPath(examId)}';
 
   String shareUrl(String examId) => '${AppConfig.webBase}/r/$examId';
 

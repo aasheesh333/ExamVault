@@ -35,7 +35,8 @@ abstract final class AppConfig {
 
   /// gzip-compressed, lexicographically sorted JSON array of roll numbers.
   /// ~150 KB on the wire for a 1M-row result set.
-  static String rollIndexPath(String examId) => '/v1/rolls/${examId}_rolls.json.gz';
+  static String rollIndexPath(String examId) =>
+      '/v1/rolls/${examId}_rolls.json.gz';
 
   /// Human-facing official PDF (mirrored, so the source site never gets hit).
   static String resultPdfPath(String examId) => '/v1/pdf/${examId}_result.pdf';
@@ -83,11 +84,15 @@ abstract final class AppConfig {
   /// without shipping a `google-services.json`.
   static const firebaseApiKey = String.fromEnvironment('EV_FIREBASE_API_KEY');
   static const firebaseAppId = String.fromEnvironment('EV_FIREBASE_APP_ID');
-  static const firebaseMessagingSenderId =
-      String.fromEnvironment('EV_FIREBASE_SENDER_ID');
-  static const firebaseProjectId = String.fromEnvironment('EV_FIREBASE_PROJECT_ID');
-  static const firebaseStorageBucket =
-      String.fromEnvironment('EV_FIREBASE_STORAGE_BUCKET');
+  static const firebaseMessagingSenderId = String.fromEnvironment(
+    'EV_FIREBASE_SENDER_ID',
+  );
+  static const firebaseProjectId = String.fromEnvironment(
+    'EV_FIREBASE_PROJECT_ID',
+  );
+  static const firebaseStorageBucket = String.fromEnvironment(
+    'EV_FIREBASE_STORAGE_BUCKET',
+  );
 
   static bool get pushConfigured =>
       firebaseApiKey.isNotEmpty &&

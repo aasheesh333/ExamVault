@@ -28,7 +28,8 @@ class CdnPayload {
   /// `max-age` echoed by the origin, when present.
   final Duration? maxAge;
 
-  Duration age([DateTime? now]) => (now ?? DateTime.now()).difference(fetchedAt);
+  Duration age([DateTime? now]) =>
+      (now ?? DateTime.now()).difference(fetchedAt);
 
   bool isFresh(Duration window, [DateTime? now]) => age(now) <= window;
 }
@@ -64,9 +65,9 @@ class CdnClient {
     http.Client? client,
     Random? random,
     this.baseUrl = AppConfig.cdnBase,
-  })  : _cache = cache,
-        _http = client ?? http.Client(),
-        _random = random ?? Random.secure();
+  }) : _cache = cache,
+       _http = client ?? http.Client(),
+       _random = random ?? Random.secure();
 
   final Box<dynamic> _cache;
   final http.Client _http;
@@ -147,7 +148,10 @@ class CdnClient {
 
     // Network exhausted: a 72-hour-old feed beats an error screen on result day.
     if (cached != null) {
-      AppLogger.w('cdn', 'serving stale cache for $url (${lastError?.message})');
+      AppLogger.w(
+        'cdn',
+        'serving stale cache for $url (${lastError?.message})',
+      );
       return CdnPayload(
         bytes: cached.bytes,
         fetchedAt: cached.fetchedAt,
@@ -177,12 +181,18 @@ class CdnClient {
       final request = http.Request('GET', Uri.parse(url))
         ..headers.addAll(headers);
 
-      final streamed =
-          await _http.send(request).timeout(AppConfig.connectTimeout);
+      final streamed = await _http
+          .send(request)
+          .timeout(AppConfig.connectTimeout);
 
       if (streamed.statusCode == 304 && cached != null) {
-        _writeCache(url, cached.bytes, DateTime.now(), cached.etag,
-            cached.contentType);
+        _writeCache(
+          url,
+          cached.bytes,
+          DateTime.now(),
+          cached.etag,
+          cached.contentType,
+        );
         return CdnPayload(
           bytes: cached.bytes,
           fetchedAt: DateTime.now(),
@@ -224,8 +234,9 @@ class CdnClient {
       }
 
       final builder = BytesBuilder(copy: false);
-      await for (final chunk
-          in streamed.stream.timeout(AppConfig.receiveTimeout)) {
+      await for (final chunk in streamed.stream.timeout(
+        AppConfig.receiveTimeout,
+      )) {
         builder.add(chunk);
         if (builder.length > AppConfig.maxDownloadBytes) {
           throw const CdnException(
@@ -295,14 +306,16 @@ class CdnClient {
   ) {
     // Fire-and-forget: a cache write must never block the UI or throw.
     unawaited(
-      _cache.put(url, {
-        _kBytes: bytes,
-        _kAt: at.millisecondsSinceEpoch,
-        _kEtag: etag,
-        _kType: type,
-      }).catchError((Object e) {
-        AppLogger.w('cdn', 'cache write failed: $e');
-      }),
+      _cache
+          .put(url, {
+            _kBytes: bytes,
+            _kAt: at.millisecondsSinceEpoch,
+            _kEtag: etag,
+            _kType: type,
+          })
+          .catchError((Object e) {
+            AppLogger.w('cdn', 'cache write failed: $e');
+          }),
     );
   }
 

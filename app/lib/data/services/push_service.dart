@@ -37,9 +37,9 @@ class PushService {
     FirebaseOptions? firebaseOptions,
     bool? fcmEnabled,
     String? oneSignalAppId,
-  })  : _firebaseOptions = firebaseOptions,
-        fcmEnabled = fcmEnabled ?? AppConfig.pushConfigured,
-        oneSignalAppId = oneSignalAppId ?? AppConfig.oneSignalAppId;
+  }) : _firebaseOptions = firebaseOptions,
+       fcmEnabled = fcmEnabled ?? AppConfig.pushConfigured,
+       oneSignalAppId = oneSignalAppId ?? AppConfig.oneSignalAppId;
 
   final FirebaseOptions? _firebaseOptions;
 
@@ -143,7 +143,8 @@ class PushService {
     // boolean value is the cleanest mapping — it also survives the user adding a
     // category later without needing a segment rebuild in the dashboard.
     final tags = <String, dynamic>{
-      for (final c in ExamCategory.values) 'exam_${c.id}': categories.contains(c),
+      for (final c in ExamCategory.values)
+        'exam_${c.id}': categories.contains(c),
     };
     await OneSignal.User.addTags(tags);
   }

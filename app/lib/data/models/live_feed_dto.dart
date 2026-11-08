@@ -83,23 +83,22 @@ abstract final class LiveFeedStore {
   static const key = 'feed';
 
   static Map<String, dynamic> toJson(LiveFeed feed) => {
-        'generated_at': feed.generatedAt?.toIso8601String(),
-        'revision': feed.revision,
-        'updates': [
-          for (final u in feed.updates)
-            {
-              'exam_id': u.examId,
-              'category': u.category.id,
-              'exam_name': u.examName,
-              'context': u.contextLine,
-              'status': u.status.id,
-              'published_at': u.publishedAt.toIso8601String(),
-              if (u.pdfSizeLabel != null) 'pdf_size': u.pdfSizeLabel,
-              if (u.mirrorLatencyMs != null)
-                'mirror_latency_ms': u.mirrorLatencyMs,
-            },
-        ],
-      };
+    'generated_at': feed.generatedAt?.toIso8601String(),
+    'revision': feed.revision,
+    'updates': [
+      for (final u in feed.updates)
+        {
+          'exam_id': u.examId,
+          'category': u.category.id,
+          'exam_name': u.examName,
+          'context': u.contextLine,
+          'status': u.status.id,
+          'published_at': u.publishedAt.toIso8601String(),
+          if (u.pdfSizeLabel != null) 'pdf_size': u.pdfSizeLabel,
+          if (u.mirrorLatencyMs != null) 'mirror_latency_ms': u.mirrorLatencyMs,
+        },
+    ],
+  };
 
   static LiveFeed? fromDynamic(Object? raw) {
     if (raw == null) return null;

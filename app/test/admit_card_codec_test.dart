@@ -4,29 +4,26 @@ import 'package:examvault/domain/entities/exam_category.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 AdmitCard _card() => AdmitCard(
-      id: 'ssc_cgl_tier1_2026',
-      examId: 'ssc_cgl_tier1_2026',
-      category: ExamCategory.ssc,
-      examName: 'SSC CGL Tier-1 2026',
-      conductingBody: 'Staff Selection Commission',
-      examCode: 'CGL · TIER-1',
-      rollNumber: '2201049821',
-      registrationId: 'SSC-CGL-26-884213',
-      dobOrPortalPassword: '14/03/1999',
-      centerCode: 'DL-04-1187',
-      centerAddress: 'Sector 12, Dwarka, New Delhi',
-      gate: 'Gate 3',
-      reportBy: '08:15 AM',
-      examDate: DateTime(2026, 11, 20),
-      shift: '09:00 AM – 10:00 AM',
-      createdAt: DateTime(2026, 11, 1, 9, 30),
-      updatedAt: DateTime(2026, 11, 2, 10, 15),
-      rollNumberVerified: true,
-      checklist: const {
-        ChecklistItem.admitCardPdf,
-        ChecklistItem.originalId,
-      },
-    );
+  id: 'ssc_cgl_tier1_2026',
+  examId: 'ssc_cgl_tier1_2026',
+  category: ExamCategory.ssc,
+  examName: 'SSC CGL Tier-1 2026',
+  conductingBody: 'Staff Selection Commission',
+  examCode: 'CGL · TIER-1',
+  rollNumber: '2201049821',
+  registrationId: 'SSC-CGL-26-884213',
+  dobOrPortalPassword: '14/03/1999',
+  centerCode: 'DL-04-1187',
+  centerAddress: 'Sector 12, Dwarka, New Delhi',
+  gate: 'Gate 3',
+  reportBy: '08:15 AM',
+  examDate: DateTime(2026, 11, 20),
+  shift: '09:00 AM – 10:00 AM',
+  createdAt: DateTime(2026, 11, 1, 9, 30),
+  updatedAt: DateTime(2026, 11, 2, 10, 15),
+  rollNumberVerified: true,
+  checklist: const {ChecklistItem.admitCardPdf, ChecklistItem.originalId},
+);
 
 void main() {
   group('AdmitCardCodec', () {
@@ -65,16 +62,18 @@ void main() {
     });
 
     test('rejects unknown categories', () {
-      final raw = AdmitCardCodec.encode(_card())
-          .replaceFirst('"category":"ssc"', '"category":"alien_exam"');
+      final raw = AdmitCardCodec.encode(
+        _card(),
+      ).replaceFirst('"category":"ssc"', '"category":"alien_exam"');
 
       expect(AdmitCardCodec.decode(raw), isNull);
     });
 
     test('ignores unknown checklist ids but keeps the known ones', () {
-      final raw = AdmitCardCodec.encode(_card())
-          .replaceFirst('["admitCardPdf","originalId"]',
-              '["admitCardPdf","somethingNew"]');
+      final raw = AdmitCardCodec.encode(_card()).replaceFirst(
+        '["admitCardPdf","originalId"]',
+        '["admitCardPdf","somethingNew"]',
+      );
 
       final decoded = AdmitCardCodec.decode(raw);
       expect(decoded, isNotNull);
@@ -82,8 +81,9 @@ void main() {
     });
 
     test('defaults a missing updatedAt to createdAt', () {
-      final raw = AdmitCardCodec.encode(_card())
-          .replaceFirst(RegExp(r',"updatedAt":"[^"]*"'), '');
+      final raw = AdmitCardCodec.encode(
+        _card(),
+      ).replaceFirst(RegExp(r',"updatedAt":"[^"]*"'), '');
 
       final decoded = AdmitCardCodec.decode(raw);
       expect(decoded, isNotNull);
@@ -118,7 +118,9 @@ void main() {
     test('is complete only when all three items are ticked', () {
       expect(_card().checklistComplete, isFalse);
       expect(
-        _card().copyWith(checklist: ChecklistItem.values.toSet()).checklistComplete,
+        _card()
+            .copyWith(checklist: ChecklistItem.values.toSet())
+            .checklistComplete,
         isTrue,
       );
     });

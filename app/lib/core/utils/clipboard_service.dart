@@ -31,7 +31,11 @@ abstract final class ClipboardService {
     _toast(context, '$label copied');
   }
 
-  static void _toast(BuildContext context, String message, {bool isError = false}) {
+  static void _toast(
+    BuildContext context,
+    String message, {
+    bool isError = false,
+  }) {
     final p = context.ev;
     final messenger = ScaffoldMessenger.of(context);
 
@@ -41,18 +45,20 @@ abstract final class ClipboardService {
         SnackBar(
           duration: EvMotion.toast,
           behavior: SnackBarBehavior.floating,
-          backgroundColor: isError ? p.danger : (context.isDark ? p.surfaceElevated : const Color(0xFF0F172A)),
+          backgroundColor: isError
+              ? p.danger
+              : (context.isDark ? p.surfaceElevated : const Color(0xFF0F172A)),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(EvRadius.button),
-            side: BorderSide(
-              color: isError ? p.danger : p.borderStrong,
-            ),
+            side: BorderSide(color: isError ? p.danger : p.borderStrong),
           ),
           margin: const EdgeInsets.fromLTRB(16, 0, 16, 20),
           content: Row(
             children: [
               Icon(
-                isError ? Icons.error_outline_rounded : Icons.check_circle_rounded,
+                isError
+                    ? Icons.error_outline_rounded
+                    : Icons.check_circle_rounded,
                 size: 16,
                 color: isError ? Colors.white : p.success,
               ),

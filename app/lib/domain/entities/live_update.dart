@@ -63,11 +63,7 @@ class LiveFeed {
     required this.revision,
   });
 
-  static const empty = LiveFeed(
-    generatedAt: null,
-    updates: [],
-    revision: 0,
-  );
+  static const empty = LiveFeed(generatedAt: null, updates: [], revision: 0);
 
   /// Null when the server has never been reached and nothing is cached.
   final DateTime? generatedAt;
@@ -83,9 +79,11 @@ class LiveFeed {
   /// This is deliberately *derived*, so the copy can never drift from the list
   /// the way a hardcoded "1 live update" did in the design.
   int get liveCount => updates
-      .where((u) =>
-          u.status == UpdateStatus.resultOut ||
-          u.status == UpdateStatus.admitCardLive ||
-          u.status == UpdateStatus.formClosing)
+      .where(
+        (u) =>
+            u.status == UpdateStatus.resultOut ||
+            u.status == UpdateStatus.admitCardLive ||
+            u.status == UpdateStatus.formClosing,
+      )
       .length;
 }

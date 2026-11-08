@@ -16,12 +16,16 @@ void main() {
     test('finds every present element exactly where List.indexOf does', () {
       final rng = Random(7);
       final values = <String>{
-        for (var i = 0; i < 2000; i++) (1000000000 + rng.nextInt(900000000)).toString(),
-      }.toList()
-        ..sort();
+        for (var i = 0; i < 2000; i++)
+          (1000000000 + rng.nextInt(900000000)).toString(),
+      }.toList()..sort();
 
       for (var i = 0; i < values.length; i++) {
-        expect(binarySearch(values, values[i]), i, reason: 'value ${values[i]}');
+        expect(
+          binarySearch(values, values[i]),
+          i,
+          reason: 'value ${values[i]}',
+        );
       }
     });
 
@@ -74,10 +78,12 @@ void main() {
     });
 
     test('decodes objects carrying merit ranks', () {
-      final index = RollIndex.decode(_gzipJson([
-        {'r': '1001', 'rank': 1},
-        {'r': '1002', 'rank': 2},
-      ]));
+      final index = RollIndex.decode(
+        _gzipJson([
+          {'r': '1001', 'rank': 1},
+          {'r': '1002', 'rank': 2},
+        ]),
+      );
       expect(index.total, 2);
       expect(index.rankAt(index.indexOf('1002')), 2);
       expect(index.rankAt(index.indexOf('1001')), 1);
@@ -94,12 +100,14 @@ void main() {
     });
 
     test('skips malformed rows instead of throwing', () {
-      final index = RollIndex.decode(_gzipJson([
-        '1001',
-        {'nope': true},
-        42,
-        '1002',
-      ]));
+      final index = RollIndex.decode(
+        _gzipJson([
+          '1001',
+          {'nope': true},
+          42,
+          '1002',
+        ]),
+      );
       expect(index.total, 2);
       expect(index.sorted, isTrue);
     });
@@ -112,7 +120,9 @@ void main() {
     });
 
     test('reads transport-encoded bytes without double-decompressing', () {
-      final plain = Uint8List.fromList(utf8.encode(jsonEncode(['7001', '7002'])));
+      final plain = Uint8List.fromList(
+        utf8.encode(jsonEncode(['7001', '7002'])),
+      );
       final index = RollIndex.decode(plain, transportEncoded: true);
       expect(index.indexOf('7002'), 1);
     });
@@ -171,32 +181,40 @@ void main() {
       expect(result.state, RollLookupState.indexUnavailable);
     });
 
-    test('leaves the UI isolate free: 250k rows decode + search off-thread',
-        () async {
-      final rows = <String>[
-        for (var i = 0; i < 250000; i++) (1000000000 + i).toString(),
-      ];
-      final bytes = _gzipJson(rows);
+    test(
+      'leaves the UI isolate free: 250k rows decode + search off-thread',
+      () async {
+        final rows = <String>[
+          for (var i = 0; i < 250000; i++) (1000000000 + i).toString(),
+        ];
+        final bytes = _gzipJson(rows);
 
-      final watch = Stopwatch()..start();
-      final result = await RollIndexEngine.searchCompressed(
-        compressed: bytes,
-        rollNumber: '1000200000',
-      );
-      watch.stop();
+        final watch = Stopwatch()..start();
+        final result = await RollIndexEngine.searchCompressed(
+          compressed: bytes,
+          rollNumber: '1000200000',
+        );
+        watch.stop();
 
-      expect(result.state, RollLookupState.found);
-      expect(result.totalRolls, 250000);
-      // Generous ceiling: this is a correctness smoke test, not a benchmark.
-      expect(watch.elapsed, lessThan(const Duration(seconds: 20)));
-    });
+        expect(result.state, RollLookupState.found);
+        expect(result.totalRolls, 250000);
+        // Generous ceiling: this is a correctness smoke test, not a benchmark.
+        expect(watch.elapsed, lessThan(const Duration(seconds: 20)));
+      },
+    );
   });
 
   group('RollIndexEngine.searchDecoded', () {
     test('reuses a warm index for repeat lookups', () {
       final index = RollIndex.decode(_gzipJson(['5005', '6006']));
-      final hit = RollIndexEngine.searchDecoded(index: index, rollNumber: '6006');
-      final miss = RollIndexEngine.searchDecoded(index: index, rollNumber: '7007');
+      final hit = RollIndexEngine.searchDecoded(
+        index: index,
+        rollNumber: '6006',
+      );
+      final miss = RollIndexEngine.searchDecoded(
+        index: index,
+        rollNumber: '7007',
+      );
 
       expect(hit.isFound, isTrue);
       expect(miss.state, RollLookupState.notFound);

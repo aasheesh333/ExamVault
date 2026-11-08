@@ -44,7 +44,9 @@ class LiveRadarTile extends StatelessWidget {
           ),
           decoration: BoxDecoration(
             border: Border(
-              top: isFirst ? BorderSide.none : BorderSide(color: context.hairline),
+              top: isFirst
+                  ? BorderSide.none
+                  : BorderSide(color: context.hairline),
             ),
           ),
           child: Row(
@@ -70,7 +72,9 @@ class LiveRadarTile extends StatelessWidget {
                             update.contextLine,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: context.type.bodyMuted.copyWith(fontSize: 10),
+                            style: context.type.bodyMuted.copyWith(
+                              fontSize: 10,
+                            ),
                           ),
                         ),
                         if (update.mirrorLatencyMs != null) ...[
@@ -87,10 +91,7 @@ class LiveRadarTile extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  EvStatusPill.status(
-                    update.status,
-                    compact: true,
-                  ),
+                  EvStatusPill.status(update.status, compact: true),
                   const SizedBox(height: 5),
                   Text(
                     update.relativeAge(),

@@ -115,11 +115,7 @@ class WalletPassCard extends StatelessWidget {
                   padding: const EdgeInsets.fromLTRB(16, 15, 16, 14),
                   child: compact
                       ? _CompactBody(card: card, days: days)
-                      : _FullBody(
-                          card: card,
-                          days: days,
-                          onCopied: onCopied,
-                        ),
+                      : _FullBody(card: card, days: days, onCopied: onCopied),
                 ),
               ],
             ),
@@ -251,7 +247,11 @@ class _FullBody extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 10),
-                _CopyPill(onCopied: onCopied, value: card.rollNumber, examName: card.examName),
+                _CopyPill(
+                  onCopied: onCopied,
+                  value: card.rollNumber,
+                  examName: card.examName,
+                ),
               ],
             ),
           ),
@@ -302,8 +302,18 @@ class _FullBody extends StatelessWidget {
 
   static String _examDateLine(AdmitCard card) {
     const months = [
-      'JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN',
-      'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC',
+      'JAN',
+      'FEB',
+      'MAR',
+      'APR',
+      'MAY',
+      'JUN',
+      'JUL',
+      'AUG',
+      'SEP',
+      'OCT',
+      'NOV',
+      'DEC',
     ];
     final d = card.examDate;
     final day = d.day.toString().padLeft(2, '0');
@@ -336,7 +346,11 @@ class _CopyPill extends StatelessWidget {
         // The pill is 32px tall; the gesture area is padded to 48 for thumbs.
         behavior: HitTestBehavior.opaque,
         onTap: () async {
-          await ClipboardService.copy(context, value: value, label: 'Roll number');
+          await ClipboardService.copy(
+            context,
+            value: value,
+            label: 'Roll number',
+          );
           onCopied?.call();
         },
         child: Container(

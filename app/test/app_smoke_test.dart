@@ -13,31 +13,35 @@ import 'package:http/testing.dart';
 
 /// A feed document shaped exactly like the edge object.
 String _feedJson() => jsonEncode({
-      'generated_at': DateTime.now().toUtc().toIso8601String(),
-      'revision': 7,
-      'updates': [
-        {
-          'exam_id': 'ssc_cgl_tier1_2026',
-          'category': 'ssc',
-          'exam_name': 'SSC CGL Tier-1 2026',
-          'context': 'Direct PDF · 18.4 MB',
-          'status': 'result_out',
-          'published_at':
-              DateTime.now().subtract(const Duration(minutes: 2)).toUtc().toIso8601String(),
-          'pdf_size': '18.4 MB',
-          'mirror_latency_ms': 82,
-        },
-        {
-          'exam_id': 'ibps_po_prelims_2026',
-          'category': 'banking',
-          'exam_name': 'IBPS PO Prelims 2026',
-          'context': '4 mirrors live · no queue',
-          'status': 'admit_card_live',
-          'published_at':
-              DateTime.now().subtract(const Duration(minutes: 18)).toUtc().toIso8601String(),
-        },
-      ],
-    });
+  'generated_at': DateTime.now().toUtc().toIso8601String(),
+  'revision': 7,
+  'updates': [
+    {
+      'exam_id': 'ssc_cgl_tier1_2026',
+      'category': 'ssc',
+      'exam_name': 'SSC CGL Tier-1 2026',
+      'context': 'Direct PDF · 18.4 MB',
+      'status': 'result_out',
+      'published_at': DateTime.now()
+          .subtract(const Duration(minutes: 2))
+          .toUtc()
+          .toIso8601String(),
+      'pdf_size': '18.4 MB',
+      'mirror_latency_ms': 82,
+    },
+    {
+      'exam_id': 'ibps_po_prelims_2026',
+      'category': 'banking',
+      'exam_name': 'IBPS PO Prelims 2026',
+      'context': '4 mirrors live · no queue',
+      'status': 'admit_card_live',
+      'published_at': DateTime.now()
+          .subtract(const Duration(minutes: 18))
+          .toUtc()
+          .toIso8601String(),
+    },
+  ],
+});
 
 void main() {
   late Directory dir;
@@ -99,8 +103,9 @@ void main() {
     await tester.pump(const Duration(milliseconds: 400));
   }
 
-  testWidgets('boots to the Command Center without a layout overflow',
-      (tester) async {
+  testWidgets('boots to the Command Center without a layout overflow', (
+    tester,
+  ) async {
     await pumpPhone(tester, app());
 
     expect(find.text('Command Center'), findsOneWidget);
@@ -161,6 +166,10 @@ void main() {
         tooSmall.add('${t.data} (${size}px)');
       }
     }
-    expect(tooSmall, isEmpty, reason: 'sub-8px text is unreadable at arm length');
+    expect(
+      tooSmall,
+      isEmpty,
+      reason: 'sub-8px text is unreadable at arm length',
+    );
   });
 }

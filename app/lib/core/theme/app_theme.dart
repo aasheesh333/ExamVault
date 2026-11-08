@@ -32,11 +32,13 @@ extension EvThemeX on BuildContext {
   bool get isDark => ev.isDark;
 
   /// A 1px hairline that stays visible on both surface colours.
-  Color get hairline =>
-      isDark ? Colors.white.withValues(alpha: 0.06) : const Color(0xFF0F172A).withValues(alpha: 0.07);
+  Color get hairline => isDark
+      ? Colors.white.withValues(alpha: 0.06)
+      : const Color(0xFF0F172A).withValues(alpha: 0.07);
 
-  Color get scrim =>
-      isDark ? Colors.black.withValues(alpha: 0.62) : const Color(0xFF0F172A).withValues(alpha: 0.34);
+  Color get scrim => isDark
+      ? Colors.black.withValues(alpha: 0.62)
+      : const Color(0xFF0F172A).withValues(alpha: 0.34);
 }
 
 abstract final class AppTheme {
@@ -88,8 +90,12 @@ abstract final class AppTheme {
         scrolledUnderElevation: 0,
         centerTitle: true,
         systemOverlayStyle: p.isDark
-            ? SystemUiOverlayStyle.light.copyWith(statusBarColor: Colors.transparent)
-            : SystemUiOverlayStyle.dark.copyWith(statusBarColor: Colors.transparent),
+            ? SystemUiOverlayStyle.light.copyWith(
+                statusBarColor: Colors.transparent,
+              )
+            : SystemUiOverlayStyle.dark.copyWith(
+                statusBarColor: Colors.transparent,
+              ),
         titleTextStyle: EvTextStyles(p).navTitle,
         iconTheme: IconThemeData(color: p.textPrimary, size: 20),
       ),
@@ -135,12 +141,15 @@ abstract final class AppTheme {
         filled: true,
         fillColor: p.surfaceSunken,
         hintStyle: EvTextStyles(p).microLabel.copyWith(
-              letterSpacing: 0,
-              fontSize: 11,
-              color: p.textTertiary.withValues(alpha: 0.75),
-            ),
+          letterSpacing: 0,
+          fontSize: 11,
+          color: p.textTertiary.withValues(alpha: 0.75),
+        ),
         labelStyle: EvTextStyles(p).label,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 16,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(EvRadius.button),
           borderSide: BorderSide(color: p.borderStrong, width: 1),

@@ -39,9 +39,10 @@ class _WhatsappShareCardScreenState
   }
 
   ShareCardData _buildCard(LiveUpdate? update, AdmitCard? card) {
-    final examName = update?.examName ?? card?.examName ?? 'SSC CGL Tier-1 2026';
-    final isResult = (update?.status ?? UpdateStatus.resultOut) ==
-        UpdateStatus.resultOut;
+    final examName =
+        update?.examName ?? card?.examName ?? 'SSC CGL Tier-1 2026';
+    final isResult =
+        (update?.status ?? UpdateStatus.resultOut) == UpdateStatus.resultOut;
 
     return ShareCardData(
       examName: examName,
@@ -52,7 +53,8 @@ class _WhatsappShareCardScreenState
       dateLine: _shortDate(DateTime.now()),
       rollNumber: card?.rollNumber ?? '—',
       selected: card?.rollNumberVerified ?? false,
-      shareUrl: 'https://examvault.in/r/${update?.examId ?? card?.examId ?? 'ssc'}',
+      shareUrl:
+          'https://examvault.in/r/${update?.examId ?? card?.examId ?? 'ssc'}',
       // Real cut-offs are published per exam; the seed does not invent them.
       cutoffs: null,
       pdfSizeLabel: update?.pdfSizeLabel,
@@ -61,8 +63,18 @@ class _WhatsappShareCardScreenState
 
   static String _shortDate(DateTime d) {
     const months = [
-      'JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN',
-      'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC',
+      'JAN',
+      'FEB',
+      'MAR',
+      'APR',
+      'MAY',
+      'JUN',
+      'JUL',
+      'AUG',
+      'SEP',
+      'OCT',
+      'NOV',
+      'DEC',
     ];
     return '${d.day.toString().padLeft(2, '0')} '
         '${months[d.month - 1]} ${d.year}';
@@ -131,7 +143,12 @@ class _WhatsappShareCardScreenState
           children: [
             _ShareNavBar(),
             Padding(
-              padding: const EdgeInsets.fromLTRB(EvSpace.gutter, 8, EvSpace.gutter, 0),
+              padding: const EdgeInsets.fromLTRB(
+                EvSpace.gutter,
+                8,
+                EvSpace.gutter,
+                0,
+              ),
               child: Column(
                 children: [
                   // The captured widget. Everything inside is theme-independent
@@ -303,9 +320,7 @@ class _Target extends StatelessWidget {
                   color: highlight ? color.withValues(alpha: 0.12) : p.surface,
                   borderRadius: BorderRadius.circular(EvRadius.inner),
                   border: Border.all(
-                    color: highlight
-                        ? color.withValues(alpha: 0.34)
-                        : p.border,
+                    color: highlight ? color.withValues(alpha: 0.34) : p.border,
                   ),
                 ),
                 child: Icon(icon, size: 22, color: color),
@@ -357,7 +372,10 @@ class _CaptionEditorState extends State<_CaptionEditor> {
                 onTap: () => setState(() => _editing = !_editing),
                 behavior: HitTestBehavior.opaque,
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 4,
+                    vertical: 2,
+                  ),
                   child: Text(
                     _editing ? 'DONE' : 'EDIT',
                     style: context.type.statusPill.copyWith(
@@ -383,7 +401,10 @@ class _CaptionEditorState extends State<_CaptionEditor> {
               ),
               decoration: const InputDecoration(
                 isDense: true,
-                contentPadding: EdgeInsets.symmetric(vertical: 8, horizontal: 10),
+                contentPadding: EdgeInsets.symmetric(
+                  vertical: 8,
+                  horizontal: 10,
+                ),
               ),
             )
           else

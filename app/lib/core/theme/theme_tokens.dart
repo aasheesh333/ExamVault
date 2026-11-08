@@ -227,7 +227,11 @@ abstract final class EvFont {
   static const mono = 'IBM Plex Mono';
 
   static const fallbackUi = <String>['Roboto', 'Helvetica', 'Arial'];
-  static const fallbackMono = <String>['Roboto Mono', 'Courier New', 'monospace'];
+  static const fallbackMono = <String>[
+    'Roboto Mono',
+    'Courier New',
+    'monospace',
+  ];
 }
 
 /// Semantic text styles. Use these, never a raw TextStyle in a widget.
@@ -238,165 +242,165 @@ class EvTextStyles {
   final EvPalette p;
 
   TextStyle get hero => TextStyle(
-        fontFamily: EvFont.ui,
-        fontFamilyFallback: EvFont.fallbackUi,
-        fontSize: 26.5,
-        height: 1.13,
-        fontWeight: FontWeight.w700,
-        letterSpacing: -0.2,
-        color: p.textPrimary,
-      );
+    fontFamily: EvFont.ui,
+    fontFamilyFallback: EvFont.fallbackUi,
+    fontSize: 26.5,
+    height: 1.13,
+    fontWeight: FontWeight.w700,
+    letterSpacing: -0.2,
+    color: p.textPrimary,
+  );
 
   TextStyle get screenTitle => TextStyle(
-        fontFamily: EvFont.ui,
-        fontFamilyFallback: EvFont.fallbackUi,
-        fontSize: 23,
-        height: 1.2,
-        fontWeight: FontWeight.w700,
-        letterSpacing: -0.2,
-        color: p.textPrimary,
-      );
+    fontFamily: EvFont.ui,
+    fontFamilyFallback: EvFont.fallbackUi,
+    fontSize: 23,
+    height: 1.2,
+    fontWeight: FontWeight.w700,
+    letterSpacing: -0.2,
+    color: p.textPrimary,
+  );
 
   TextStyle get navTitle => TextStyle(
-        fontFamily: EvFont.ui,
-        fontFamilyFallback: EvFont.fallbackUi,
-        fontSize: 13.5,
-        height: 1.25,
-        fontWeight: FontWeight.w600,
-        color: p.textPrimary,
-      );
+    fontFamily: EvFont.ui,
+    fontFamilyFallback: EvFont.fallbackUi,
+    fontSize: 13.5,
+    height: 1.25,
+    fontWeight: FontWeight.w600,
+    color: p.textPrimary,
+  );
 
   TextStyle get cardTitle => TextStyle(
-        fontFamily: EvFont.ui,
-        fontFamilyFallback: EvFont.fallbackUi,
-        fontSize: 17,
-        height: 1.24,
-        fontWeight: FontWeight.w700,
-        color: p.textPrimary,
-      );
+    fontFamily: EvFont.ui,
+    fontFamilyFallback: EvFont.fallbackUi,
+    fontSize: 17,
+    height: 1.24,
+    fontWeight: FontWeight.w700,
+    color: p.textPrimary,
+  );
 
   TextStyle get sectionTitle => TextStyle(
-        fontFamily: EvFont.ui,
-        fontFamilyFallback: EvFont.fallbackUi,
-        fontSize: 14,
-        height: 1.28,
-        fontWeight: FontWeight.w700,
-        color: p.textPrimary,
-      );
+    fontFamily: EvFont.ui,
+    fontFamilyFallback: EvFont.fallbackUi,
+    fontSize: 14,
+    height: 1.28,
+    fontWeight: FontWeight.w700,
+    color: p.textPrimary,
+  );
 
   TextStyle get tileTitle => TextStyle(
-        fontFamily: EvFont.ui,
-        fontFamilyFallback: EvFont.fallbackUi,
-        fontSize: 12,
-        height: 1.3,
-        fontWeight: FontWeight.w600,
-        color: p.textPrimary,
-      );
+    fontFamily: EvFont.ui,
+    fontFamilyFallback: EvFont.fallbackUi,
+    fontSize: 12,
+    height: 1.3,
+    fontWeight: FontWeight.w600,
+    color: p.textPrimary,
+  );
 
   TextStyle get body => TextStyle(
-        fontFamily: EvFont.ui,
-        fontFamilyFallback: EvFont.fallbackUi,
-        fontSize: 12,
-        height: 1.45,
-        fontWeight: FontWeight.w500,
-        color: p.textSecondary,
-      );
+    fontFamily: EvFont.ui,
+    fontFamilyFallback: EvFont.fallbackUi,
+    fontSize: 12,
+    height: 1.45,
+    fontWeight: FontWeight.w500,
+    color: p.textSecondary,
+  );
 
   TextStyle get bodyMuted => TextStyle(
-        fontFamily: EvFont.ui,
-        fontFamilyFallback: EvFont.fallbackUi,
-        fontSize: 11,
-        height: 1.4,
-        fontWeight: FontWeight.w500,
-        color: p.textTertiary,
-      );
+    fontFamily: EvFont.ui,
+    fontFamilyFallback: EvFont.fallbackUi,
+    fontSize: 11,
+    height: 1.4,
+    fontWeight: FontWeight.w500,
+    color: p.textTertiary,
+  );
 
   TextStyle get label => TextStyle(
-        fontFamily: EvFont.ui,
-        fontFamilyFallback: EvFont.fallbackUi,
-        fontSize: 11,
-        height: 1.3,
-        fontWeight: FontWeight.w600,
-        color: p.textSecondary,
-      );
+    fontFamily: EvFont.ui,
+    fontFamilyFallback: EvFont.fallbackUi,
+    fontSize: 11,
+    height: 1.3,
+    fontWeight: FontWeight.w600,
+    color: p.textSecondary,
+  );
 
   TextStyle get button => TextStyle(
-        fontFamily: EvFont.ui,
-        fontFamilyFallback: EvFont.fallbackUi,
-        fontSize: 13,
-        height: 1.2,
-        fontWeight: FontWeight.w700,
-        letterSpacing: -0.1,
-        color: Colors.white,
-      );
+    fontFamily: EvFont.ui,
+    fontFamilyFallback: EvFont.fallbackUi,
+    fontSize: 13,
+    height: 1.2,
+    fontWeight: FontWeight.w700,
+    letterSpacing: -0.1,
+    color: Colors.white,
+  );
 
   // -- monospace: identifiers, dates, counters ------------------------------
 
   TextStyle get rollHero => TextStyle(
-        fontFamily: EvFont.mono,
-        fontFamilyFallback: EvFont.fallbackMono,
-        fontSize: 31,
-        height: 1.1,
-        fontWeight: FontWeight.w500,
-        letterSpacing: 1.6,
-        color: p.onWallet,
-        fontFeatures: const [FontFeature.tabularFigures()],
-      );
+    fontFamily: EvFont.mono,
+    fontFamilyFallback: EvFont.fallbackMono,
+    fontSize: 31,
+    height: 1.1,
+    fontWeight: FontWeight.w500,
+    letterSpacing: 1.6,
+    color: p.onWallet,
+    fontFeatures: const [FontFeature.tabularFigures()],
+  );
 
   TextStyle get rollCard => TextStyle(
-        fontFamily: EvFont.mono,
-        fontFamilyFallback: EvFont.fallbackMono,
-        fontSize: 23,
-        height: 1.12,
-        fontWeight: FontWeight.w500,
-        letterSpacing: 1.2,
-        color: p.onWallet,
-        fontFeatures: const [FontFeature.tabularFigures()],
-      );
+    fontFamily: EvFont.mono,
+    fontFamilyFallback: EvFont.fallbackMono,
+    fontSize: 23,
+    height: 1.12,
+    fontWeight: FontWeight.w500,
+    letterSpacing: 1.2,
+    color: p.onWallet,
+    fontFeatures: const [FontFeature.tabularFigures()],
+  );
 
   TextStyle get fieldValue => TextStyle(
-        fontFamily: EvFont.mono,
-        fontFamilyFallback: EvFont.fallbackMono,
-        fontSize: 12,
-        height: 1.3,
-        fontWeight: FontWeight.w500,
-        letterSpacing: 0.2,
-        color: p.textPrimary,
-        fontFeatures: const [FontFeature.tabularFigures()],
-      );
+    fontFamily: EvFont.mono,
+    fontFamilyFallback: EvFont.fallbackMono,
+    fontSize: 12,
+    height: 1.3,
+    fontWeight: FontWeight.w500,
+    letterSpacing: 0.2,
+    color: p.textPrimary,
+    fontFeatures: const [FontFeature.tabularFigures()],
+  );
 
   /// Uppercase micro label. Always render with `TextStyle` + uppercase text —
   /// never `textTransform`, which Flutter does not have.
   TextStyle get microLabel => TextStyle(
-        fontFamily: EvFont.mono,
-        fontFamilyFallback: EvFont.fallbackMono,
-        fontSize: 9,
-        height: 1.3,
-        fontWeight: FontWeight.w500,
-        letterSpacing: 1.25,
-        color: p.textTertiary,
-      );
+    fontFamily: EvFont.mono,
+    fontFamilyFallback: EvFont.fallbackMono,
+    fontSize: 9,
+    height: 1.3,
+    fontWeight: FontWeight.w500,
+    letterSpacing: 1.25,
+    color: p.textTertiary,
+  );
 
   TextStyle get monoMeta => TextStyle(
-        fontFamily: EvFont.mono,
-        fontFamilyFallback: EvFont.fallbackMono,
-        fontSize: 10,
-        height: 1.3,
-        fontWeight: FontWeight.w400,
-        letterSpacing: 0.55,
-        color: p.textSecondary,
-        fontFeatures: const [FontFeature.tabularFigures()],
-      );
+    fontFamily: EvFont.mono,
+    fontFamilyFallback: EvFont.fallbackMono,
+    fontSize: 10,
+    height: 1.3,
+    fontWeight: FontWeight.w400,
+    letterSpacing: 0.55,
+    color: p.textSecondary,
+    fontFeatures: const [FontFeature.tabularFigures()],
+  );
 
   TextStyle get statusPill => TextStyle(
-        fontFamily: EvFont.mono,
-        fontFamilyFallback: EvFont.fallbackMono,
-        fontSize: 8.5,
-        height: 1.2,
-        fontWeight: FontWeight.w600,
-        letterSpacing: 0.6,
-        fontFeatures: const [FontFeature.tabularFigures()],
-      );
+    fontFamily: EvFont.mono,
+    fontFamilyFallback: EvFont.fallbackMono,
+    fontSize: 8.5,
+    height: 1.2,
+    fontWeight: FontWeight.w600,
+    letterSpacing: 0.6,
+    fontFeatures: const [FontFeature.tabularFigures()],
+  );
 
   /// Text that sits on the navy wallet pass.
   TextStyle onWallet(TextStyle base) =>

@@ -13,7 +13,7 @@ import '../services/app_logger.dart';
 ///  * broadcast changes so Riverpod can rebuild exactly once.
 class AdmitCardRepository {
   AdmitCardRepository({SecureVaultStore? store})
-      : _store = store ?? SecureVaultStore();
+    : _store = store ?? SecureVaultStore();
 
   final SecureVaultStore _store;
   final _changes = StreamController<List<AdmitCard>>.broadcast();
@@ -121,8 +121,10 @@ class AdmitCardRepository {
       final at = _cache.indexWhere((c) => c.id == id);
       if (at < 0 || _cache[at].rollNumberVerified) return _cache[at];
 
-      final updated =
-          _cache[at].copyWith(rollNumberVerified: true, updatedAt: DateTime.now());
+      final updated = _cache[at].copyWith(
+        rollNumberVerified: true,
+        updatedAt: DateTime.now(),
+      );
       await _store.writeRaw(id, AdmitCardCodec.encode(updated));
 
       final list = [..._cache];

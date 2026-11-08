@@ -156,8 +156,11 @@ class _AlertStrip extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Icon(Icons.notifications_active_rounded,
-              size: 13, color: Colors.white),
+          const Icon(
+            Icons.notifications_active_rounded,
+            size: 13,
+            color: Colors.white,
+          ),
           const SizedBox(width: 8),
           const Expanded(
             child: Text(
@@ -209,7 +212,11 @@ class _BrandRow extends StatelessWidget {
               colors: [Color(0xFF60A5FA), Color(0xFF2563EB)],
             ),
           ),
-          child: const Icon(Icons.shield_outlined, size: 10, color: Colors.white),
+          child: const Icon(
+            Icons.shield_outlined,
+            size: 10,
+            color: Colors.white,
+          ),
         ),
         const SizedBox(width: 6),
         const Text(
@@ -462,7 +469,11 @@ class _CtaBar extends StatelessWidget {
               ),
             ),
           ),
-          const Icon(Icons.arrow_forward_rounded, size: 16, color: Colors.white),
+          const Icon(
+            Icons.arrow_forward_rounded,
+            size: 16,
+            color: Colors.white,
+          ),
         ],
       ),
     );

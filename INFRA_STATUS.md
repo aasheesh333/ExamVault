@@ -1,70 +1,54 @@
 # Provisioning status
 
-Verified 2026-11-08. Read this before assuming any credential exists.
+Verified 2026-11-08, after a manual MFA bootstrap of the Google account.
 
 | Service | State | Evidence |
 |---|---|---|
-| **Cloudflare R2** | ✅ Live | bucket `examvault-cdn` created in account `7fb570ac…114d5` |
+| **Cloudflare R2** | ✅ Live | bucket `examvault-cdn` |
 | **Cloudflare Worker** | ✅ Live | `https://examvault-edge.aasheeshkatheriya.workers.dev` |
-| **Edge cache + 304** | ✅ Verified | `curl` shows `x-examvault-cache: HIT` and `304` on `If-None-Match` |
-| **Roll index object** | ✅ Published | `v1/rolls/ssc_cgl_tier1_2026_rolls.json.gz`, 19 782 rolls, 106 KB gzip |
-| **Live feed object** | ✅ Published | `v1/live_feed_v1.json`, 4 updates |
-| **Firebase project** | ❌ Blocked | Firebase console enforces account-level MFA; this Google account has 2SV off. Console redirects every route to `/mfa`. |
-| **OneSignal app** | ❌ Blocked | `dashboard.onesignal.com` returns HTTP 403 for this datacenter IP (country/IP blocklist). Not bypassable from a VPS. |
+| **Edge cache + 304** | ✅ Verified | `x-examvault-cache: HIT`, `304` on `If-None-Match` |
+| **Roll index** | ✅ Published | `v1/rolls/ssc_cgl_tier1_2026_rolls.json.gz` — 19 782 rolls, 106 KB gzip |
+| **Live feed** | ✅ Published | `v1/live_feed_v1.json` — 4 updates |
+| **Firebase project** | ✅ Created | **ExamVault** · `examvault-49b1a` · number `722361800293` |
+| **Firebase Android app** | ✅ Registered | package `app.examvault` · app id `1:722361800293:android:1dab5ec2d3df41437e588c` |
+| **Firebase secrets** | ✅ Set | 7 repo secrets (see `.github/SECRETS.md`) |
+| **OneSignal** | ❌ Blocked | signup **and** login both return "Something went wrong"; Google OAuth returns HTTP 403 (datacenter IP blocklist). Not a code issue. |
 
-Both blockers are **account/IP gatekeeping, not code**. The app already supports
-either backend and needs only an ID.
+## Verified end-to-end
 
----
+Built the app for web with the real Firebase + Cloudflare values, served it, and
+drove it through the browser:
 
-## Finish Firebase (≈3 minutes, needs your phone)
+- radar shows **LIVE · EDGE**, 4 updates, `82ms` mirror latency
+- conditional GET confirmed: repeated `live_feed_v1.json` calls return **304**
+- result checker fetched `…_rolls.json.gz` from the edge (**200**)
+- lookup of a present roll → **"SELECTED IN MERIT LIST", merit rank 5000, 40.1 ms**
+- lookup of an absent roll → honest *"not in this list yet"* with the row count
+- Firebase Messaging initialised (`flutterfire-firebase_messaging` in console)
 
-1. Open <https://myaccount.google.com/signinoptions/two-step-verification> and
-   enable 2-Step Verification (Firebase requires it).
-2. Then <https://console.firebase.google.com> → **Add project** → name it
-   `ExamVault`.
-3. Project settings → **Your apps** → Add Android app, package
-   `app.examvault`.
-4. Copy the five values into GitHub secrets:
+Two real bugs were found and fixed at this stage — see commit `0eb47ab`.
 
-```sh
-gh secret set EV_FIREBASE_API_KEY      --repo aasheesh333/ExamVault
-gh secret set EV_FIREBASE_APP_ID       --repo aasheesh333/ExamVault
-gh secret set EV_FIREBASE_SENDER_ID    --repo aasheesh333/ExamVault
-gh secret set EV_FIREBASE_PROJECT_ID   --repo aasheesh333/ExamVault
-gh secret set EV_FIREBASE_STORAGE_BUCKET --repo aasheesh333/ExamVault
-```
+## Fixing OneSignal
 
-No `google-services.json` is needed — the app reads these at runtime.
+The dashboard blocks this datacenter IP. Do it from a normal connection:
 
-## Finish OneSignal (≈2 minutes, needs a normal connection)
-
-1. Open <https://dashboard.onesignal.com/signup> from a residential/mobile
-   connection (the dashboard blocks this VPS IP).
-2. New app → name `ExamVault` → platform **Android** →
-   Firebase project (or "Not a Firebase project" to skip).
-3. Settings → **Keys & IDs** → copy the OneSignal App ID:
+1. <https://dashboard.onesignal.com/signup> → new app named **ExamVault**
+2. Platform **Android**, package `app.examvault`
+3. Settings → **Keys & IDs** → copy the **OneSignal App ID**
 
 ```sh
 gh secret set EV_ONESIGNAL_APP_ID --repo aasheesh333/ExamVault
 ```
 
-The app prefers OneSignal when `EV_ONESIGNAL_APP_ID` is present and falls back to
-FCM topics otherwise; with neither, push silently disables and everything else
-works.
+The app already prefers OneSignal when `EV_ONESIGNAL_APP_ID` is present
+(`PushService` selects the provider and maps categories to OneSignal tags), and
+falls back to FCM topics otherwise.
 
-## Add the Cloudflare deploy token
+## Adding Android to FCM (optional)
 
-Wrangler here used an interactive OAuth token (`~/.wrangler/config/default.toml`),
-which is **not** committed and must not be. Create a scoped token for CI:
-
-Cloudflare → My Profile → API Tokens → *Edit Cloudflare Workers* template
-(+ **Workers R2 Storage:Edit**), then:
-
-```sh
-gh secret set CLOUDFLARE_API_TOKEN  --repo aasheesh333/ExamVault
-gh secret set CLOUDFLARE_ACCOUNT_ID --repo aasheesh333/ExamVault
-```
+`firebase_messaging` also needs the FCM server key path set up in the console —
+nothing to configure in code: the app subscribes to topics
+`exam_ssc`, `exam_upsc`, `exam_banking`, `exam_railways`, `exam_state_psc`.
 
 ## Verify the edge yourself
 

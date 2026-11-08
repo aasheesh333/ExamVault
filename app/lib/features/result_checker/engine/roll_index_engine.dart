@@ -1,9 +1,11 @@
 import 'dart:convert';
-import 'dart:io';
 import 'dart:isolate';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:meta/meta.dart';
+
+import 'gunzip.dart';
 
 /// Outcome of one roll-number lookup.
 enum RollLookupState {
@@ -101,7 +103,7 @@ class RollIndex {
   ///   `["2201049821", "2201049822", …]`
   ///   `[{"r": "2201049821", "rank": 1284}, …]`
   factory RollIndex.decode(Uint8List bytes, {bool transportEncoded = false}) {
-    final raw = transportEncoded ? bytes : gzip.decode(bytes);
+    final raw = transportEncoded ? bytes : gunzipBytes(bytes);
     final decoded = jsonDecode(utf8.decode(raw, allowMalformed: true));
 
     if (decoded is! List) {
@@ -211,6 +213,18 @@ bool _isPlausibleRoll(String normalised) {
   return true;
 }
 
+/// Runs [computation] off the UI isolate — or inline on the web.
+///
+/// `Isolate.run` throws `Unsupported operation: new RawReceivePort` on the web:
+/// dart2js has no isolates. The app still has to work in a browser (that is how
+/// it is smoke-tested), so the web path runs inline. The work is bounded — a
+/// 150 KB gunzip plus one binary search — so it does not jank a frame, and the
+/// caller already awaits, which yields between phases.
+Future<T> _offload<T>(T Function() computation) {
+  if (kIsWeb) return Future<T>(computation);
+  return Isolate.run(computation);
+}
+
 /// Runs the whole decode + search pipeline on a background isolate.
 ///
 /// A 10M-concurrent-user result day means millions of devices doing this at the
@@ -233,9 +247,9 @@ abstract final class RollIndexEngine {
       );
     }
 
-    // Isolate.run hands the closure to a worker. Captured values are copied;
+    // The closure is handed to a worker on native. Captured values are copied;
     // the 150 KB payload is well under any practical transfer budget.
-    return Isolate.run(() {
+    return _offload(() {
       final watch = Stopwatch()..start();
       try {
         final index = RollIndex.decode(
@@ -274,7 +288,7 @@ abstract final class RollIndexEngine {
     Uint8List bytes, {
     bool transportEncoded = false,
   }) {
-    return Isolate.run(
+    return _offload(
       () => RollIndex.decode(bytes, transportEncoded: transportEncoded),
     );
   }

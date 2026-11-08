@@ -8,6 +8,7 @@ import '../data/repositories/admit_card_repository.dart';
 import '../data/repositories/live_feed_repository.dart';
 import '../data/repositories/result_index_repository.dart';
 import '../data/remote/cdn_client.dart';
+import '../data/services/app_logger.dart';
 import '../data/services/push_service.dart';
 import '../data/services/share_service.dart';
 import '../domain/entities/admit_card.dart';
@@ -276,10 +277,13 @@ class ResultCheckerNotifier extends Notifier<ResultCheckState> {
         error: result.errorMessage,
       );
       return result;
-    } catch (e) {
-      state = ResultCheckState(
+    } catch (e, st) {
+      // Never surface a Dart exception string to a student on exam morning.
+      AppLogger.e('checker', 'lookup failed', e, st);
+      state = const ResultCheckState(
         phase: ResultPhase.failed,
-        error: 'Could not check your result. $e',
+        error: 'Could not reach the result index. Check your connection and '
+            'tap again — nothing was lost.',
       );
       return null;
     }

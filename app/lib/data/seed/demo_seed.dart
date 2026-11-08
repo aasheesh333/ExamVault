@@ -4,6 +4,8 @@ import 'dart:isolate';
 import 'dart:math';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
+
 import '../../domain/entities/admit_card.dart';
 import '../../domain/entities/exam_category.dart';
 import '../../domain/entities/live_update.dart';
@@ -156,9 +158,7 @@ abstract final class MockRollIndex {
     int count = 12000,
     bool withRanks = true,
   }) {
-    // Generation + gzip of 12k rows is ~10 ms, but keep it off the UI isolate for
-    // consistency with the real path.
-    return Isolate.run(() {
+    Uint8List build() {
       final seed = examId.codeUnits.fold<int>(17, (a, b) => (a * 31 + b) & 0x7fffffff);
       final rng = Random(seed);
 
@@ -185,6 +185,12 @@ abstract final class MockRollIndex {
 
       final raw = utf8.encode(jsonEncode(payload));
       return Uint8List.fromList(gzip.encode(raw));
-    });
+    }
+
+    // Generation + gzip of 12k rows is ~10 ms, but it stays off the UI isolate
+    // for consistency with the real path. The web has no isolates, so it runs
+    // inline there — `Isolate.run` throws `Unsupported operation` on dart2js.
+    return kIsWeb ? Future.value(build()) : Isolate.run(build);
   }
 }
+

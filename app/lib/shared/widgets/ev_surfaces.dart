@@ -143,18 +143,24 @@ class EvTextAction extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (icon != null) ...[
-                Icon(icon, size: 12, color: fg),
-                const SizedBox(width: 4),
-              ],
-              Text(
-                label,
-                style: context.type.label.copyWith(
-                  color: fg,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
+              // Label first, chevron after. Reading order matters: "3 saved ›"
+              // is a destination, "› 3 saved" reads as a back button.
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: context.type.label.copyWith(
+                    color: fg,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
+              if (icon != null) ...[
+                const SizedBox(width: 2),
+                Icon(icon, size: 13, color: fg),
+              ],
             ],
           ),
         ),

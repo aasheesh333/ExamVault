@@ -70,3 +70,7 @@ secrets.json
 /tmp/
 *.log
 .DS_Store
+
+# web build output (created for smoke testing only)
+app/web/
+app/build/

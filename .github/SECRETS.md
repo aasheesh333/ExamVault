@@ -77,3 +77,30 @@ Without these the build falls back to debug keys and `flutter build apk
 # Should print nothing.
 git log -p | grep -nE 'AIza[0-9A-Za-z_-]{35}|cfoat_|ghp_[A-Za-z0-9]{36}|-----BEGIN'
 ```
+
+---
+
+## Current values (verified 2026-11-08)
+
+| Secret | State |
+|---|---|
+| `EV_FIREBASE_API_KEY` | set (Firebase project `examvault-49b1a`) |
+| `EV_FIREBASE_APP_ID` | set — `1:722361800293:android:1dab5ec2d3df41437e588c` |
+| `EV_FIREBASE_SENDER_ID` | set — `722361800293` |
+| `EV_FIREBASE_PROJECT_ID` | set — `examvault-49b1a` |
+| `EV_FIREBASE_STORAGE_BUCKET` | set |
+| `EV_ONESIGNAL_APP_ID` | set — `062ce6a9-a47e-48d8-bb4d-dfee88b60026` |
+| `EV_CDN_BASE` | set — worker URL |
+| `EV_WEB_BASE` | set — `https://examvault.in` |
+
+`CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ACCOUNT_ID` still need adding for the edge
+deploy job (Wrangler used an interactive OAuth token locally, which is
+deliberately not committed).
+
+### OneSignal notes
+
+The app `062ce6a9-…` is an **Android/iOS** app (its web-push endpoint replies
+`"This app is not configured for web push"`), which matches how the app uses it.
+`PushService` therefore skips OneSignal on web and only activates it on mobile.
+Categories map to OneSignal boolean tags: `exam_ssc`, `exam_upsc`,
+`exam_banking`, `exam_railways`, `exam_state_psc`.

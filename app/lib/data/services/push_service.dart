@@ -68,8 +68,19 @@ class PushService {
     if (_initialised) return _provider;
     _initialised = true;
 
-    if (oneSignalAppId.isNotEmpty) {
-      final ok = await _initOneSignal();
+    // OneSignal needs a service worker on the web and a platform config in the
+    // OneSignal dashboard. This app's OneSignal app is Android/iOS only, so on
+    // web we skip straight to FCM rather than reporting a provider that cannot
+    // actually deliver. `kIsWeb` is const, so this branch is tree-shaken away in
+    // the mobile builds.
+    if (oneSignalAppId.isNotEmpty && !kIsWeb) {
+      final ok = await _initOneSignal().timeout(
+        const Duration(seconds: 8),
+        onTimeout: () {
+          AppLogger.w('push', 'OneSignal init timed out');
+          return false;
+        },
+      );
       if (ok) {
         _provider = PushProvider.oneSignal;
         AppLogger.d('push', 'provider=OneSignal');
@@ -77,8 +88,15 @@ class PushService {
       }
     }
 
-    if (fcmEnabled) {
-      final ok = await _initFcm();
+    // FCM needs a service worker on the web too; without one the SDK throws.
+    if (fcmEnabled && !kIsWeb) {
+      final ok = await _initFcm().timeout(
+        const Duration(seconds: 8),
+        onTimeout: () {
+          AppLogger.w('push', 'FCM init timed out');
+          return false;
+        },
+      );
       if (ok) {
         _provider = PushProvider.fcm;
         AppLogger.d('push', 'provider=FCM');

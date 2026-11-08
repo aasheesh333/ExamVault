@@ -94,6 +94,10 @@ abstract final class AppConfig {
       firebaseAppId.isNotEmpty &&
       firebaseMessagingSenderId.isNotEmpty;
 
+  /// OneSignal App ID. When set, OneSignal is preferred over FCM — it is the
+  /// path that still works when a Firebase project is unavailable.
+  static const oneSignalAppId = String.fromEnvironment('EV_ONESIGNAL_APP_ID');
+
   // --------------------------------------------------------------------- hive
   static const boxAdmitCards = 'admit_cards_v1';
   static const boxLiveFeed = 'live_feed_v1';

@@ -100,8 +100,8 @@ Future<void> _firstRunSeed(Box<dynamic> settings) async {
 
 Future<void> _bootPush(ProviderContainer container) async {
   final push = container.read(pushServiceProvider);
-  final ready = await push.initialise();
-  if (!ready) return;
+  final provider = await push.initialise();
+  if (provider == PushProvider.disabled) return;
 
   // Default to the two categories a new aspirant is most likely tracking.
   await push.syncTopics({ExamCategory.ssc, ExamCategory.upsc});

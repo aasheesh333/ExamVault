@@ -14,7 +14,6 @@ bucket_name = "examvault-cdn"
 enabled = true
 head_sampling_rate = 0.05
 
-# Result day is spiky. These limits keep a single misbehaving client from
-# consuming the free-tier budget for everyone else.
-[limits]
-cpu_ms = 50
+# No [limits] block on purpose: explicit CPU limits require a paid plan. The free
+# tier already caps the worker at 10 ms, and this handler is a cache lookup plus a
+# stream pass-through — it uses a fraction of that.

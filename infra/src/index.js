@@ -153,17 +153,32 @@ export default {
 
     const headers = withCache(new Headers(), route);
     headers.set('etag', etag);
+    headers.set('x-examvault-cache', 'MISS');
 
-    const response = new Response(request.method === 'HEAD' ? null : object.body, {
-      status: 200,
-      headers,
-    });
+    // Buffer first, then hand out copies.
+    //
+    // A streaming body can only be read once. The previous version returned
+    // `new Response(response.body, …)` and *also* put a `clone()` into the cache:
+    // the clone shares the same underlying stream, so the put raced the client
+    // download and silently lost, leaving every request a MISS. Reading the
+    // object once into memory and building two independent Responses fixes it.
+    //
+    // Roll indexes are <= 12 MB of budget and typically ~150 KB, so buffering is
+    // cheaper than a second R2 read.
+    const buffer = await object.arrayBuffer();
 
-    // Populate the PoP cache out of band so the next caller is a hit.
-    ctx.waitUntil(cache.put(cacheKey, response.clone()));
+    const cacheable = new Response(buffer, { status: 200, headers });
+    ctx.waitUntil(
+      cache.put(cacheKey, cacheable.clone()).catch((err) => {
+        // A failed put must never fail the request — the next caller simply
+        // takes the origin path again.
+        console.error('cache.put failed', err?.message ?? err);
+      }),
+    );
 
-    const out = new Response(response.body, response);
-    out.headers.set('x-examvault-cache', 'MISS');
-    return out;
+    if (request.method === 'HEAD') {
+      return new Response(null, { status: 200, headers });
+    }
+    return new Response(buffer, { status: 200, headers });
   },
 };

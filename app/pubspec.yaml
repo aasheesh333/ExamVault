@@ -55,7 +55,6 @@ flutter:
     # Fonts are bundled so the app never fetches them at runtime:
     # google_fonts resolves these by basename before it ever touches the network.
     - assets/google_fonts/
-    - assets/seed/
 
   fonts:
     - family: PlusJakartaSans

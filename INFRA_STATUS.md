@@ -12,7 +12,9 @@ Verified 2026-11-08, after a manual MFA bootstrap of the Google account.
 | **Firebase project** | ✅ Created | **ExamVault** · `examvault-49b1a` · number `722361800293` |
 | **Firebase Android app** | ✅ Registered | package `app.examvault` · app id `1:722361800293:android:1dab5ec2d3df41437e588c` |
 | **Firebase secrets** | ✅ Set | 7 repo secrets (see `.github/SECRETS.md`) |
-| **OneSignal** | ❌ Blocked | signup **and** login both return "Something went wrong"; Google OAuth returns HTTP 403 (datacenter IP blocklist). Not a code issue. |
+| **OneSignal** | ✅ Created | app id `062ce6a9-a47e-48d8-bb4d-dfee88b60026` (Android/iOS; web-push intentionally off) |
+| **Cloudflare API token** | ✅ Created | `examvault-ci-deploy` — Workers Scripts:Edit, R2:Edit, KV:Edit, Account Settings:Read |
+| **CI** | ✅ All three jobs green | Analyze+test · release APK (25 MB) · edge deploy |
 
 ## Verified end-to-end
 
@@ -27,6 +29,24 @@ drove it through the browser:
 - Firebase Messaging initialised (`flutterfire-firebase_messaging` in console)
 
 Two real bugs were found and fixed at this stage — see commit `0eb47ab`.
+
+## CI is green
+
+Run [42522737703](https://github.com/aasheesh333/ExamVault/actions/runs/42522737703):
+
+| Job | Result |
+|---|---|
+| Analyze & test | ✓ 1m44s — format + `analyze --fatal-infos` + 42 tests |
+| Build release APK | ✓ 10m36s — `examvault-apk`, 25 MB |
+| Deploy Cloudflare worker | ✓ 21s — deployed using the scoped API token |
+
+The downloaded APK was inspected: three ABIs of `libflutter.so`, both font
+families bundled, and the Firebase / OneSignal / CDN values present — i.e. the
+build really did receive the GitHub secrets.
+
+Three CI defects were found and fixed on the way there (see commits):
+workflow could not compile (`secrets` inside `if:`), `main` vs `master` branch
+filters, and a missing `ic_launcher_round` resource that failed AAPT.
 
 ## Fixing OneSignal
 

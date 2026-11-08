@@ -57,8 +57,13 @@ Without these the build falls back to debug keys and `flutter build apk
 
 | Secret | How to create |
 |---|---|
-| `CLOUDFLARE_API_TOKEN` | Cloudflare dashboard → My Profile → API Tokens → *Edit Cloudflare Workers* template. Needs **Workers Scripts:Edit**, **Workers R2 Storage:Edit**. |
-| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare dashboard → Workers → right sidebar |
+| `CLOUDFLARE_API_TOKEN` | ✅ **set** — token `examvault-ci-deploy`, scoped to Workers Scripts:Edit, Workers R2 Storage:Edit, Workers KV Storage:Edit, Account Settings:Read |
+| `CLOUDFLARE_ACCOUNT_ID` | ✅ **set** — `7fb570ac615a8e2a41a6aff7913114d5` |
+
+> The token is scoped to *account* policies only. There is deliberately no Zone
+> policy: the worker deploys to `workers.dev`, so it needs no zone route. The
+> stock "Edit Cloudflare Workers" template adds a zone policy, which makes the
+> Summary step require a zone — building the token from scratch avoids that.
 
 ---
 

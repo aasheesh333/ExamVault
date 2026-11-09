@@ -166,7 +166,9 @@ class _VaultFormSheetState extends ConsumerState<_VaultFormSheet> {
       ),
       child: DraggableScrollableSheet(
         expand: false,
-        initialChildSize: 0.92,
+        // Starts fully open: this is a data-entry form with ten fields, and a
+        // half-height sheet hid the save button below the fold on a 6.1" phone.
+        initialChildSize: 0.94,
         minChildSize: 0.6,
         maxChildSize: 0.96,
         builder: (context, controller) {

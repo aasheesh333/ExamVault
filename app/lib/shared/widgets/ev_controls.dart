@@ -298,28 +298,44 @@ class EvChip extends StatelessWidget {
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: onTap,
-        child: Container(
+        // Intrinsic width. A bare `Container` sizes to its parent, so inside a
+        // `Wrap` every chip became full-width and the category picker stacked
+        // vertically down the sheet. `mainAxisSize.min` via a Row keeps the chip
+        // hugging its label while the outer box keeps the 44px tap target.
+        child: SizedBox(
           height: EvSize.minTapTarget,
-          alignment: Alignment.center,
-          child: AnimatedContainer(
-            duration: EvMotion.fast,
-            curve: EvMotion.curve,
-            height: EvSize.chip,
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            decoration: BoxDecoration(
-              color: selected
-                  ? p.accent.withValues(alpha: 0.15)
-                  : p.surface.withValues(alpha: p.isDark ? 0.55 : 1),
-              borderRadius: BorderRadius.circular(EvRadius.pill),
-              border: Border.all(
-                color: selected ? p.accent.withValues(alpha: 0.45) : p.border,
+          // `Center` alone is an `Align`: with bounded constraints and no
+          // widthFactor it expands to constraints.maxWidth, so every chip filled
+          // the whole row and the Wrap stacked them vertically. widthFactor: 1
+          // makes it hug the chip instead.
+          child: Center(
+            widthFactor: 1,
+            heightFactor: 1,
+            child: AnimatedContainer(
+              duration: EvMotion.fast,
+              curve: EvMotion.curve,
+              height: EvSize.chip,
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              decoration: BoxDecoration(
+                color: selected
+                    ? p.accent.withValues(alpha: 0.15)
+                    : p.surface.withValues(alpha: p.isDark ? 0.55 : 1),
+                borderRadius: BorderRadius.circular(EvRadius.pill),
+                border: Border.all(
+                  color: selected ? p.accent.withValues(alpha: 0.45) : p.border,
+                ),
               ),
-            ),
-            child: Text(
-              label,
-              style: context.type.label.copyWith(
-                fontSize: 11.5,
-                color: selected ? p.accentText : p.textSecondary,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    label,
+                    style: context.type.label.copyWith(
+                      fontSize: 11.5,
+                      color: selected ? p.accentText : p.textSecondary,
+                    ),
+                  ),
+                ],
               ),
             ),
           ),

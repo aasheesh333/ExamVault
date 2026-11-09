@@ -13,7 +13,6 @@
 abstract final class AppConfig {
   // ---------------------------------------------------------------- identity
   static const appName = 'ExamVault';
-  static const supportEmail = 'support@examvault.in';
 
   /// Deep-link base used by the viral share card.
   ///

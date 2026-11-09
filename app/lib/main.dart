@@ -9,7 +9,6 @@ import 'package:hive_ce_flutter/hive_flutter.dart';
 import 'app.dart';
 import 'core/config/app_config.dart';
 import 'data/repositories/admit_card_repository.dart';
-import 'data/seed/demo_seed.dart';
 import 'data/services/app_logger.dart';
 import 'data/services/push_service.dart';
 import 'domain/entities/exam_category.dart';
@@ -82,12 +81,16 @@ void _installCrashGuards() {
 /// had pulled someone else's roll number out of thin air. On upgrade we delete any
 /// entry that still carries the `sample_` id prefix, so nobody is left holding a
 /// fake admit card.
+const _legacySamplePrefix = 'sample_';
+
 Future<void> _purgeLegacySampleCards() async {
   final repo = AdmitCardRepository();
   try {
     final cards = await repo.load(force: true);
     for (final card in cards) {
-      if (card.id.startsWith(DemoSeed.sampleMarker)) {
+      // Prefix used by the removed auto-seed. A card whose id starts with
+      // this was never entered by the user, so it must go.
+      if (card.id.startsWith(_legacySamplePrefix)) {
         await repo.delete(card.id);
         AppLogger.d('boot', 'purged sample card ${card.id}');
       }

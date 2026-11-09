@@ -2,8 +2,6 @@ import 'dart:typed_data';
 
 import '../../core/config/app_config.dart';
 import '../remote/cdn_client.dart';
-import '../seed/demo_seed.dart';
-import '../services/app_logger.dart';
 
 /// Where the index bytes came from.
 enum IndexSource {
@@ -13,39 +11,61 @@ enum IndexSource {
   /// Previously downloaded, still within the freshness window.
   cache,
 
-  /// Locally generated, because the object is not published yet. This is what
-  /// makes the checker testable on a fresh install and on exam day *before* the
-  /// PDF drops.
-  demo;
+  /// The index has **not been published** (HTTP 404) or could not be fetched.
+  ///
+  /// There is deliberately no "demo"/"mock" member. An earlier revision generated
+  /// a synthetic index here — one that contained the requesting user's own roll
+  /// number — and the UI then reported "SELECTED IN MERIT LIST" with an invented
+  /// merit rank. Fabricating an exam outcome is unacceptable, so the type system
+  /// no longer has a way to express it.
+  unavailable;
 
-  bool get isReal => this != IndexSource.demo;
+  bool get isReal => this == IndexSource.edge || this == IndexSource.cache;
+
+  bool get hasData => this != IndexSource.unavailable;
 
   String get label => switch (this) {
-    IndexSource.edge => 'Edge CDN',
+    IndexSource.edge => 'Live index',
     IndexSource.cache => 'Cached index',
-    IndexSource.demo => 'Demo index',
+    IndexSource.unavailable => 'Not published',
   };
 }
 
+/// A downloaded index, or an explicit statement that there is none.
 class IndexBundle {
   const IndexBundle({
     required this.bytes,
     required this.source,
     required this.fetchedAt,
     this.etag,
+    this.reason,
   });
+
+  /// An empty bundle. [bytes] is empty by construction so a caller cannot
+  /// accidentally search it.
+  factory IndexBundle.unavailable([String? reason]) => IndexBundle(
+    bytes: Uint8List(0),
+    source: IndexSource.unavailable,
+    fetchedAt: DateTime.now(),
+    reason: reason,
+  );
 
   final Uint8List bytes;
   final IndexSource source;
   final DateTime fetchedAt;
   final String? etag;
+
+  /// Human-readable explanation when [source] is [IndexSource.unavailable].
+  final String? reason;
+
+  bool get hasData => bytes.isNotEmpty && source != IndexSource.unavailable;
 }
 
 /// Downloads roll-number indexes.
 ///
 /// The object is a gzip archive (`application/gzip`), **not** a
-/// `Content-Encoding: gzip` response — that distinction is what stops the socket
-/// layer from decompressing it twice and handing the isolate garbage.
+/// `Content-Encoding: gzip` response — that distinction stops the socket layer
+/// from decompressing it twice and handing the isolate garbage.
 class ResultIndexRepository {
   ResultIndexRepository({required CdnClient cdn}) : _cdn = cdn;
 
@@ -54,13 +74,11 @@ class ResultIndexRepository {
   /// examId -> bundle, so re-tapping "Check" never re-downloads.
   final Map<String, IndexBundle> _memo = {};
 
-  Future<IndexBundle> load({
-    required String examId,
-    String? userRollForDemo,
-    bool force = false,
-  }) async {
+  Future<IndexBundle> load({required String examId, bool force = false}) async {
     if (!force) {
       final memo = _memo[examId];
+      // A previously-failed attempt is cached too — at 09:11 the object is
+      // missing for everyone, and hammering the edge every tap helps nobody.
       if (memo != null) return memo;
     }
 
@@ -80,33 +98,18 @@ class ResultIndexRepository {
       _memo[examId] = bundle;
       return bundle;
     } on CdnException catch (e) {
-      // 404 means "not published yet" — that is a normal state at 09:11, not an
-      // error. Anything else is worth logging.
-      if (e.statusCode != 404) {
-        AppLogger.w('index', 'edge miss for $examId: ${e.message}');
-      }
-      final demo = IndexBundle(
-        bytes: await MockRollIndex.generate(
-          examId: examId,
-          includeRoll: userRollForDemo,
-        ),
-        source: IndexSource.demo,
-        fetchedAt: DateTime.now(),
+      final reason = e.statusCode == 404
+          ? 'The result for this exam has not been published yet.'
+          : 'Could not reach the result index. Check your connection.';
+      final bundle = IndexBundle.unavailable(reason);
+      _memo[examId] = bundle;
+      return bundle;
+    } catch (_) {
+      final bundle = IndexBundle.unavailable(
+        'Could not read the result index. Check your connection.',
       );
-      _memo[examId] = demo;
-      return demo;
-    } catch (e) {
-      AppLogger.w('index', 'unexpected failure for $examId: $e');
-      final demo = IndexBundle(
-        bytes: await MockRollIndex.generate(
-          examId: examId,
-          includeRoll: userRollForDemo,
-        ),
-        source: IndexSource.demo,
-        fetchedAt: DateTime.now(),
-      );
-      _memo[examId] = demo;
-      return demo;
+      _memo[examId] = bundle;
+      return bundle;
     }
   }
 
@@ -118,10 +121,21 @@ class ResultIndexRepository {
     return payload.bytes;
   }
 
+  /// Direct edge URL for the result PDF of [examId].
   String pdfUrl(String examId) =>
       '${AppConfig.cdnBase}${AppConfig.resultPdfPath(examId)}';
 
-  String shareUrl(String examId) => '${AppConfig.webBase}/r/$examId';
+  /// Public web fallback for an exam, or null when no web base is configured.
+  ///
+  /// Returning null keeps the app from printing a link to a domain it does not
+  /// own — the share card used to hardcode `examvault.in`, which is not ours.
+  String? shareUrl(String examId) {
+    final base = AppConfig.webBase.trim();
+    if (base.isEmpty) return null;
+    final uri = Uri.tryParse(base);
+    if (uri == null || !uri.hasScheme) return null;
+    return '$base/r/$examId';
+  }
 
   void clearMemo() => _memo.clear();
 }

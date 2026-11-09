@@ -68,7 +68,11 @@ class _PassPager extends ConsumerWidget {
       children: [
         Column(
           children: [
-            _DetailNavBar(count: cards.length, controller: controller),
+            _DetailNavBar(
+              count: cards.length,
+              controller: controller,
+              card: cards[initialIndex],
+            ),
             Expanded(
               child: PageView.builder(
                 controller: controller,
@@ -110,14 +114,19 @@ class _PassPager extends ConsumerWidget {
   }
 }
 
-class _DetailNavBar extends StatelessWidget {
-  const _DetailNavBar({required this.count, required this.controller});
+class _DetailNavBar extends ConsumerWidget {
+  const _DetailNavBar({
+    required this.count,
+    required this.controller,
+    required this.card,
+  });
 
   final int count;
   final PageController controller;
+  final AdmitCard? card;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final p = context.ev;
 
     return SizedBox(
@@ -132,9 +141,17 @@ class _DetailNavBar extends StatelessWidget {
                 icon: Icons.arrow_back_ios_new_rounded,
                 ghost: true,
                 iconSize: 17,
-                onPressed: () => Navigator.of(context).maybePop(),
+                // This screen is a tab, not a pushed route — `maybePop()` was a
+                // no-op, so the chevron did nothing. Go to Home instead.
+                onPressed: () =>
+                    ref.read(tabIndexProvider.notifier).select(EvTab.home),
               ),
               const Spacer(),
+              if (card != null)
+                _CardMenu(card: card!)
+              else
+                const SizedBox(width: EvSpace.x2),
+              const SizedBox(width: EvSpace.x2),
             ],
           ),
           Column(
@@ -1012,5 +1029,119 @@ class _EmptyState extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+/// Edit / delete for the card currently on screen.
+///
+/// Without this the vault was write-once: a mistyped roll number could never be
+/// corrected and a finished exam could never be cleared, so the only escape was
+/// reinstalling the app.
+class _CardMenu extends ConsumerWidget {
+  const _CardMenu({required this.card});
+
+  final AdmitCard card;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final p = context.ev;
+
+    return PopupMenuButton<String>(
+      tooltip: 'Card options',
+      color: p.surface,
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(EvRadius.inner),
+        side: BorderSide(color: p.border),
+      ),
+      icon: Icon(Icons.more_horiz_rounded, size: 20, color: p.textSecondary),
+      onSelected: (value) async {
+        switch (value) {
+          case 'edit':
+            await showVaultFormSheet(context, ref, existing: card);
+          case 'delete':
+            final confirmed = await _confirmDelete(context, card);
+            if (!confirmed) return;
+            await ref.read(admitCardsProvider.notifier).delete(card.id);
+            ref.read(selectedCardIdProvider.notifier).select(null);
+            if (!context.mounted) return;
+            ScaffoldMessenger.of(context)
+              ..hideCurrentSnackBar()
+              ..showSnackBar(
+                SnackBar(
+                  content: Text(
+                    '${card.examName} deleted',
+                    style: context.type.label.copyWith(color: Colors.white),
+                  ),
+                ),
+              );
+        }
+      },
+      itemBuilder: (context) => [
+        PopupMenuItem(
+          value: 'edit',
+          child: Row(
+            children: [
+              Icon(Icons.edit_outlined, size: 16, color: p.textSecondary),
+              const SizedBox(width: 10),
+              Text('Edit details', style: context.type.body),
+            ],
+          ),
+        ),
+        PopupMenuItem(
+          value: 'delete',
+          child: Row(
+            children: [
+              Icon(Icons.delete_outline_rounded, size: 16, color: p.danger),
+              const SizedBox(width: 10),
+              Text(
+                'Delete card',
+                style: context.type.body.copyWith(color: p.dangerText),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<bool> _confirmDelete(BuildContext context, AdmitCard card) async {
+    final p = context.ev;
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: p.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(color: p.border),
+        ),
+        title: Text('Delete this card?', style: context.type.sectionTitle),
+        content: Text(
+          '${card.examName} and its roll number will be removed from this '
+          'device. This cannot be undone.',
+          style: context.type.body,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(
+              'Keep',
+              style: context.type.label.copyWith(color: p.textSecondary),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(
+              'Delete',
+              style: context.type.label.copyWith(
+                color: p.dangerText,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    return result ?? false;
   }
 }

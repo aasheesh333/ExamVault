@@ -1,10 +1,11 @@
+import 'dart:convert';
+
 import 'package:hive_ce_flutter/hive_flutter.dart';
 
 import '../../core/config/app_config.dart';
 import '../../domain/entities/live_update.dart';
 import '../models/live_feed_dto.dart';
 import '../remote/cdn_client.dart';
-import '../seed/demo_seed.dart';
 import '../services/app_logger.dart';
 
 /// Where a snapshot came from. The UI shows this honestly instead of pretending
@@ -12,7 +13,9 @@ import '../services/app_logger.dart';
 enum FeedSource {
   network,
   cache,
-  seed;
+
+  /// Nothing stored and nothing fetched — the radar is genuinely empty.
+  none;
 
   bool get isLive => this == FeedSource.network;
 }
@@ -77,15 +80,17 @@ class LiveFeedRepository {
     return _last;
   }
 
-  /// The seed used only when nothing at all has ever been stored.
-  LiveFeedSnapshot seedSnapshot() {
-    final seed = DemoSeed.liveFeed();
-    return LiveFeedSnapshot(
-      feed: seed,
-      source: FeedSource.seed,
-      fetchedAt: DateTime.now(),
-    );
-  }
+  /// An explicit "we have no data" snapshot.
+  ///
+  /// This used to return a hand-written demo feed, which meant a device with no
+  /// network and no cache displayed four confident, entirely invented exam
+  /// updates — including "RESULT OUT" for exams that had not been published. An
+  /// empty feed with a clear label is the only honest answer.
+  LiveFeedSnapshot emptySnapshot() => LiveFeedSnapshot(
+    feed: LiveFeed.empty,
+    source: FeedSource.none,
+    fetchedAt: DateTime.now(),
+  );
 
   Future<LiveFeedSnapshot> refresh({bool force = false}) async {
     try {
@@ -95,7 +100,12 @@ class LiveFeedRepository {
         bypassCache: force,
       );
 
-      final feed = LiveFeedDto.parse(String.fromCharCodes(payload.bytes));
+      // utf8.decode, not String.fromCharCodes. The latter maps each byte to a
+      // code point, so every multi-byte sequence arrives mangled: the middle dot
+      // in "Direct PDF · 18.4 MB" (U+00B7) rendered as "Â·" on screen.
+      final feed = LiveFeedDto.parse(
+        utf8.decode(payload.bytes, allowMalformed: true),
+      );
 
       if (!payload.fromCache) {
         await _cache.put(LiveFeedStore.key, LiveFeedStore.toJson(feed));
@@ -115,11 +125,11 @@ class LiveFeedRepository {
         return cached.copyWith(error: e.message);
       }
       // Fresh install + no network: seed, but say so.
-      return seedSnapshot().copyWith(error: e.message);
+      return emptySnapshot().copyWith(error: e.message);
     } catch (e) {
       AppLogger.w('feed', 'refresh failed: $e');
       final cached = readCached();
-      return cached ?? seedSnapshot();
+      return cached ?? emptySnapshot();
     }
   }
 

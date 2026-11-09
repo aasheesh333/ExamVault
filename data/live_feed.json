@@ -1,0 +1,33 @@
+{
+  "generated_at": "2026-11-09T18:58:19.743059Z",
+  "revision": 1,
+  "updates": [
+    {
+      "exam_id": "ssc_cgl_tier1_2026",
+      "category": "ssc",
+      "exam_name": "SSC CGL Tier-1 2026",
+      "context": "Direct PDF \u00b7 18.4 MB",
+      "status": "result_out",
+      "published_at": "2026-11-09T18:52:19.743059Z",
+      "pdf_size": "18.4 MB",
+      "mirror_latency_ms": 82
+    },
+    {
+      "exam_id": "ibps_po_prelims_2026",
+      "category": "banking",
+      "exam_name": "IBPS PO Prelims 2026",
+      "context": "Admit card live \u00b7 4 mirrors",
+      "status": "admit_card_live",
+      "published_at": "2026-11-09T18:10:19.743059Z",
+      "mirror_latency_ms": 120
+    },
+    {
+      "exam_id": "rrb_ntpc_2026",
+      "category": "railways",
+      "exam_name": "RRB NTPC 2026",
+      "context": "Application closes 11:59 PM",
+      "status": "form_closing",
+      "published_at": "2026-11-09T15:58:19.743059Z"
+    }
+  ]
+}

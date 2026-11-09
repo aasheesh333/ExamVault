@@ -1,21 +1,17 @@
-import 'dart:convert';
-import 'dart:io';
-import 'dart:isolate';
-import 'dart:math';
-import 'dart:typed_data';
-
-import 'package:flutter/foundation.dart' show kIsWeb;
-
 import '../../domain/entities/admit_card.dart';
 import '../../domain/entities/exam_category.dart';
 import '../../domain/entities/live_update.dart';
 
-/// Deterministic content for a brand-new install.
+/// Content for the optional "try a sample" path.
 ///
-/// A brand-new install has an empty vault and an empty feed. Showing three blank
-/// screens is the fastest way to lose a user, so the first run is seeded with one
-/// realistic card and one radar row — both are clearly marked as sample data in
-/// the UI and are deleted the moment the user adds their own.
+/// NOTHING here is seeded automatically any more. A production exam app must never
+/// show a roll number the user did not enter — a student who opens the vault and
+/// sees someone else's admit card will assume the app leaked data. These lists are
+/// only reachable if a caller explicitly opts in (see `DemoSeed.admitCards` calls).
+///
+/// The generated roll index that used to live here was deleted outright: it was
+/// being substituted when the real index 404'd, and it injected the requesting
+/// user's roll number so that the checker reported a fabricated merit rank.
 abstract final class DemoSeed {
   static const sampleMarker = 'sample';
 
@@ -141,58 +137,5 @@ abstract final class DemoSeed {
         ),
       ],
     );
-  }
-}
-
-/// Generates a realistic, correctly-shaped roll index so the full lookup path can
-/// be exercised offline.
-///
-/// Mirrors production exactly: lexicographically sorted, optionally ranked,
-/// gzip-compressed JSON.
-abstract final class MockRollIndex {
-  /// [rolls] defaults to ~12 000 rows, which is the order of magnitude of a
-  /// Tier-1 shortlist. Pass [includeRoll] to guarantee a hit.
-  static Future<Uint8List> generate({
-    required String examId,
-    String? includeRoll,
-    int count = 12000,
-    bool withRanks = true,
-  }) {
-    Uint8List build() {
-      final seed = examId.codeUnits.fold<int>(
-        17,
-        (a, b) => (a * 31 + b) & 0x7fffffff,
-      );
-      final rng = Random(seed);
-
-      final rolls = <String>{};
-      // A plausible SSC roll block.
-      final base = 2201000000 + rng.nextInt(90000);
-      var guard = 0;
-      while (rolls.length < count && guard < count * 4) {
-        guard++;
-        rolls.add('${base + rng.nextInt(900000)}');
-      }
-      if (includeRoll != null && includeRoll.trim().isNotEmpty) {
-        rolls.add(includeRoll.trim().toUpperCase());
-      }
-
-      final sorted = rolls.toList()..sort();
-
-      final payload = withRanks
-          ? [
-              for (var i = 0; i < sorted.length; i++)
-                {'r': sorted[i], 'rank': i + 1},
-            ]
-          : sorted;
-
-      final raw = utf8.encode(jsonEncode(payload));
-      return Uint8List.fromList(gzip.encode(raw));
-    }
-
-    // Generation + gzip of 12k rows is ~10 ms, but it stays off the UI isolate
-    // for consistency with the real path. The web has no isolates, so it runs
-    // inline there — `Isolate.run` throws `Unsupported operation` on dart2js.
-    return kIsWeb ? Future.value(build()) : Isolate.run(build);
   }
 }

@@ -34,6 +34,12 @@ class EvCard extends StatelessWidget {
     final content = Padding(padding: padding, child: child);
 
     return Semantics(
+      container: true,
+      // ALWAYS split into child nodes. When this was `onTap != null`, a
+      // non-interactive card with a single button inside collapsed into ONE
+      // 361x209 button node — a screen reader read the entire empty-state card as
+      // a button and the real "Add admit card" CTA was unreachable.
+      explicitChildNodes: true,
       label: semanticLabel,
       button: onTap != null,
       child: Material(
@@ -93,17 +99,24 @@ class EvSectionHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: padding,
-      child: SizedBox(
-        height: 20,
+      child: ConstrainedBox(
+        // A fixed 20px box clipped the trailing action: EvTextAction renders
+        // ~30px tall, so "3 saved" was sliced in half. Size to the tallest child.
+        constraints: const BoxConstraints(minHeight: 32),
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             if (leading != null) ...[leading!, const SizedBox(width: 8)],
             Expanded(
-              child: Text(
-                label.toUpperCase(),
-                style: context.type.microLabel,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+              child: Semantics(
+                // Header text is a label, never a control.
+                container: true,
+                child: Text(
+                  label.toUpperCase(),
+                  style: context.type.microLabel,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
             ),
             ?trailing,
@@ -133,13 +146,24 @@ class EvTextAction extends StatelessWidget {
   Widget build(BuildContext context) {
     final fg = color ?? context.ev.textSecondary;
 
+    // `container: true` is required. Without it Flutter merges this button into
+    // any adjacent text node, so the section header announced itself as a single
+    // button reading "MY ADMIT CARDS Add" with a 393px-wide tap target, and the
+    // actual "Add" affordance was unreachable for a screen reader.
     return Semantics(
+      container: true,
+      // `excludeSemantics` collapses the child Text into this single node, so the
+      // action is announced once ("Add, button") instead of twice with a
+      // duplicated label.
+      excludeSemantics: true,
       button: true,
+      label: label,
       child: InkWell(
         onTap: onPressed,
         borderRadius: BorderRadius.circular(EvRadius.pill),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 32),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [

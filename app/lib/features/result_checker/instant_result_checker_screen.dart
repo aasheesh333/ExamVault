@@ -99,9 +99,11 @@ class _InstantResultCheckerScreenState
     final update = ref.watch(resultExamIdProvider);
     final card = _targetCard(cards, null);
 
-    final examName =
-        update?.examName ?? card?.examName ?? 'SSC CGL Tier-1 2026';
-    final examId = update?.examId ?? card?.examId ?? 'ssc_cgl_tier1_2026';
+    // Resolve the exam from something real: the radar row the user tapped, or
+    // their own saved card, or an explicit pick. Never a hardcoded default — the
+    // screen used to search the SSC CGL index for anybody with an empty vault.
+    final examName = update?.examName ?? card?.examName;
+    final examId = update?.examId ?? card?.examId;
 
     return Scaffold(
       backgroundColor: p.bg,
@@ -131,7 +133,7 @@ class _InstantResultCheckerScreenState
                   const SizedBox(height: 8),
                   _MirrorCard(
                     indexSource: state.indexSource,
-                    cachedLatency: update?.mirrorLatencyMs,
+                    observedLatencyMs: update?.mirrorLatencyMs,
                   ),
                   const SizedBox(height: 8),
                   _RetryNote(state: state),
@@ -144,42 +146,57 @@ class _InstantResultCheckerScreenState
                         : 'Check my result instantly',
                     icon: state.isBusy ? null : Icons.bolt_rounded,
                     busy: state.isBusy,
-                    onPressed: () => _check(card),
+                    enabled: examId != null,
+                    onPressed: examId == null ? null : () => _check(card),
                   ),
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: EvSecondaryButton(
-                          label: 'Official PDF',
-                          icon: Icons.picture_as_pdf_outlined,
-                          onPressed: () => _openPdf(examId),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: EvSecondaryButton(
-                          label: 'Copy link',
-                          icon: Icons.link_rounded,
-                          onPressed: () => ClipboardService.copy(
-                            context,
-                            value:
-                                '${AppConfig.cdnBase}${AppConfig.resultPdfPath(examId)}',
-                            label: 'Result link',
+                  if (examId == null) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      'Add an admit card first, or tap a result on the Radar '
+                      'tab — we need to know which exam to check.',
+                      style: context.type.bodyMuted.copyWith(fontSize: 10.5),
+                    ),
+                  ],
+                  // The PDF mirror only exists once the result is published, so
+                  // the buttons appear only after a successful index fetch.
+                  // Offering them earlier just walks the user into a 404.
+                  if (examId != null &&
+                      (state.indexSource?.isReal ?? false)) ...[
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: EvSecondaryButton(
+                            label: 'Official PDF',
+                            icon: Icons.picture_as_pdf_outlined,
+                            onPressed: () => _openPdf(examId),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: EvSecondaryButton(
+                            label: 'Copy link',
+                            icon: Icons.link_rounded,
+                            onPressed: () => ClipboardService.copy(
+                              context,
+                              value:
+                                  '${AppConfig.cdnBase}${AppConfig.resultPdfPath(examId)}',
+                              label: 'Result link',
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                   if (state.phase == ResultPhase.done &&
                       state.result != null &&
                       !state.result!.isFound) ...[
                     const SizedBox(height: 16),
                     _NotFoundCard(result: state.result!),
                   ],
-                  if (state.phase == ResultPhase.failed) ...[
+                  if (state.isUnavailable) ...[
                     const SizedBox(height: 16),
-                    _ErrorCard(message: state.error ?? 'Something went wrong.'),
+                    _UnavailableCard(message: state.error),
                   ],
                   const SizedBox(height: 22),
                   _RecentChecks(
@@ -299,18 +316,25 @@ class _NavBar extends StatelessWidget {
 class _TitleWithAccent extends StatelessWidget {
   const _TitleWithAccent({required this.examName});
 
-  final String examName;
+  /// Null when no exam has been chosen: the header then asks the user to pick one
+  /// instead of inventing an exam name.
+  final String? examName;
 
   @override
   Widget build(BuildContext context) {
     final p = context.ev;
-    // "Result" is always the last word, tinted green. Using Text.rich instead of
-    // two positioned Texts means it wraps correctly at any text scale.
+
+    if (examName == null) {
+      return Text('Which result?', style: context.type.screenTitle);
+    }
+
+    // "Result" is always the last word, tinted green. Text.rich (rather than two
+    // positioned Texts) wraps correctly at any text scale.
     return Text.rich(
       TextSpan(
         children: [
           TextSpan(
-            text: examName.replaceAll(' Result', ''),
+            text: examName!.replaceAll(' Result', ''),
             style: context.type.screenTitle,
           ),
           TextSpan(
@@ -324,46 +348,49 @@ class _TitleWithAccent extends StatelessWidget {
   }
 }
 
-/// Shows the three routes to the same object, with honest state.
+/// Shows where the answer comes from, using only values we actually observed.
+///
+/// Earlier this widget hardcoded `upsc.gov.in` / `1,204ms` regardless of the exam
+/// being checked, which is both wrong and misleading — it invented a latency
+/// number for a server the app never contacted.
 class _MirrorCard extends StatelessWidget {
-  const _MirrorCard({this.indexSource, this.cachedLatency});
+  const _MirrorCard({this.indexSource, this.observedLatencyMs});
 
   final IndexSource? indexSource;
-  final int? cachedLatency;
+
+  /// Measured round-trip for the index fetch, when we have one.
+  final int? observedLatencyMs;
 
   @override
   Widget build(BuildContext context) {
     final p = context.ev;
 
-    final edgeLive = indexSource == IndexSource.edge;
-    final cacheWarm = indexSource != null;
+    final hasIndex = indexSource?.isReal ?? false;
+    final unavailable = indexSource == IndexSource.unavailable;
 
     final rows = <_MirrorRow>[
       _MirrorRow(
-        name: 'Official site',
-        sub: 'upsc.gov.in',
-        state: 'BUSY',
-        color: p.warning,
-        textColor: p.warningText,
-        fill: 0.74,
-        value: '1,204ms',
-      ),
-      _MirrorRow(
         name: 'Edge CDN index',
-        sub: '150 KB gzip',
-        state: edgeLive ? 'FAST' : 'READY',
-        color: p.success,
-        textColor: p.successText,
-        fill: edgeLive ? 0.22 : 0.34,
-        value: edgeLive ? '82ms' : 'cached',
+        sub: hasIndex ? 'published' : 'not published',
+        state: hasIndex ? 'READY' : (unavailable ? 'MISSING' : 'IDLE'),
+        color: hasIndex
+            ? p.success
+            : (unavailable ? p.warning : p.textTertiary),
+        textColor: hasIndex
+            ? p.successText
+            : (unavailable ? p.warningText : p.textTertiary),
+        fill: hasIndex ? 0.28 : 0.06,
+        value: observedLatencyMs != null
+            ? '${observedLatencyMs}ms'
+            : (hasIndex ? 'cached' : '—'),
       ),
       _MirrorRow(
         name: 'Binary search',
         sub: 'on device',
-        state: cacheWarm ? 'READY' : 'IDLE',
+        state: hasIndex ? 'READY' : 'IDLE',
         color: p.accent,
         textColor: p.accentText,
-        fill: cacheWarm ? 0.08 : 0.16,
+        fill: hasIndex ? 0.10 : 0.05,
         value: '<1ms',
       ),
     ];
@@ -522,10 +549,10 @@ class _RetryNote extends StatelessWidget {
       ResultPhase.downloading => 'Downloading the edge index…',
       ResultPhase.searching => 'Searching 12,000+ roll numbers…',
       ResultPhase.done =>
-        state.indexSource == IndexSource.demo
+        state.indexSource == IndexSource.unavailable
             ? 'Demo index — the real result is not published yet.'
             : 'Checked against the published merit list.',
-      ResultPhase.failed => state.error ?? 'Could not check.',
+      ResultPhase.unavailable => state.error ?? 'Could not check.',
       ResultPhase.idle =>
         'Index is 150 KB, not a 60 MB PDF. It fits in one tap.',
     };
@@ -670,33 +697,47 @@ class _NotFoundCard extends StatelessWidget {
   }
 }
 
-class _ErrorCard extends StatelessWidget {
-  const _ErrorCard({required this.message});
+class _UnavailableCard extends StatelessWidget {
+  const _UnavailableCard({this.message});
 
-  final String message;
+  final String? message;
 
   @override
   Widget build(BuildContext context) {
     final p = context.ev;
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(
-        color: p.danger.withValues(alpha: 0.08),
+        color: p.warning.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(EvRadius.card),
-        border: Border.all(color: p.danger.withValues(alpha: 0.26)),
+        border: Border.all(color: p.warning.withValues(alpha: 0.28)),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.error_outline_rounded, size: 16, color: p.danger),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              message,
-              style: context.type.bodyMuted.copyWith(
-                fontSize: 11,
-                color: p.dangerText,
+          Row(
+            children: [
+              Icon(Icons.hourglass_empty_rounded, size: 16, color: p.warning),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Result not published yet',
+                  style: context.type.tileTitle.copyWith(color: p.warningText),
+                ),
               ),
-            ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            message ??
+                'The official index for this exam is not on the edge yet. This '
+                    'is normal before a result drops — we will not guess.',
+            style: context.type.bodyMuted.copyWith(fontSize: 11),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'We never show a result we cannot verify.',
+            style: context.type.microLabel.copyWith(fontSize: 8.5),
           ),
         ],
       ),

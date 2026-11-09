@@ -64,10 +64,18 @@ const routes = [
     pattern: /^\/v1\/live_feed_v1\.json$/,
     key: () => 'v1/live_feed_v1.json',
     contentType: 'application/json; charset=utf-8',
-    maxAge: 60,
-    sMaxAge: 3600,
+    // The radar document is ~1 KB and changes the moment a result drops.
+    //
+    // It is deliberately NOT edge-cached. An earlier version gave it
+    // `s-maxage=3600`, which meant a publish could stay invisible for an hour —
+    // and because there is no zone behind workers.dev, there is no cache to
+    // purge either. One R2 read per request for a 1 KB object costs nothing, and
+    // Cloudflare still collapses concurrent requests upstream.
+    maxAge: 30,
+    sMaxAge: 0,
     immutable: false,
-    edgeCacheTtl: 60,
+    edgeCacheTtl: 0,
+    noEdgeCache: true,
   },
 ];
 
@@ -109,11 +117,13 @@ export default {
     const cache = caches.default;
     const cacheKey = new Request(url.toString(), request);
 
-    const cached = await cache.match(cacheKey);
-    if (cached) {
-      const hit = new Response(cached.body, cached);
-      hit.headers.set('x-examvault-cache', 'HIT');
-      return hit;
+    if (!route.noEdgeCache) {
+      const cached = await cache.match(cacheKey);
+      if (cached) {
+        const hit = new Response(cached.body, cached);
+        hit.headers.set('x-examvault-cache', 'HIT');
+        return hit;
+      }
     }
 
     let object;
@@ -153,7 +163,10 @@ export default {
 
     const headers = withCache(new Headers(), route);
     headers.set('etag', etag);
-    headers.set('x-examvault-cache', 'MISS');
+    headers.set(
+      'x-examvault-cache',
+      route.noEdgeCache ? 'BYPASS' : 'MISS',
+    );
 
     // Buffer first, then hand out copies.
     //

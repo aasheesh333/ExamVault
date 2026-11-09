@@ -41,7 +41,7 @@ Future<void> main() async {
     ],
   );
 
-  await _firstRunSeed(settingsBox);
+  await _purgeLegacySampleCards();
 
   // Push is best-effort: a failure here must never stop the app from booting.
   unawaited(_bootPush(container));
@@ -75,24 +75,25 @@ void _installCrashGuards() {
   };
 }
 
-/// Seeds one realistic vault on a brand-new install.
+/// Removes the sample cards that an earlier build wrote into the encrypted vault.
 ///
-/// A blank vault is a bad first impression and leaves the result checker with
-/// nothing to auto-fill. The samples are plain entries the user can delete.
-Future<void> _firstRunSeed(Box<dynamic> settings) async {
-  const seededKey = 'demo_seeded_v1';
-  if (settings.get(seededKey) == true) return;
-
+/// Earlier revisions auto-seeded three `sample_*` admit cards on first run. Those
+/// look exactly like real saved data — a user would reasonably believe ExamVault
+/// had pulled someone else's roll number out of thin air. On upgrade we delete any
+/// entry that still carries the `sample_` id prefix, so nobody is left holding a
+/// fake admit card.
+Future<void> _purgeLegacySampleCards() async {
   final repo = AdmitCardRepository();
   try {
-    for (final card in DemoSeed.admitCards()) {
-      await repo.save(card);
+    final cards = await repo.load(force: true);
+    for (final card in cards) {
+      if (card.id.startsWith(DemoSeed.sampleMarker)) {
+        await repo.delete(card.id);
+        AppLogger.d('boot', 'purged sample card ${card.id}');
+      }
     }
-    await settings.put(seededKey, true);
-    AppLogger.d('boot', 'seeded demo vault');
   } catch (e, st) {
-    // A Keystore failure on an obscure OEM must not block startup.
-    AppLogger.e('boot', 'seed failed', e, st);
+    AppLogger.e('boot', 'sample purge failed', e, st);
   } finally {
     repo.dispose();
   }

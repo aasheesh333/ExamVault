@@ -116,13 +116,18 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('renders the seeded wallet stack and radar', (tester) async {
+  testWidgets('mounts the radar section and seeds no vault content', (
+    tester,
+  ) async {
     await pumpPhone(tester, app());
-    await tester.pump(const Duration(milliseconds: 500));
 
-    // At least one card title and one radar row should be on screen.
-    expect(find.textContaining('SSC CGL'), findsWidgets);
+    // Scope note: feed *content* is covered exhaustively by
+    // `live_feed_parsing_test.dart` (UTF-8, sorting, malformed rows, liveCount).
+    // This widget test only guards the structural contract that broke before:
+    // the radar section renders, and the vault is NOT pre-filled with fiction.
     expect(find.text('LIVE RADAR'), findsWidgets);
+    expect(find.text('Add your first admit card'), findsOneWidget);
+    expect(find.textContaining('exams tracked'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

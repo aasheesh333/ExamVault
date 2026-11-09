@@ -7,6 +7,8 @@ import '../../core/utils/clipboard_service.dart';
 import '../../domain/entities/admit_card.dart';
 import '../../domain/entities/live_update.dart';
 import '../../providers/app_providers.dart';
+import '../../features/shell/root_shell.dart';
+import '../../features/vault/vault_form_sheet.dart';
 import '../../shared/widgets/ev_controls.dart';
 import '../../shared/widgets/ev_surfaces.dart';
 import 'widgets/share_infographic.dart';
@@ -32,15 +34,23 @@ class _WhatsappShareCardScreenState
   bool _attachPdf = true;
   bool _sharing = false;
 
+  /// True once the user edits the caption; auto-sync stops from then on.
+  bool _captionTouched = false;
+
   @override
   void dispose() {
     _captionController.dispose();
     super.dispose();
   }
 
-  ShareCardData _buildCard(LiveUpdate? update, AdmitCard? card) {
-    final examName =
-        update?.examName ?? card?.examName ?? 'SSC CGL Tier-1 2026';
+  /// Null when there is genuinely nothing to share — no radar row and no saved
+  /// card. The screen then shows an explainer instead of a card built on
+  /// placeholders like "SSC CGL Tier-1 2026" + "Roll —".
+  ShareCardData? _buildCard(LiveUpdate? update, AdmitCard? card) {
+    final examName = update?.examName ?? card?.examName;
+    final examId = update?.examId ?? card?.examId;
+    if (examName == null || examId == null) return null;
+
     final isResult =
         (update?.status ?? UpdateStatus.resultOut) == UpdateStatus.resultOut;
 
@@ -51,11 +61,11 @@ class _WhatsappShareCardScreenState
           ? 'Cut-off, PDF & official link inside'
           : 'Download your admit card before the server queue',
       dateLine: _shortDate(DateTime.now()),
-      rollNumber: card?.rollNumber ?? '—',
+      // Empty when we do not have the user's roll — never a "—" placeholder.
+      rollNumber: card?.rollNumber ?? '',
       selected: card?.rollNumberVerified ?? false,
-      shareUrl:
-          'https://examvault.in/r/${update?.examId ?? card?.examId ?? 'ssc'}',
-      // Real cut-offs are published per exam; the seed does not invent them.
+      shareUrl: ref.read(resultIndexRepositoryProvider).shareUrl(examId),
+      // Cut-offs are only shown when a publisher actually released them.
       cutoffs: null,
       pdfSizeLabel: update?.pdfSizeLabel,
     );
@@ -80,9 +90,37 @@ class _WhatsappShareCardScreenState
         '${months[d.month - 1]} ${d.year}';
   }
 
-  String _defaultCaption(ShareCardData data) =>
-      '🚨 ${data.examName.toUpperCase()} ${data.headline} — cut-off & direct check inside.\n'
-      'Roll ${data.rollNumber} · verified on ExamVault.';
+  String _defaultCaption(ShareCardData data) {
+    final lines = <String>[
+      '🚨 ${data.examName.toUpperCase()} ${data.headline} — cut-off & direct '
+          'check inside.',
+      if (data.rollNumber.isNotEmpty)
+        'Roll ${data.rollNumber}${data.selected ? ' · found in the merit list' : ''}',
+      if (data.shareUrl != null) data.shareUrl!,
+    ];
+    return lines.join('\n');
+  }
+
+  /// Rebuilds the caption whenever the underlying data changes, as long as the
+  /// user has not edited it.
+  ///
+  /// The previous version seeded the caption once, during the provider's loading
+  /// state, so it permanently read "Roll — · verified on ExamVault" even after the
+  /// vault resolved.
+  void _syncCaption(ShareCardData? data) {
+    if (_captionTouched) return;
+    final next = data == null ? '' : _defaultCaption(data);
+    if (_captionController.text != next) {
+      _captionController.text = next;
+    }
+  }
+
+  String _withUrl(String caption, ShareCardData data) {
+    final url = data.shareUrl;
+    if (url == null || url.isEmpty) return caption;
+    if (caption.contains(url)) return caption;
+    return '$caption\n\n$url';
+  }
 
   Future<void> _share(ShareCardData data) async {
     if (_sharing) return;
@@ -103,14 +141,14 @@ class _WhatsappShareCardScreenState
         // Capture can fail on very low memory; a text share still gets the job
         // done, so the CTA never dead-ends.
         await share.shareText(
-          caption: '$caption\n\n${data.shareUrl}',
+          caption: _withUrl(caption, data),
           subject: data.examName,
           origin: origin,
         );
       } else {
         await share.shareCardImage(
           png: png,
-          caption: '$caption\n\n${data.shareUrl}',
+          caption: _withUrl(caption, data),
           subject: data.examName,
           origin: origin,
           fileName: 'examvault_${DateTime.now().millisecondsSinceEpoch}.png',
@@ -129,9 +167,27 @@ class _WhatsappShareCardScreenState
     final card = cards.isEmpty ? null : cards.first;
     final data = _buildCard(update, card);
 
-    // Seed the caption the first time only; never clobber what the user typed.
-    if (_captionController.text.isEmpty) {
-      _captionController.text = _defaultCaption(data);
+    // Keep the caption in sync with the data, unless the user edited it.
+    _syncCaption(data);
+
+    if (data == null) {
+      return Scaffold(
+        backgroundColor: p.bg,
+        body: SafeArea(
+          child: Column(
+            children: [
+              _ShareNavBar(),
+              Expanded(
+                child: _NothingToShare(
+                  onAddCard: () => showVaultFormSheet(context, ref),
+                  onOpenRadar: () =>
+                      ref.read(tabIndexProvider.notifier).select(EvTab.radar),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
     }
 
     return Scaffold(
@@ -160,14 +216,21 @@ class _WhatsappShareCardScreenState
                   const SizedBox(height: EvSpace.x5),
                   _ShareTargets(
                     onShare: () => _share(data),
-                    onCopyLink: () => ClipboardService.copy(
-                      context,
-                      value: data.shareUrl,
-                      label: 'Share link',
-                    ),
+                    onCopyLink: data.shareUrl == null
+                        ? null
+                        : () => ClipboardService.copy(
+                            context,
+                            value: data.shareUrl!,
+                            label: 'Share link',
+                          ),
                   ),
                   const SizedBox(height: EvSpace.x4),
-                  _CaptionEditor(controller: _captionController),
+                  _CaptionEditor(
+                    controller: _captionController,
+                    onChanged: () {
+                      _captionTouched = true;
+                    },
+                  ),
                   const SizedBox(height: 10),
                   _AttachRow(
                     value: _attachPdf,
@@ -245,7 +308,10 @@ class _ShareTargets extends StatelessWidget {
   const _ShareTargets({required this.onShare, required this.onCopyLink});
 
   final VoidCallback onShare;
-  final VoidCallback onCopyLink;
+
+  /// Null when no share URL is configured — the tile is then disabled rather
+  /// than copying an empty string.
+  final VoidCallback? onCopyLink;
 
   @override
   Widget build(BuildContext context) {
@@ -270,8 +336,9 @@ class _ShareTargets extends StatelessWidget {
         _Target(
           label: 'Copy link',
           icon: Icons.link_rounded,
-          color: p.accentText,
-          onTap: onCopyLink,
+          color: onCopyLink == null ? p.textTertiary : p.accentText,
+          onTap: onCopyLink ?? () {},
+          enabled: onCopyLink != null,
         ),
         _Target(
           label: 'Save PNG',
@@ -291,6 +358,7 @@ class _Target extends StatelessWidget {
     required this.color,
     required this.onTap,
     this.highlight = false,
+    this.enabled = true,
   });
 
   final String label;
@@ -298,6 +366,7 @@ class _Target extends StatelessWidget {
   final Color color;
   final VoidCallback onTap;
   final bool highlight;
+  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
@@ -305,36 +374,44 @@ class _Target extends StatelessWidget {
 
     return Semantics(
       button: true,
+      enabled: enabled,
       label: label,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(EvRadius.inner),
-        child: SizedBox(
-          width: 76,
-          child: Column(
-            children: [
-              Container(
-                width: 50,
-                height: 50,
-                decoration: BoxDecoration(
-                  color: highlight ? color.withValues(alpha: 0.12) : p.surface,
-                  borderRadius: BorderRadius.circular(EvRadius.inner),
-                  border: Border.all(
-                    color: highlight ? color.withValues(alpha: 0.34) : p.border,
+      child: Opacity(
+        opacity: enabled ? 1 : 0.4,
+        child: InkWell(
+          onTap: enabled ? onTap : null,
+          borderRadius: BorderRadius.circular(EvRadius.inner),
+          child: SizedBox(
+            width: 76,
+            child: Column(
+              children: [
+                Container(
+                  width: 50,
+                  height: 50,
+                  decoration: BoxDecoration(
+                    color: highlight
+                        ? color.withValues(alpha: 0.12)
+                        : p.surface,
+                    borderRadius: BorderRadius.circular(EvRadius.inner),
+                    border: Border.all(
+                      color: highlight
+                          ? color.withValues(alpha: 0.34)
+                          : p.border,
+                    ),
+                  ),
+                  child: Icon(icon, size: 22, color: color),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  label,
+                  maxLines: 1,
+                  style: context.type.label.copyWith(
+                    fontSize: 10,
+                    color: highlight ? p.textPrimary : p.textSecondary,
                   ),
                 ),
-                child: Icon(icon, size: 22, color: color),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                label,
-                maxLines: 1,
-                style: context.type.label.copyWith(
-                  fontSize: 10,
-                  color: highlight ? p.textPrimary : p.textSecondary,
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -343,9 +420,10 @@ class _Target extends StatelessWidget {
 }
 
 class _CaptionEditor extends StatefulWidget {
-  const _CaptionEditor({required this.controller});
+  const _CaptionEditor({required this.controller, this.onChanged});
 
   final TextEditingController controller;
+  final VoidCallback? onChanged;
 
   @override
   State<_CaptionEditor> createState() => _CaptionEditorState();
@@ -467,6 +545,70 @@ class _AttachRow extends StatelessWidget {
             activeTrackColor: p.success,
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Shown when there is neither a radar row nor a saved card to talk about.
+class _NothingToShare extends StatelessWidget {
+  const _NothingToShare({required this.onAddCard, required this.onOpenRadar});
+
+  final VoidCallback onAddCard;
+  final VoidCallback onOpenRadar;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.ev;
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 52,
+              height: 52,
+              decoration: BoxDecoration(
+                color: p.accent.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(EvRadius.inner),
+              ),
+              child: Icon(
+                Icons.ios_share_rounded,
+                color: p.accentText,
+                size: 24,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Nothing to share yet',
+              textAlign: TextAlign.center,
+              style: context.type.sectionTitle.copyWith(fontSize: 14),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'A share card is built from a result on the Radar, or from your own '
+              'saved admit card. Add one and this screen fills itself in.',
+              textAlign: TextAlign.center,
+              style: context.type.bodyMuted,
+            ),
+            const SizedBox(height: 20),
+            EvPrimaryButton(
+              label: 'Add an admit card',
+              icon: Icons.add_rounded,
+              expand: false,
+              onPressed: onAddCard,
+            ),
+            const SizedBox(height: 8),
+            EvSecondaryButton(
+              label: 'Open Radar',
+              icon: Icons.radar_rounded,
+              expand: false,
+              onPressed: onOpenRadar,
+            ),
+          ],
+        ),
       ),
     );
   }

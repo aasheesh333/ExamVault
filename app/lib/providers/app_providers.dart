@@ -161,7 +161,7 @@ class LiveFeedNotifier extends AsyncNotifier<LiveFeedSnapshot> {
     final repo = ref.watch(liveFeedRepositoryProvider);
 
     // 1. Instant paint from disk on the very first frame.
-    final cached = repo.readCached() ?? repo.seedSnapshot();
+    final cached = repo.readCached() ?? repo.emptySnapshot();
 
     // 2. Refresh in the background; the UI already has something to show.
     unawaited(_refreshInto(repo));
@@ -237,9 +237,20 @@ class ResultCheckState {
 
   bool get isBusy =>
       phase == ResultPhase.downloading || phase == ResultPhase.searching;
+
+  bool get isUnavailable => phase == ResultPhase.unavailable;
 }
 
-enum ResultPhase { idle, downloading, searching, done, failed }
+enum ResultPhase {
+  idle,
+  downloading,
+  searching,
+  done,
+
+  /// The index does not exist yet (or could not be fetched). Distinct from a
+  /// completed search that found nothing.
+  unavailable,
+}
 
 class ResultCheckerNotifier extends Notifier<ResultCheckState> {
   @override
@@ -253,10 +264,20 @@ class ResultCheckerNotifier extends Notifier<ResultCheckState> {
 
     try {
       final repo = ref.read(resultIndexRepositoryProvider);
-      final bundle = await repo.load(
-        examId: examId,
-        userRollForDemo: rollNumber,
-      );
+      final bundle = await repo.load(examId: examId);
+
+      // No index means no answer. Never synthesise one — a wrong "selected"
+      // is worse than an honest "not published yet".
+      if (!bundle.hasData) {
+        state = ResultCheckState(
+          phase: ResultPhase.unavailable,
+          indexSource: bundle.source,
+          error:
+              bundle.reason ??
+              'The result for this exam has not been published yet.',
+        );
+        return null;
+      }
 
       state = ResultCheckState(
         phase: ResultPhase.searching,
@@ -270,7 +291,7 @@ class ResultCheckerNotifier extends Notifier<ResultCheckState> {
 
       state = ResultCheckState(
         phase: result.state == RollLookupState.indexUnavailable
-            ? ResultPhase.failed
+            ? ResultPhase.unavailable
             : ResultPhase.done,
         result: result,
         indexSource: bundle.source,
@@ -281,7 +302,7 @@ class ResultCheckerNotifier extends Notifier<ResultCheckState> {
       // Never surface a Dart exception string to a student on exam morning.
       AppLogger.e('checker', 'lookup failed', e, st);
       state = const ResultCheckState(
-        phase: ResultPhase.failed,
+        phase: ResultPhase.unavailable,
         error:
             'Could not reach the result index. Check your connection and '
             'tap again — nothing was lost.',

@@ -16,18 +16,23 @@ abstract final class AppConfig {
   static const supportEmail = 'support@examvault.in';
 
   /// Deep-link base used by the viral share card.
+  ///
+  /// Empty by default **on purpose**: the app must not print a link to a domain
+  /// nobody owns. When this is empty the share card omits the URL instead of
+  /// shipping a dead `examvault.in/r/...` that frustrates every recipient.
   static const webBase = String.fromEnvironment(
     'EV_WEB_BASE',
-    defaultValue: 'https://examvault.in',
+    defaultValue: '',
   );
 
   // -------------------------------------------------------------------- edge
   /// Cloudflare R2 custom domain. Requests hit the nearest PoP and are served
   /// from cache — origin (R2) sees one request per object per TTL window, which
   /// is what makes a 10M-user spike survivable on a free tier.
+  /// Defaults to the deployed worker so a plain `flutter run` reads real data.
   static const cdnBase = String.fromEnvironment(
     'EV_CDN_BASE',
-    defaultValue: 'https://cdn.examvault.in',
+    defaultValue: 'https://examvault-edge.aasheeshkatheriya.workers.dev',
   );
 
   /// The single edge document the radar renders. One object, one cache key.

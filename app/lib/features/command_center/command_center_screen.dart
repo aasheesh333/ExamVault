@@ -54,15 +54,28 @@ class CommandCenterScreen extends ConsumerWidget {
               const SizedBox(height: EvSpace.x4),
               EvSectionHeader(
                 label: 'My admit cards',
-                trailing: allCards.isEmpty
-                    ? null
-                    : EvTextAction(
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (allCards.isNotEmpty)
+                      EvTextAction(
                         label: '${allCards.length} saved',
                         icon: Icons.chevron_right_rounded,
                         onPressed: () => ref
                             .read(tabIndexProvider.notifier)
                             .select(EvTab.vault),
                       ),
+                    // Add is always available, not only in the empty state.
+                    // A vault you cannot add to is not a vault.
+                    const SizedBox(width: 4),
+                    EvTextAction(
+                      label: 'Add',
+                      icon: Icons.add_rounded,
+                      color: context.ev.accentText,
+                      onPressed: () => showVaultFormSheet(context, ref),
+                    ),
+                  ],
+                ),
               ),
               const SizedBox(height: EvSpace.x2),
               _VaultSection(cards: cards, hasAnyCard: allCards.isNotEmpty),
@@ -325,17 +338,20 @@ class _CategoryChips extends ConsumerWidget {
               const SizedBox(width: 28),
             ],
           ),
-          // Fades the last chip so the row reads as scrollable rather than cut.
+          // A chip sliced in half at the right edge reads as a layout bug rather
+          // than as "there is more". This fade runs the full 56px and reaches
+          // fully opaque 12px before the edge so the cut is never visible.
           Positioned(
             right: 0,
             top: 0,
             bottom: 0,
-            width: 40,
+            width: 56,
             child: IgnorePointer(
               child: DecoratedBox(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    colors: [p.bg.withValues(alpha: 0), p.bg],
+                    colors: [p.bg.withValues(alpha: 0), p.bg, p.bg],
+                    stops: const [0, 0.78, 1],
                   ),
                 ),
               ),
@@ -387,8 +403,16 @@ class _EmptyVault extends ConsumerWidget {
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: EvSpace.gutter),
-      child: EvCard(
+      // A plain container, not `EvCard`: EvCard contributes a semantic container
+      // which merged this whole block into one 361x209 button. With nothing but
+      // the CTA left in the tree, VoiceOver reads "Add admit card, button".
+      child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 22),
+        decoration: BoxDecoration(
+          color: p.surface,
+          borderRadius: BorderRadius.circular(EvRadius.card),
+          border: Border.all(color: p.border),
+        ),
         child: Column(
           children: [
             Container(
@@ -448,15 +472,24 @@ class _RadarHeader extends StatelessWidget {
     final p = context.ev;
     final source = snapshot?.source;
 
+    // A network fetch is not the same thing as *fresh* data: the edge object can
+    // legitimately be hours old. Printing "LIVE" for a day-old document is the
+    // kind of small lie that destroys trust on result day, so the age is shown
+    // whenever it exceeds the poll interval.
+    final generated = snapshot?.feed.generatedAt;
+    final age = generated == null ? null : DateTime.now().difference(generated);
+
     final String status;
     if (snapshot == null) {
       status = 'CONNECTING…';
-    } else if (source == FeedSource.network) {
-      status = 'LIVE · EDGE';
-    } else if (source == FeedSource.cache) {
-      status = 'CACHED';
+    } else if (source == FeedSource.none) {
+      status = 'NO FEED';
+    } else if (age != null && age.inMinutes >= 2) {
+      status =
+          '${source == FeedSource.network ? 'EDGE' : 'CACHED'} · '
+          '${_shortAge(age)} OLD';
     } else {
-      status = 'SAMPLE DATA';
+      status = source == FeedSource.network ? 'LIVE · EDGE' : 'CACHED';
     }
 
     return EvSectionHeader(
@@ -483,7 +516,10 @@ class _RadarHeader extends StatelessWidget {
         style: context.type.microLabel.copyWith(
           fontSize: 8.5,
           letterSpacing: 1.1,
-          color: source == FeedSource.network ? p.successText : p.textTertiary,
+          color:
+              source == FeedSource.network && (age == null || age.inMinutes < 2)
+              ? p.successText
+              : p.textTertiary,
         ),
       ),
     );
@@ -552,4 +588,10 @@ class _RadarSection extends ConsumerWidget {
     ref.read(resultExamIdProvider.notifier).select(update);
     ref.read(tabIndexProvider.notifier).select(EvTab.radar);
   }
+}
+
+String _shortAge(Duration age) {
+  if (age.inMinutes < 60) return '${age.inMinutes}m';
+  if (age.inHours < 24) return '${age.inHours}h';
+  return '${age.inDays}d';
 }

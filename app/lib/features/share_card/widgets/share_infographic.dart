@@ -23,7 +23,10 @@ class ShareCardData {
   final String dateLine;
   final String rollNumber;
   final bool selected;
-  final String shareUrl;
+
+  /// Null when no public web base is configured — the card then shows no URL
+  /// rather than a dead link to a domain we do not own.
+  final String? shareUrl;
 
   /// Only rendered when the publisher actually released cut-offs. Showing a
   /// made-up cut-off on a card that gets forwarded 10 000 times is exactly the
@@ -109,14 +112,17 @@ class ShareInfographic extends StatelessWidget {
                   const SizedBox(height: 13),
                   if (data.cutoffs != null && data.cutoffs!.isNotEmpty)
                     _CutoffBlock(cutoffs: data.cutoffs!)
-                  else
+                  else if (data.rollNumber.isNotEmpty)
                     _RollBlock(data: data),
                   const SizedBox(height: 12),
                   _CtaBar(shareUrl: data.shareUrl),
                   const SizedBox(height: 10),
                   const Center(
                     child: Text(
-                      'VERIFIED SOURCE · FREE · DIRECT PDF',
+                      // Always-true claims only. "VERIFIED SOURCE" was printed
+                      // unconditionally, which is a promise the app cannot keep
+                      // for a card the user typed in themselves.
+                      'FREE · NO ACCOUNT · CHECKED ON YOUR DEVICE',
                       style: TextStyle(
                         fontFamily: EvFont.mono,
                         fontFamilyFallback: EvFont.fallbackMono,
@@ -195,7 +201,9 @@ class _AlertStrip extends StatelessWidget {
 class _BrandRow extends StatelessWidget {
   const _BrandRow({required this.shareUrl});
 
-  final String shareUrl;
+  /// Null when no public web base is configured — the card then shows no URL
+  /// rather than a dead link to a domain we do not own.
+  final String? shareUrl;
 
   @override
   Widget build(BuildContext context) {
@@ -231,20 +239,23 @@ class _BrandRow extends StatelessWidget {
           ),
         ),
         const Spacer(),
-        Flexible(
-          child: Text(
-            shareUrl.replaceFirst('https://', ''),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              fontFamily: EvFont.mono,
-              fontFamilyFallback: EvFont.fallbackMono,
-              fontSize: 8,
-              color: ShareInfographic._faint,
-              letterSpacing: 0.3,
+        if (shareUrl != null && shareUrl!.isNotEmpty)
+          Flexible(
+            child: Text(
+              shareUrl!
+                  .replaceFirst('https://', '')
+                  .replaceFirst('http://', ''),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontFamily: EvFont.mono,
+                fontFamilyFallback: EvFont.fallbackMono,
+                fontSize: 8,
+                color: ShareInfographic._faint,
+                letterSpacing: 0.3,
+              ),
             ),
           ),
-        ),
       ],
     );
   }
@@ -442,7 +453,9 @@ class _RollBlock extends StatelessWidget {
 class _CtaBar extends StatelessWidget {
   const _CtaBar({required this.shareUrl});
 
-  final String shareUrl;
+  /// Null when no public web base is configured — the card then shows no URL
+  /// rather than a dead link to a domain we do not own.
+  final String? shareUrl;
 
   @override
   Widget build(BuildContext context) {

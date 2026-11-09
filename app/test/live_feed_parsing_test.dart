@@ -134,6 +134,83 @@ void main() {
     });
   });
 
+  group('expiry', () {
+    test('uses the publisher expiry when supplied', () {
+      final feed = LiveFeedDto.parse(
+        jsonEncode({
+          'generated_at': '2026-11-09T10:00:00Z',
+          'updates': [
+            {...row(), 'expires_at': '2026-11-09T11:00:00Z'},
+          ],
+        }),
+      );
+
+      final u = feed.updates.single;
+      expect(u.expiresAt, isNotNull);
+      expect(u.isExpired(DateTime.parse('2026-11-09T10:30:00Z')), isFalse);
+      expect(u.isExpired(DateTime.parse('2026-11-09T11:30:00Z')), isTrue);
+    });
+
+    test('applies a per-status default TTL when omitted', () {
+      final feed = LiveFeedDto.parse(doc([row()])); // result_out, 09:58Z
+      final u = feed.updates.single;
+
+      // result_out defaults to 48h from publication.
+      expect(
+        u.expiresAt!.isAtSameMomentAs(
+          DateTime.parse('2026-11-11T09:58:00Z').toLocal(),
+        ),
+        isTrue,
+      );
+    });
+
+    test('a form-closing row goes stale the same day, not next week', () {
+      final feed = LiveFeedDto.parse(
+        doc([row(status: 'form_closing', publishedAt: '2026-11-09T09:00:00Z')]),
+      );
+      final u = feed.updates.single;
+
+      expect(
+        u.isExpired(DateTime.parse('2026-11-10T09:00:00Z').toLocal()),
+        isTrue,
+      );
+    });
+
+    test('activeAt drops expired rows but keeps live ones', () {
+      final feed = LiveFeedDto.parse(
+        jsonEncode({
+          'generated_at': '2026-11-09T10:00:00Z',
+          'updates': [
+            {...row(examId: 'gone'), 'expires_at': '2026-11-09T09:00:00Z'},
+            {...row(examId: 'live'), 'expires_at': '2026-11-20T00:00:00Z'},
+          ],
+        }),
+      );
+
+      final active = feed.activeAt(
+        DateTime.parse('2026-11-09T12:00:00Z').toLocal(),
+      );
+      expect(active.map((u) => u.examId), ['live']);
+    });
+
+    test('a feed whose rows have all expired reads as empty', () {
+      final feed = LiveFeedDto.parse(
+        jsonEncode({
+          'generated_at': '2026-11-01T10:00:00Z',
+          'updates': [
+            {...row(), 'expires_at': '2026-11-02T10:00:00Z'},
+          ],
+        }),
+      );
+
+      expect(
+        feed.activeAt(DateTime.parse('2026-11-09T10:00:00Z').toLocal()),
+        isEmpty,
+      );
+      expect(feed.isEmpty, isFalse, reason: 'the document still has rows');
+    });
+  });
+
   group('round-trip', () {
     test('store json re-parses to the same content', () {
       final original = LiveFeedDto.parse(doc([row()]));

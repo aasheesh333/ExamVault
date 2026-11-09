@@ -351,8 +351,18 @@ final resultExamIdProvider = NotifierProvider<ResultExamNotifier, LiveUpdate?>(
   ResultExamNotifier.new,
 );
 
-/// Number shown on the radar tab badge.
+/// Number shown on the radar tab badge — expired rows do not count.
 final liveRadarBadgeProvider = Provider<int>((ref) {
   final feed = ref.watch(liveFeedProvider).value?.feed;
-  return feed?.liveCount ?? 0;
+  if (feed == null) return 0;
+  final now = DateTime.now();
+  return feed
+      .activeAt(now)
+      .where(
+        (u) =>
+            u.status == UpdateStatus.resultOut ||
+            u.status == UpdateStatus.admitCardLive ||
+            u.status == UpdateStatus.formClosing,
+      )
+      .length;
 });

@@ -44,6 +44,39 @@ const STATUSES = new Set([
   'awaited',
 ]);
 
+/**
+ * Default time-to-live per status, in hours.
+ *
+ * A radar row must stop shouting once it is no longer useful. "RESULT OUT" three
+ * days later is misinformation; students tap through and lose trust. The
+ * publisher stamps `expires_at` so the app can drop the row on its own, without
+ * waiting for someone to remember to edit the file.
+ */
+const TTL_HOURS = {
+  result_out: 48,
+  admit_card_live: 36,
+  form_closing: 12,
+  answer_key: 72,
+  awaited: 24 * 30,
+};
+
+/** Refuses to publish a document whose own rows are already stale. */
+function stampExpiry(doc) {
+  const now = Date.now();
+  let stale = 0;
+
+  for (const row of doc.updates) {
+    if (row.expires_at) continue;
+    const hours = TTL_HOURS[row.status];
+    if (!hours) continue;
+    const expiry = Date.parse(row.published_at) + hours * 3600 * 1000;
+    row.expires_at = new Date(expiry).toISOString();
+    if (expiry < now) stale++;
+  }
+
+  return { stale, total: doc.updates.length };
+}
+
 /** Validates before publishing. A bad document must never reach the edge. */
 function validate(doc) {
   const errors = [];
@@ -70,6 +103,9 @@ function validate(doc) {
     if (row.published_at && Number.isNaN(Date.parse(row.published_at))) {
       errors.push(`updates[${i}] published_at is not a date`);
     }
+    if (row.published_at && Date.parse(row.published_at) > Date.now() + 60_000) {
+      errors.push(`updates[${i}] published_at is in the future`);
+    }
   });
 
   if (errors.length) {
@@ -85,9 +121,16 @@ const doc = validate(JSON.parse(raw));
 doc.generated_at = new Date().toISOString();
 doc.revision = (doc.revision ?? 0) + 1;
 
+const { stale, total } = stampExpiry(doc);
+
 const body = JSON.stringify(doc, null, 2);
 console.log(`feed      ${input}`);
 console.log(`updates   ${doc.updates.length}`);
+if (stale > 0) {
+  console.log(
+    `WARNING   ${stale}/${total} rows are already expired — the app will hide them.`,
+  );
+}
 console.log(`revision  ${doc.revision}`);
 console.log(`size      ${(body.length / 1024).toFixed(1)} KB`);
 

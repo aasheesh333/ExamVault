@@ -35,6 +35,7 @@ class LiveUpdate {
     required this.publishedAt,
     this.pdfSizeLabel,
     this.mirrorLatencyMs,
+    this.expiresAt,
   });
 
   final String examId;
@@ -51,7 +52,16 @@ class LiveUpdate {
   /// Last measured latency of the fastest mirror, when known.
   final int? mirrorLatencyMs;
 
+  /// When this row stops being useful, supplied by the publisher.
+  ///
+  /// A radar that still shouts "RESULT OUT" three days later is worse than an
+  /// empty one: the student taps through, finds nothing new, and stops trusting
+  /// the app. Rows past this instant are dropped client-side.
+  final DateTime? expiresAt;
+
   bool isNewerThan(DateTime when) => publishedAt.isAfter(when);
+
+  bool isExpired(DateTime now) => expiresAt != null && now.isAfter(expiresAt!);
 }
 
 /// The whole edge document.
@@ -71,6 +81,10 @@ class LiveFeed {
   final int revision;
 
   bool get isEmpty => updates.isEmpty;
+
+  /// Rows that are still actionable right now.
+  List<LiveUpdate> activeAt(DateTime now) =>
+      updates.where((u) => !u.isExpired(now)).toList(growable: false);
 
   int countBy(UpdateStatus status) =>
       updates.where((u) => u.status == status).length;

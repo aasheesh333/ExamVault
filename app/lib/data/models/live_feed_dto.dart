@@ -49,6 +49,8 @@ abstract final class LiveFeedDto {
     final publishedAt = _tryDate(row['published_at']);
     if (publishedAt == null) return null;
 
+    final status = UpdateStatus.fromId(row['status'] as String?);
+
     return LiveUpdate(
       examId: examId,
       category: category,
@@ -56,11 +58,32 @@ abstract final class LiveFeedDto {
       contextLine: (row['context'] as String?)?.trim().isNotEmpty == true
           ? (row['context'] as String).trim()
           : 'Tap for details',
-      status: UpdateStatus.fromId(row['status'] as String?),
+      status: status,
       publishedAt: publishedAt,
       pdfSizeLabel: row['pdf_size'] as String?,
       mirrorLatencyMs: _tryInt(row['mirror_latency_ms']),
+      expiresAt:
+          _tryDate(row['expires_at']) ?? _defaultExpiry(status, publishedAt),
     );
+  }
+
+  /// Fallback TTL per status, used when the publisher omits `expires_at`.
+  ///
+  /// These are deliberately short. A "RESULT OUT" banner that never expires is
+  /// misinformation; the publisher can override any of them per row.
+  static DateTime _defaultExpiry(UpdateStatus status, DateTime publishedAt) {
+    final ttl = switch (status) {
+      // A result stays relevant for a couple of days (cut-offs, next stage).
+      UpdateStatus.resultOut => const Duration(days: 2),
+      // An admit-card download window is short.
+      UpdateStatus.admitCardLive => const Duration(hours: 36),
+      // A closing form is same-day news.
+      UpdateStatus.formClosing => const Duration(hours: 12),
+      UpdateStatus.answerKey => const Duration(days: 3),
+      // "Awaited" is durable — it is a placeholder for something not yet out.
+      UpdateStatus.awaited => const Duration(days: 30),
+    };
+    return publishedAt.add(ttl);
   }
 
   static DateTime? _tryDate(Object? value) {

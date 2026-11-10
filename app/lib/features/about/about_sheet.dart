@@ -55,22 +55,9 @@ class _AboutSheet extends ConsumerWidget {
           controller: controller,
           padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
           children: [
-            Center(
-              child: Container(
-                width: 36,
-                height: 4,
-                margin: const EdgeInsets.only(bottom: 16),
-                decoration: BoxDecoration(
-                  color: p.border,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            Text('About ExamVault', style: context.type.sectionTitle),
-            const SizedBox(height: 4),
-            Text(
-              'Version 1.0.0 · free · no account required',
-              style: context.type.microLabel.copyWith(fontSize: 9),
+            const _SheetHeader(
+              title: 'About ExamVault',
+              subtitle: 'Version 1.0.0 · free · no account required',
             ),
             const SizedBox(height: 18),
 
@@ -203,6 +190,74 @@ class _AboutSheet extends ConsumerWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Drag handle + close button.
+///
+/// These sheets open at 92% of the viewport, which leaves only a thin strip of
+/// barrier at the top — and a modal sheet can also be dismissed by dragging down,
+/// which nobody discovers unprompted. Without an explicit control the screen looks
+/// like a page you are stuck on.
+class _SheetHeader extends StatelessWidget {
+  const _SheetHeader({required this.title, this.subtitle});
+
+  final String title;
+  final String? subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.ev;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Center(
+          child: Container(
+            width: 36,
+            height: 4,
+            margin: const EdgeInsets.only(bottom: 10),
+            decoration: BoxDecoration(
+              color: p.border,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+        ),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: Text(title, style: context.type.sectionTitle)),
+            Semantics(
+              button: true,
+              label: 'Close',
+              child: InkWell(
+                borderRadius: BorderRadius.circular(16),
+                onTap: () => Navigator.of(context).maybePop(),
+                child: Container(
+                  width: 32,
+                  height: 32,
+                  margin: const EdgeInsets.only(left: 8),
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: p.surfaceElevated,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: p.border),
+                  ),
+                  child: Icon(
+                    Icons.close_rounded,
+                    size: 15,
+                    color: p.textSecondary,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+        if (subtitle != null) ...[
+          const SizedBox(height: 4),
+          Text(subtitle!, style: context.type.microLabel.copyWith(fontSize: 9)),
+        ],
+      ],
     );
   }
 }
@@ -429,22 +484,10 @@ class _PolicySheet extends StatelessWidget {
           controller: controller,
           padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
           children: [
-            Center(
-              child: Container(
-                width: 36,
-                height: 4,
-                margin: const EdgeInsets.only(bottom: 16),
-                decoration: BoxDecoration(
-                  color: p.border,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            Text('Privacy policy', style: context.type.sectionTitle),
-            const SizedBox(height: 4),
-            Text(
-              'What is stored, what leaves the phone, and what does not.',
-              style: context.type.bodyMuted.copyWith(fontSize: 10.5),
+            const _SheetHeader(
+              title: 'Privacy policy',
+              subtitle:
+                  'What is stored, what leaves the phone, and what does not.',
             ),
             const SizedBox(height: 18),
             for (final (title, body) in _sections) ...[

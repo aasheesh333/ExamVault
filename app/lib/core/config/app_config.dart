@@ -6,7 +6,7 @@
 ///
 /// ```sh
 /// flutter run \
-///   --dart-define=EV_CDN_BASE=https://cdn.examvault.in \
+///   --dart-define=EV_CDN_BASE=https://examvault-edge.example.workers.dev \
 ///   --dart-define=EV_FIREBASE_API_KEY=... \
 ///   --dart-define=EV_FIREBASE_APP_ID=...
 /// ```

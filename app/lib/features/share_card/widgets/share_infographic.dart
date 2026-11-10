@@ -154,7 +154,7 @@ class ShareInfographic extends StatelessWidget {
                   else if (data.rollNumber.isNotEmpty)
                     _RollBlock(data: data),
                   const SizedBox(height: 12),
-                  _CtaBar(shareUrl: data.shareUrl),
+                  _CtaBar(link: data.link),
                   const SizedBox(height: 10),
                   const Center(
                     child: Text(
@@ -501,15 +501,29 @@ class _RollBlock extends StatelessWidget {
   }
 }
 
-class _CtaBar extends StatelessWidget {
-  const _CtaBar({required this.shareUrl});
+/// `https://a.b/c/d` -> `a.b`. Falls back to the trimmed string when the URL is
+/// unparseable, so a malformed link is visible rather than silently blanked.
+String _host(String url) {
+  final uri = Uri.tryParse(url);
+  if (uri != null && uri.host.isNotEmpty) return uri.host;
+  return url.replaceFirst(RegExp(r'^https?://'), '');
+}
 
-  /// Null when no public web base is configured — the card then shows no URL
-  /// rather than a dead link to a domain we do not own.
-  final String? shareUrl;
+class _CtaBar extends StatelessWidget {
+  const _CtaBar({required this.link});
+
+  /// Null when no link exists at all — the card then says so rather than printing
+  /// a dead URL.
+  final String? link;
 
   @override
   Widget build(BuildContext context) {
+    // This is an exported PNG: nothing on it can be tapped. A button-shaped bar
+    // reading "Check your roll number" is therefore a dead affordance the
+    // recipient will try to press. It shows the destination instead, so a
+    // screenshot still tells someone where to go.
+    final target = link;
+
     return Container(
       height: 40,
       padding: const EdgeInsets.symmetric(horizontal: 13),
@@ -519,25 +533,25 @@ class _CtaBar extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Expanded(
+          Expanded(
             child: Text(
-              'Check your roll number',
+              // The host, not the whole URL: an official PDF path is 90
+              // characters of hashes and dates, which truncated to noise on the
+              // card. The full link still travels in the caption.
+              target == null ? 'Ask in your study group' : _host(target),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontFamily: EvFont.ui,
-                fontFamilyFallback: EvFont.fallbackUi,
-                fontSize: 11.5,
-                fontWeight: FontWeight.w700,
+              style: const TextStyle(
+                fontFamily: EvFont.mono,
+                fontFamilyFallback: EvFont.fallbackMono,
+                fontSize: 10.5,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.3,
                 color: Colors.white,
               ),
             ),
           ),
-          const Icon(
-            Icons.arrow_forward_rounded,
-            size: 16,
-            color: Colors.white,
-          ),
+          const Icon(Icons.qr_code_2_rounded, size: 15, color: Colors.white),
         ],
       ),
     );

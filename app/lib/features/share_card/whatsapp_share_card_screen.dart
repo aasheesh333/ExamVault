@@ -243,6 +243,16 @@ class _WhatsappShareCardScreenState
                   _ShareTargets(
                     onShare: () => _share(data),
                     linkIsOfficial: data.linkIsOfficial,
+                    onCopyCaption: () => ClipboardService.copy(
+                      context,
+                      value: _withUrl(
+                        _captionController.text.trim().isEmpty
+                            ? _defaultCaption(data)
+                            : _captionController.text.trim(),
+                        data,
+                      ),
+                      label: 'Caption',
+                    ),
                     // Never a dead button: with no app URL we copy the
                     // commission's own link, which is what a study group
                     // actually needs.
@@ -342,10 +352,15 @@ class _ShareTargets extends StatelessWidget {
   const _ShareTargets({
     required this.onShare,
     required this.onCopyLink,
+    required this.onCopyCaption,
     required this.linkIsOfficial,
   });
 
   final VoidCallback onShare;
+
+  /// Copies the editable caption. Useful on its own: a student may want the text
+  /// in a group without the image.
+  final VoidCallback? onCopyCaption;
 
   /// Null when we have no link at all — the tile is then disabled rather than
   /// copying an empty string.
@@ -361,18 +376,24 @@ class _ShareTargets extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
+        // These tiles used to say WhatsApp / Telegram / Save PNG and all three
+        // called the same generic share sheet. A tile labelled "Save PNG" that
+        // opens a share sheet is a broken promise, and two coloured tiles for
+        // apps we cannot target directly were decoration. The real actions are
+        // the ones the platform actually supports.
         _Target(
-          label: 'WhatsApp',
+          label: 'Share card',
           icon: Icons.chat_rounded,
           color: const Color(0xFF25D366),
           highlight: true,
           onTap: onShare,
         ),
         _Target(
-          label: 'Telegram',
-          icon: Icons.send_rounded,
-          color: const Color(0xFF54A9EB),
-          onTap: onShare,
+          label: 'Copy caption',
+          icon: Icons.content_copy_rounded,
+          color: onCopyCaption == null ? p.textTertiary : p.accentText,
+          onTap: onCopyCaption ?? () {},
+          enabled: onCopyCaption != null,
         ),
         _Target(
           label: linkIsOfficial ? 'Official link' : 'Copy link',
@@ -380,12 +401,6 @@ class _ShareTargets extends StatelessWidget {
           color: onCopyLink == null ? p.textTertiary : p.accentText,
           onTap: onCopyLink ?? () {},
           enabled: onCopyLink != null,
-        ),
-        _Target(
-          label: 'Save PNG',
-          icon: Icons.download_rounded,
-          color: p.textSecondary,
-          onTap: onShare,
         ),
       ],
     );

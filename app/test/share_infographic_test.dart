@@ -75,9 +75,46 @@ void main() {
     await pumpCard(tester, hidden);
 
     expect(find.textContaining('0801786'), findsNothing);
-    // The card still communicates that a result exists and how to check it.
+    // The card still communicates that a result exists and where to look.
     expect(find.text('RESULT IS LIVE', findRichText: true), findsWidgets);
-    expect(find.textContaining('Check your roll number'), findsOneWidget);
+    // With an app URL configured the bar shows that (in the brand row and the
+    // CTA bar); otherwise the official one.
+    expect(find.textContaining('examvault.example'), findsWidgets);
+  });
+
+  testWidgets('the card offers no button it cannot honour', (tester) async {
+    await pumpCard(tester, data());
+
+    // The card is exported as a PNG. A bar reading "Check your roll number"
+    // looks tappable and is not, so it must show the destination instead.
+    expect(
+      find.textContaining('Check your roll number'),
+      findsNothing,
+      reason: 'nothing on an exported image can be tapped',
+    );
+    expect(
+      find.text('examvault.example'),
+      findsOneWidget,
+      reason: 'the bar shows the host, so a screenshot still says where to go',
+    );
+  });
+
+  test('the card falls back to the official link when there is no app URL', () {
+    final officialOnly = data().copyWith(shareUrl: null);
+    expect(officialOnly.link, officialOnly.officialUrl);
+  });
+
+  testWidgets('the bar shows the host alone, not a 90-character PDF path', (
+    tester,
+  ) async {
+    await pumpCard(tester, data().copyWith(shareUrl: null));
+
+    expect(find.text('www.upsc.gov.in'), findsOneWidget);
+    expect(
+      find.textContaining('/sites/default/files'),
+      findsNothing,
+      reason: 'a long path truncates to noise on the card',
+    );
   });
 
   test('a card with no app URL still offers the official link', () {

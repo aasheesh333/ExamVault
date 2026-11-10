@@ -32,8 +32,11 @@ class LiveRadarTile extends StatelessWidget {
 
     return Semantics(
       button: true,
+      // `relativeAge()` already returns "now"/"2h"/"1d", so the old string read
+      // "now ago" — and a date was more useful than a day count anyway.
       label:
-          '${update.examName}. ${update.status.label}. ${update.contextLine}. ${update.relativeAge()} ago.',
+          '${update.examName}. ${update.status.label}. '
+          '${update.contextLine}. ${update.ageLabel()}.',
       child: InkWell(
         onTap: onTap,
         child: Container(
@@ -59,8 +62,12 @@ class LiveRadarTile extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
+                      // Two lines, not one: headlines come from the commission
+                      // pre-truncated at ~95 chars, and a single line showed ~35 —
+                      // dropping the stage ("Paper-II", "PET/PST") that makes the
+                      // row mean anything.
                       update.examName,
-                      maxLines: 1,
+                      maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: context.type.tileTitle,
                     ),
@@ -73,7 +80,7 @@ class LiveRadarTile extends StatelessWidget {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: context.type.bodyMuted.copyWith(
-                              fontSize: 10,
+                              fontSize: 11.5,
                             ),
                           ),
                         ),
@@ -94,9 +101,9 @@ class LiveRadarTile extends StatelessWidget {
                   EvStatusPill.status(update.status, compact: true),
                   const SizedBox(height: 5),
                   Text(
-                    update.relativeAge(),
+                    update.ageLabel(),
                     style: context.type.monoMeta.copyWith(
-                      fontSize: 8.5,
+                      fontSize: 11,
                       color: p.textTertiary,
                     ),
                   ),
@@ -156,7 +163,7 @@ class _LatencyChip extends StatelessWidget {
         '${ms}ms',
         style: context.type.statusPill.copyWith(
           color: fast ? p.successText : p.warningText,
-          fontSize: 8.5,
+          fontSize: 11,
           letterSpacing: 0.2,
         ),
       ),

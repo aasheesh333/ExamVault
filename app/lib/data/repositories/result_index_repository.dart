@@ -80,12 +80,14 @@ class ResultIndexRepository {
     bool force = false,
   }) async {
     // The memo key includes the version: a republished list must not be served
-    // from a cache keyed only by exam id.
-    final memoKey = version == null ? examId : '$examId@$version';
+    // from a cache keyed only by exam id. NUL cannot occur in an exam id, so the
+    // id and version can never be confused with one another.
+    final memoKey = '$examId\u0000${version ?? ''}';
     if (!force) {
       final memo = _memo[memoKey];
-      // A previously-failed attempt is cached too — at 09:11 the object is
-      // missing for everyone, and hammering the edge every tap helps nobody.
+      // Only successful bundles and genuine 404s live in the memo. A transport
+      // failure is ephemeral: caching it made "tap again — nothing was lost"
+      // impossible until the app was restarted.
       if (memo != null) return memo;
     }
 
@@ -109,14 +111,14 @@ class ResultIndexRepository {
           ? 'The result for this exam has not been published yet.'
           : 'Could not reach the result index. Check your connection.';
       final bundle = IndexBundle.unavailable(reason);
-      _memo[memoKey] = bundle;
+      // A 404 is a stable fact worth remembering; a network error is not.
+      if (e.statusCode == 404) _memo[memoKey] = bundle;
       return bundle;
     } catch (_) {
-      final bundle = IndexBundle.unavailable(
+      // Read failures are not memoised either, so the next tap retries.
+      return IndexBundle.unavailable(
         'Could not read the result index. Check your connection.',
       );
-      _memo[memoKey] = bundle;
-      return bundle;
     }
   }
 

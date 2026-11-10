@@ -160,9 +160,12 @@ class LiveFeed {
       updates.where((u) => u.status == status).length;
 
   /// How many rows are "actionable right now" — used by the hero subtitle.
-  /// This is deliberately *derived*, so the copy can never drift from the list
-  /// the way a hardcoded "1 live update" did in the design.
-  int get liveCount => updates
+  ///
+  /// Counts only rows the publisher has not expired. This used to count every
+  /// row regardless of `expires_at`, so the hero said "49 live updates" while the
+  /// tab badge (which did filter) said 29, and the list showed 60 including
+  /// entries the source had marked dead months earlier.
+  int liveCountAt(DateTime now) => activeAt(now)
       .where(
         (u) =>
             u.status == UpdateStatus.resultOut ||
@@ -170,4 +173,7 @@ class LiveFeed {
             u.status == UpdateStatus.formClosing,
       )
       .length;
+
+  /// Convenience for callers that render "now".
+  int get liveCount => liveCountAt(DateTime.now());
 }

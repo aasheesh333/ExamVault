@@ -1,11 +1,16 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/theme/app_theme.dart';
+import '../../core/theme/motion.dart';
 import '../../core/theme/theme_tokens.dart';
 import '../../core/utils/clipboard_service.dart';
+import '../../core/utils/ev_haptics.dart';
 import '../../data/repositories/result_index_repository.dart';
 import '../../data/services/app_logger.dart';
 import '../../domain/entities/admit_card.dart';
@@ -120,7 +125,7 @@ class _InstantResultCheckerScreenState
     ref.read(resultCheckerProvider.notifier).reset();
   }
 
-  Future<void> _check(AdmitCard? card) async {
+  Future<void> _check(AdmitCard? card, {bool force = false}) async {
     final roll = _roll.text.trim();
     if (roll.length < 4) {
       _showToast('Enter your roll number first.');
@@ -150,6 +155,28 @@ class _InstantResultCheckerScreenState
         .check(examId: examId, rollNumber: roll, indexVersion: indexVersion);
 
     if (!mounted || result == null) return;
+
+    // Announce the outcome for screen readers: without this the flow is silent.
+    unawaited(
+      SemanticsService.sendAnnouncement(
+        View.of(context),
+        result.isFound
+            ? 'Roll ${result.rollNumber} is in the published list.'
+            : result.state == RollLookupState.notFound
+            ? 'Roll ${result.rollNumber} was not found in the published list.'
+            : (result.errorMessage ?? 'Could not check your result.'),
+        Directionality.of(context),
+      ),
+    );
+
+    // Touch feedback at the moment the answer lands.
+    //
+    // Fire-and-forget on purpose: awaiting a haptic puts the platform channel on
+    // the critical path between "answer known" and "answer shown", and if the
+    // platform never replies the dialog never opens.
+    unawaited(
+      result.isFound ? EvHaptics.success() : EvHaptics.failure(),
+    );
 
     if (result.isFound) {
       // A bookkeeping update must never swallow the answer. If marking the card
@@ -266,7 +293,11 @@ class _InstantResultCheckerScreenState
                   const SizedBox(height: 8),
                   _RetryNote(state: state, rollCount: update?.rollCount),
                   const SizedBox(height: 14),
-                  _RollField(controller: _roll, busy: state.isBusy),
+                  _RollField(
+                    controller: _roll,
+                    busy: state.isBusy,
+                    onSubmitted: () => _check(card),
+                  ),
                   const SizedBox(height: 10),
                   EvPrimaryButton(
                     label: state.isBusy
@@ -285,7 +316,7 @@ class _InstantResultCheckerScreenState
                     Text(
                       'Add an admit card, or open a result from Home. We will not '
                       'guess which exam to search.',
-                      style: context.type.bodyMuted.copyWith(fontSize: 10.5),
+                      style: context.type.bodyMuted.copyWith(),
                     ),
                     const SizedBox(height: 8),
                     Align(
@@ -345,30 +376,37 @@ class _InstantResultCheckerScreenState
                           child: Text(
                             'Opens the notice on the commission\'s own site — '
                             'we never host a copy of it.',
-                            style: context.type.bodyMuted.copyWith(
-                              fontSize: 10,
-                            ),
+                            style: context.type.bodyMuted.copyWith(),
                           ),
                         ),
                       ],
                     ),
                   ],
-                  if (state.phase == ResultPhase.done &&
-                      state.result != null &&
-                      !state.result!.isFound) ...[
-                    const SizedBox(height: 16),
-                    _NotFoundCard(result: state.result!),
+                  // A verdict belongs to the exam it was computed for. Without
+                  // this guard, tapping a second radar row re-rendered the first
+                  // exam's "Roll N was not found among M published roll numbers"
+                  // under the new exam's title — which reads as "you failed B".
+                  if (examId != null && state.belongsTo(examId)) ...[
+                    if (state.phase == ResultPhase.done &&
+                        state.result != null &&
+                        !state.result!.isFound) ...[
+                      const SizedBox(height: 16),
+                      _NotFoundCard(result: state.result!),
+                    ],
+                    if (state.isUnavailable) ...[
+                      const SizedBox(height: 16),
+                      _UnavailableCard(
+                        message: state.error,
+                        onRetry: () => _check(card, force: true),
+                      ),
+                    ],
+                    const SizedBox(height: 22),
+                    _RecentChecks(
+                      card: card,
+                      lastResult: state.result,
+                      indexSource: state.indexSource,
+                    ),
                   ],
-                  if (state.isUnavailable) ...[
-                    const SizedBox(height: 16),
-                    _UnavailableCard(message: state.error),
-                  ],
-                  const SizedBox(height: 22),
-                  _RecentChecks(
-                    card: card,
-                    lastResult: state.result,
-                    indexSource: state.indexSource,
-                  ),
                   const SizedBox(height: 130),
                 ],
               ),
@@ -416,13 +454,15 @@ class _InstantResultCheckerScreenState
 
 // ---------------------------------------------------------------------------
 
-class _NavBar extends StatelessWidget {
+class _NavBar extends ConsumerWidget {
   const _NavBar({this.update});
 
-  final dynamic update;
+  /// Typed, not `dynamic`: the field was untyped, which silently accepted any
+  /// object and defeated every compile-time check on it.
+  final LiveUpdate? update;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final p = context.ev;
     final isLive = update != null;
 
@@ -438,7 +478,11 @@ class _NavBar extends StatelessWidget {
                 icon: Icons.arrow_back_ios_new_rounded,
                 ghost: true,
                 iconSize: 17,
-                onPressed: () => Navigator.of(context).maybePop(),
+                tooltip: 'Back to Home',
+                // This screen is a tab, not a pushed route, so `maybePop()` did
+                // nothing at all — a visible back arrow that ignored every tap.
+                onPressed: () =>
+                    ref.read(tabIndexProvider.notifier).select(EvTab.home),
               ),
               const Spacer(),
               Padding(
@@ -471,7 +515,6 @@ class _NavBar extends StatelessWidget {
                       Text(
                         isLive ? 'LIVE' : 'READY',
                         style: context.type.statusPill.copyWith(
-                          fontSize: 9,
                           letterSpacing: 1.1,
                           color: isLive ? p.successText : p.textTertiary,
                         ),
@@ -647,7 +690,7 @@ class _MirrorCard extends StatelessWidget {
                 'AUTO-REFRESH 60s',
                 style: context.type.statusPill.copyWith(
                   color: p.successText,
-                  fontSize: 9,
+                  fontSize: 11,
                   letterSpacing: 0.9,
                 ),
               ),
@@ -713,13 +756,13 @@ class _MirrorRowView extends StatelessWidget {
                       text: row.name,
                       style: context.type.label.copyWith(
                         color: p.textPrimary,
-                        fontSize: 11.5,
+                        fontSize: 12,
                       ),
                     ),
                     if (row.sub.isNotEmpty && box.maxWidth > 140)
                       TextSpan(
                         text: '  ${row.sub}',
-                        style: context.type.bodyMuted.copyWith(fontSize: 9.5),
+                        style: context.type.bodyMuted.copyWith(),
                       ),
                   ],
                 ),
@@ -752,7 +795,7 @@ class _MirrorRowView extends StatelessWidget {
               textAlign: TextAlign.right,
               style: context.type.statusPill.copyWith(
                 color: row.textColor,
-                fontSize: 9,
+                fontSize: 11,
               ),
             ),
           ),
@@ -762,10 +805,7 @@ class _MirrorRowView extends StatelessWidget {
             child: Text(
               row.value,
               textAlign: TextAlign.right,
-              style: context.type.monoMeta.copyWith(
-                fontSize: 9,
-                color: p.textTertiary,
-              ),
+              style: context.type.monoMeta.copyWith(color: p.textTertiary),
             ),
           ),
         ],
@@ -818,7 +858,7 @@ class _RetryNote extends StatelessWidget {
           child: Text(
             label,
             maxLines: 2,
-            style: context.type.bodyMuted.copyWith(fontSize: 9.5),
+            style: context.type.bodyMuted.copyWith(),
           ),
         ),
       ],
@@ -827,10 +867,18 @@ class _RetryNote extends StatelessWidget {
 }
 
 class _RollField extends StatelessWidget {
-  const _RollField({required this.controller, required this.busy});
+  const _RollField({
+    required this.controller,
+    required this.busy,
+    this.onSubmitted,
+  });
 
   final TextEditingController controller;
   final bool busy;
+
+  /// Pressing the keyboard's search key runs the check — previously Enter did
+  /// nothing, which is the second thing every user tries.
+  final VoidCallback? onSubmitted;
 
   @override
   Widget build(BuildContext context) {
@@ -853,12 +901,20 @@ class _RollField extends StatelessWidget {
               const SizedBox(width: 9),
               Expanded(
                 child: TextField(
+                  // Named so tests (and future automation) can target the roll
+                  // field unambiguously — the Home screen now also has a search
+                  // TextField, and "the first TextField" is no longer this one.
+                  key: const ValueKey('roll-field'),
                   controller: controller,
                   enabled: !busy,
                   autocorrect: false,
                   enableSuggestions: false,
                   textCapitalization: TextCapitalization.characters,
                   keyboardType: TextInputType.visiblePassword,
+                  textInputAction: TextInputAction.search,
+                  onSubmitted: (_) {
+                    if (!busy) onSubmitted?.call();
+                  },
                   inputFormatters: [
                     FilteringTextInputFormatter.allow(
                       RegExp(r'[A-Za-z0-9\-/]'),
@@ -917,9 +973,11 @@ class _NotFoundCard extends StatelessWidget {
             children: [
               Icon(Icons.hourglass_bottom_rounded, size: 16, color: p.warning),
               const SizedBox(width: 8),
-              Text(
-                'Not in this list yet',
-                style: context.type.tileTitle.copyWith(color: p.warningText),
+              Expanded(
+                child: Text(
+                  'Not in this list yet',
+                  style: context.type.tileTitle.copyWith(color: p.warningText),
+                ),
               ),
             ],
           ),
@@ -927,12 +985,12 @@ class _NotFoundCard extends StatelessWidget {
           Text(
             'Roll ${result.rollNumber} was not found among ${_format(result.totalRolls)} published roll numbers. '
             'That could mean a different list (Tier-2, region-wise), or that your result is still being uploaded.',
-            style: context.type.bodyMuted.copyWith(fontSize: 11),
+            style: context.type.bodyMuted,
           ),
           const SizedBox(height: 4),
           Text(
             'Searched in ${(result.elapsedMicros / 1000).toStringAsFixed(1)} ms on this device.',
-            style: context.type.microLabel.copyWith(fontSize: 9),
+            style: context.type.monoMeta,
           ),
           if (result.privacyPreserving) ...[
             const SizedBox(height: 8),
@@ -959,30 +1017,64 @@ class _NotFoundCard extends StatelessWidget {
 }
 
 class _UnavailableCard extends StatelessWidget {
-  const _UnavailableCard({this.message});
+  const _UnavailableCard({this.message, this.onRetry});
 
   final String? message;
 
-  /// Publishes are weekly, not instant: the list for an exam that *has* a
-  /// published PDF appears within one refresh cycle. Saying "not published"
-  /// without that context reads as "you were not selected".
-  static String _explain(String? message) {
-    final reason = message ?? '';
-    if (reason.isEmpty) {
-      return 'The commission has not published a candidate list for this exam '
-          'yet. When it does, we will index it on the next refresh.';
+  /// Retries the lookup. The card told the user to "tap check again" while the
+  /// failed fetch was memoised for the session, so the instruction was a no-op.
+  final VoidCallback? onRetry;
+
+  /// Three very different faults — nothing published, our network, a bad
+  /// payload — used to be reported with one heading ("Result not published yet")
+  /// and one body, sending the student to the wrong place (or showing them a Dart
+  /// exception string).
+  ({String title, String body, bool retryable}) _describe() {
+    final reason = (message ?? '').toLowerCase();
+
+    if (reason.contains('connection') ||
+        reason.contains('reach') ||
+        reason.contains('timeout') ||
+        reason.contains('network')) {
+      return (
+        title: 'Could not reach the result index',
+        body:
+            'This is usually a weak connection. Try again — nothing was lost.',
+        retryable: true,
+      );
     }
-    if (reason.toLowerCase().contains('connection') ||
-        reason.toLowerCase().contains('reach')) {
-      return 'We could not reach the result index from this device. Check your '
-          'connection and tap check again — nothing was lost.';
+    if (reason.contains('malformed') || reason.contains('format')) {
+      return (
+        title: 'The published index could not be read',
+        body:
+            'That is a fault on our side, not a result. We will fix it; the '
+            'official PDF is still the source of truth.',
+        retryable: true,
+      );
     }
-    return reason;
+    if (reason.contains('not published') ||
+        reason.contains('not found') ||
+        reason.isEmpty) {
+      return (
+        title: 'Result not published yet',
+        body:
+            'The commission has not published a candidate list for this exam. '
+            'When it does, we index it on the next refresh.',
+        retryable: false,
+      );
+    }
+    return (
+      title: 'Could not check this exam',
+      body: 'Please try again in a moment.',
+      retryable: true,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final p = context.ev;
+    final d = _describe();
+
     return Container(
       padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(
@@ -999,24 +1091,34 @@ class _UnavailableCard extends StatelessWidget {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  'Result not published yet',
+                  d.title,
                   style: context.type.tileTitle.copyWith(color: p.warningText),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 6),
-          Text(
-            // A generic transport error is not the same as "not published", and
-            // saying the wrong one sends the student to the wrong place.
-            _explain(message),
-            style: context.type.bodyMuted.copyWith(fontSize: 11),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'We never show a result we cannot verify.',
-            style: context.type.microLabel.copyWith(fontSize: 9),
-          ),
+          Text(d.body, style: context.type.bodyMuted),
+          if (d.retryable && onRetry != null) ...[
+            const SizedBox(height: 10),
+            SizedBox(
+              height: EvSize.minTapTarget,
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: EvTextAction(
+                  label: 'Try again',
+                  icon: Icons.refresh_rounded,
+                  onPressed: onRetry,
+                ),
+              ),
+            ),
+          ] else ...[
+            const SizedBox(height: 6),
+            Text(
+              'We never show a result we cannot verify.',
+              style: context.type.microLabel,
+            ),
+          ],
         ],
       ),
     );
@@ -1045,7 +1147,7 @@ class _RecentChecks extends StatelessWidget {
           padding: EdgeInsets.zero,
           trailing: Text(
             indexSource?.label.toUpperCase() ?? 'NOT RUN',
-            style: context.type.microLabel.copyWith(fontSize: 9),
+            style: context.type.microLabel.copyWith(),
           ),
         ),
         const SizedBox(height: 8),
@@ -1066,7 +1168,7 @@ class _RecentChecks extends StatelessWidget {
                     const SizedBox(height: 2),
                     Text(
                       'Roll ${card!.rollNumber}',
-                      style: context.type.monoMeta.copyWith(fontSize: 9),
+                      style: context.type.monoMeta.copyWith(),
                     ),
                   ],
                 ),
@@ -1089,7 +1191,6 @@ class _RecentChecks extends StatelessWidget {
                 child: Text(
                   verified ? 'FOUND' : 'NOT CHECKED',
                   style: context.type.statusPill.copyWith(
-                    fontSize: 9,
                     color: verified ? p.successText : p.textTertiary,
                   ),
                 ),
@@ -1132,11 +1233,19 @@ class _SelectedDialog extends StatelessWidget {
       backgroundColor: Colors.transparent,
       insetPadding: const EdgeInsets.symmetric(horizontal: 24),
       child: TweenAnimationBuilder<double>(
-        tween: Tween(begin: 0.86, end: 1),
-        duration: EvMotion.slow,
-        curve: Curves.easeOutBack,
-        builder: (context, scale, child) =>
-            Transform.scale(scale: scale, child: child),
+        // 0.94 -> 1 with an 8px rise, no overshoot. The old 0.86 pop on
+        // `easeOutBack` overshot past 100% — the wrong tone for the moment a
+        // student learns they got through.
+        tween: Tween(begin: 0, end: 1),
+        duration: EvMotion.of(context, EvMotion.reveal),
+        curve: EvMotion.curveOf(context, EvMotion.enter),
+        builder: (context, t, child) => Opacity(
+          opacity: t,
+          child: Transform.translate(
+            offset: Offset(0, 8 * (1 - t)),
+            child: Transform.scale(scale: 0.94 + 0.06 * t, child: child),
+          ),
+        ),
         child: Container(
           padding: const EdgeInsets.fromLTRB(22, 26, 22, 18),
           decoration: BoxDecoration(
@@ -1230,7 +1339,7 @@ class _SelectedDialog extends StatelessWidget {
                         'MERIT RANK ${result.meritRank}',
                         style: context.type.statusPill.copyWith(
                           color: p.successText,
-                          fontSize: 9,
+                          fontSize: 11,
                           letterSpacing: 1.1,
                         ),
                       ),
@@ -1243,7 +1352,7 @@ class _SelectedDialog extends StatelessWidget {
                 'Found in ${(result.elapsedMicros / 1000).toStringAsFixed(1)} ms '
                 'among ${result.totalRolls} roll numbers.',
                 textAlign: TextAlign.center,
-                style: context.type.microLabel.copyWith(fontSize: 9),
+                style: context.type.microLabel.copyWith(),
               ),
               if (result.privacyPreserving) ...[
                 const SizedBox(height: 8),
@@ -1303,7 +1412,7 @@ class _HashedNote extends StatelessWidget {
           child: Text(
             text,
             textAlign: align,
-            style: context.type.microLabel.copyWith(fontSize: 9, height: 1.5),
+            style: context.type.microLabel.copyWith(height: 1.5),
           ),
         ),
       ],

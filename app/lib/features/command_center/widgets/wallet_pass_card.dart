@@ -5,6 +5,15 @@ import '../../../core/theme/theme_tokens.dart';
 import '../../../core/utils/clipboard_service.dart';
 import '../../../domain/entities/admit_card.dart';
 
+/// Status colours tuned for the navy pass. The theme's `*Text` tokens invert for
+/// light mode (#1D4ED8 on navy is 2.08:1) and vanish; these never invert.
+abstract final class _OnPass {
+  static const accent = Color(0xFFBFDBFE);
+  static const success = Color(0xFF6EE7B7);
+  static const warning = Color(0xFFFCD34D);
+  static const danger = Color(0xFFFCA5A5);
+}
+
 /// The Apple-Wallet-style pass.
 ///
 /// Two rules make this component work and both are non-obvious:
@@ -41,7 +50,11 @@ class WalletPassCard extends StatelessWidget {
       child: GestureDetector(
         onTap: onOpen,
         child: Container(
-          height: compact ? 76 : EvSize.walletCard,
+          // A floor, not a cap: the raised type scale pushed the fixed 176px
+          // card into a RenderFlex overflow, so the pass sizes to its content.
+          constraints: BoxConstraints(
+            minHeight: compact ? 76 : EvSize.walletCard,
+          ),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(EvRadius.pass),
             gradient: LinearGradient(
@@ -163,7 +176,7 @@ class _CompactBody extends StatelessWidget {
           WalletPassCard._countdownLabel(days),
           style: context.type.monoMeta.copyWith(
             color: p.onWalletFaint,
-            fontSize: 9,
+            fontSize: 11,
           ),
         ),
       ],
@@ -183,7 +196,7 @@ class _FullBody extends StatelessWidget {
     final p = context.ev;
     final isUrgent = days <= 3 && days >= 0;
 
-    return Column(
+    final body = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
@@ -197,7 +210,7 @@ class _FullBody extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
                 style: context.type.microLabel.copyWith(
                   color: p.onWalletFaint,
-                  fontSize: 9,
+                  fontSize: 11,
                   letterSpacing: 1.4,
                 ),
               ),
@@ -214,7 +227,8 @@ class _FullBody extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
           style: context.type.cardTitle.copyWith(color: p.onWallet),
         ),
-        const Spacer(),
+        // Was a Spacer, which cannot lay out inside the pass's unbounded height.
+        const SizedBox(height: 12),
         // The whole row is tappable for copy.
         InkWell(
           onTap: () => _copy(context),
@@ -289,14 +303,29 @@ class _FullBody extends StatelessWidget {
             Text(
               'SAVED OFFLINE',
               style: context.type.statusPill.copyWith(
-                color: p.successText,
-                fontSize: 9,
+                color: _OnPass.success,
+                fontSize: 11,
                 letterSpacing: 1.1,
               ),
             ),
           ],
         ),
       ],
+    );
+
+    // Home's wallet stack caps the pass at 180px; at a large text scale the body
+    // needs more than that, so scale it down instead of painting an overflow.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (!constraints.hasBoundedHeight || !constraints.hasBoundedWidth) {
+          return body;
+        }
+        return FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.topLeft,
+          child: SizedBox(width: constraints.maxWidth, child: body),
+        );
+      },
     );
   }
 
@@ -317,7 +346,11 @@ class _FullBody extends StatelessWidget {
     ];
     final d = card.examDate;
     final day = d.day.toString().padLeft(2, '0');
-    return '$day ${months[d.month - 1]} ${d.year} · ${card.shift.split('–').first.trim()}';
+    final date = '$day ${months[d.month - 1]} ${d.year}';
+    // Empty shift used to leave a dangling " · " on every pass.
+    // The start time only: "10:00 AM – 11:00 AM" does not fit one line.
+    final shift = card.shift.split('–').first.trim();
+    return shift.isEmpty ? date : '$date · $shift';
   }
 
   Future<void> _copy(BuildContext context) async {
@@ -343,7 +376,7 @@ class _CopyPill extends StatelessWidget {
       button: true,
       label: 'Copy roll number',
       child: GestureDetector(
-        // The pill is 32px tall; the gesture area is padded to 48 for thumbs.
+        // The pill is 32px tall; the 44px box above keeps the thumb target honest.
         behavior: HitTestBehavior.opaque,
         onTap: () async {
           await ClipboardService.copy(
@@ -353,39 +386,47 @@ class _CopyPill extends StatelessWidget {
           );
           onCopied?.call();
         },
-        child: Container(
-          height: EvSize.copyPill,
-          padding: const EdgeInsets.symmetric(horizontal: 13),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(EvRadius.pill),
-            gradient: const LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [Color(0xFF4C8DF7), Color(0xFF2563EB)],
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF2563EB).withValues(alpha: 0.55),
-                blurRadius: 16,
-                offset: const Offset(0, 6),
-                spreadRadius: -6,
-              ),
-            ],
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.copy_rounded, size: 13, color: Colors.white),
-              const SizedBox(width: 6),
-              Text(
-                'Copy',
-                style: context.type.label.copyWith(
-                  color: Colors.white,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
+        child: SizedBox(
+          // 44px hit area around the 32px pill — the visual size is unchanged.
+          height: EvSize.minTapTarget,
+          child: Align(
+            alignment: Alignment.bottomCenter,
+            widthFactor: 1,
+            child: Container(
+              height: EvSize.copyPill,
+              padding: const EdgeInsets.symmetric(horizontal: 13),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(EvRadius.pill),
+                gradient: const LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Color(0xFF4C8DF7), Color(0xFF2563EB)],
                 ),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF2563EB).withValues(alpha: 0.55),
+                    blurRadius: 16,
+                    offset: const Offset(0, 6),
+                    spreadRadius: -6,
+                  ),
+                ],
               ),
-            ],
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.copy_rounded, size: 13, color: Colors.white),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Copy',
+                    style: context.type.label.copyWith(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
       ),
@@ -411,8 +452,8 @@ class _CategoryBadge extends StatelessWidget {
       child: Text(
         category.toUpperCase(),
         style: context.type.statusPill.copyWith(
-          color: p.isDark ? const Color(0xFFBFDBFE) : const Color(0xFFDBEAFE),
-          fontSize: 9,
+          color: _OnPass.accent,
+          fontSize: 11,
           letterSpacing: 1.1,
         ),
       ),
@@ -428,16 +469,15 @@ class _CountdownBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final p = context.ev;
-    final color = urgent ? p.danger : p.warning;
+    final color = urgent ? _OnPass.danger : _OnPass.warning;
 
     return Container(
       height: 24,
       padding: const EdgeInsets.symmetric(horizontal: 9),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(EvRadius.pill),
-        color: color.withValues(alpha: 0.14),
-        border: Border.all(color: color.withValues(alpha: 0.34)),
+        color: color.withValues(alpha: 0.16),
+        border: Border.all(color: color.withValues(alpha: 0.38)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -451,8 +491,8 @@ class _CountdownBadge extends StatelessWidget {
           Text(
             WalletPassCard._countdownLabel(days),
             style: context.type.statusPill.copyWith(
-              color: urgent ? p.dangerText : p.warningText,
-              fontSize: 9,
+              color: urgent ? _OnPass.danger : _OnPass.warning,
+              fontSize: 11,
               letterSpacing: 0.9,
             ),
           ),

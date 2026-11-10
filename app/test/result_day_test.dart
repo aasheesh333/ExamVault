@@ -161,7 +161,9 @@ void main() {
     await tester.tap(find.text('Radar'));
     await tester.pump(const Duration(milliseconds: 600));
 
-    await tester.enterText(find.byType(TextField).first, roll);
+    // Target the roll field by key: the Home screen has a search TextField
+    // too, and "the first TextField in the tree" is no longer this one.
+    await tester.enterText(find.byKey(const ValueKey('roll-field')), roll);
     await tester.pump(const Duration(milliseconds: 200));
 
     await tester.tap(find.text('Check my result instantly'));

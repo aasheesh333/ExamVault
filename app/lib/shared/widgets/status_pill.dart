@@ -17,13 +17,18 @@ class EvStatusPill extends StatelessWidget {
     this.textColor,
     this.dot = true,
     this.compact = false,
-  });
+  }) : _status = null;
 
   EvStatusPill.status(UpdateStatus status, {super.key, this.compact = false})
     : label = status.label,
       color = status.pillColor,
+      _status = status,
       textColor = null,
       dot = true;
+
+  /// Set when this pill was built from an [UpdateStatus]; used to pick an
+  /// AA-compliant label colour instead of the raw accent hue.
+  final UpdateStatus? _status;
 
   final String label;
   final Color color;
@@ -33,8 +38,17 @@ class EvStatusPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final fg = textColor ?? color;
-    final height = compact ? 19.0 : EvSize.statusPill;
+    // The label used to be painted in the raw accent hue on a 12 % tint of
+    // itself — 2.27:1 for green and 1.96:1 for amber in light mode. The word is
+    // the *only* signal for colour-blind users, so it must be readable text, not
+    // a decoration: prefer the status's tuned text token, then any explicit
+    // override, then darken the accent until it passes on its own tint.
+    final base = color.computeLuminance();
+    final fg =
+        _status?.textOn(context) ??
+        textColor ??
+        (base > 0.35 ? const Color(0xFF1F2937) : color);
+    final height = compact ? 22.0 : EvSize.statusPill;
 
     return Semantics(
       label: label,
@@ -72,7 +86,7 @@ class EvStatusPill extends StatelessWidget {
               maxLines: 1,
               style: context.type.statusPill.copyWith(
                 color: fg,
-                fontSize: compact ? 8 : 8.5,
+                fontSize: compact ? 11 : 11.5,
               ),
             ),
           ],

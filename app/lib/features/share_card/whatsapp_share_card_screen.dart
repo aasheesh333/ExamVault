@@ -1,9 +1,12 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/theme_tokens.dart';
 import '../../core/utils/clipboard_service.dart';
+import '../../data/services/app_logger.dart';
 import '../../domain/entities/admit_card.dart';
 import '../../domain/entities/live_update.dart';
 import '../result_checker/engine/roll_index_engine.dart';
@@ -44,6 +47,11 @@ class _WhatsappShareCardScreenState
   /// True once the user edits the caption; auto-sync stops from then on.
   bool _captionTouched = false;
 
+  /// The exam the current caption describes. When this changes, auto-sync
+  /// resumes so the caption tracks the newly selected exam instead of staying
+  /// frozen on the previous one.
+  String? _captionExamId;
+
   @override
   void dispose() {
     _captionController.dispose();
@@ -62,24 +70,27 @@ class _WhatsappShareCardScreenState
     final examId = update?.examId ?? card?.examId;
     if (examName == null || examId == null) return null;
 
-    final isResult =
-        (update?.status ?? UpdateStatus.resultOut) == UpdateStatus.resultOut;
+    // Bug: this defaulted to `resultOut` whenever there was no radar row, so a
+    // saved admit card was shared under a "RESULT IS LIVE" strip. A saved card
+    // is an admit card; only a radar row knows about a published result.
+    final status = update?.status ?? UpdateStatus.admitCardLive;
 
     // A student who checked straight from the radar has no saved card, but they
     // do have a verified roll number and a reason to celebrate. Before this,
     // "Share the news" led to a card with no roll on it.
+    //
+    // The caller only passes a lookup whose ResultCheckState belongs to this
+    // exam, so another exam's roll can never be borrowed here.
     final lookedUp = lookup != null && lookup.isFound ? lookup : null;
     final roll = card?.rollNumber ?? lookedUp?.rollNumber ?? '';
     final verified = card?.rollNumberVerified ?? lookedUp != null;
 
     return ShareCardData(
       examName: examName,
-      headline: isResult ? 'RESULT IS LIVE' : 'ADMIT CARD IS LIVE',
+      headline: _headlineFor(status),
       // Never promise content the card does not carry: there are no cut-offs in
       // this feed, and the official document is a link, not an attachment.
-      subline: isResult
-          ? 'Official link & instant roll-number check'
-          : 'Admit card link & exam-day details',
+      subline: _sublineFor(status),
       dateLine: _shortDate(DateTime.now()),
       // Empty when we do not have the user's roll — never a "—" placeholder.
       rollNumber: roll,
@@ -90,6 +101,48 @@ class _WhatsappShareCardScreenState
       cutoffs: null,
       pdfSizeLabel: update?.pdfSizeLabel,
     );
+  }
+
+  /// The alert strip and the big headline must say the same thing.
+  ///
+  /// Bug: every share, including an admit-card one, was headed "RESULT IS LIVE".
+  static String _headlineFor(UpdateStatus status) => switch (status) {
+    UpdateStatus.resultOut => 'RESULT IS LIVE',
+    UpdateStatus.admitCardLive => 'ADMIT CARD IS LIVE',
+    UpdateStatus.answerKey => 'ANSWER KEY IS OUT',
+    UpdateStatus.formClosing => 'LAST DATE IS NEAR',
+    UpdateStatus.awaited => 'UPDATE AWAITED',
+  };
+
+  static String _sublineFor(UpdateStatus status) => switch (status) {
+    UpdateStatus.resultOut => 'Official link & instant roll-number check',
+    UpdateStatus.admitCardLive => 'Admit card link & exam-day details',
+    UpdateStatus.answerKey => 'Official key & objection window',
+    UpdateStatus.formClosing => 'Deadline & direct application link',
+    UpdateStatus.awaited => 'Official notice & next update',
+  };
+
+  /// Picks the saved card that belongs to the exam being shared.
+  ///
+  /// Bug: this used `cards.first`, so tapping the UPSC result could render SSC's
+  /// roll number under UPSC's headline and a false "IN THE LIST" badge.
+  AdmitCard? _cardFor(
+    List<AdmitCard> cards,
+    LiveUpdate? update,
+    String? selectedId,
+  ) {
+    if (update != null) {
+      for (final c in cards) {
+        if (c.examId == update.examId) return c;
+      }
+      // No saved card for this exam: another exam's credentials are not a
+      // substitute, so fall through to the radar-only card.
+      return null;
+    }
+    for (final c in cards) {
+      if (c.id == selectedId) return c;
+    }
+    return cards.isEmpty ? null : cards.first;
   }
 
   static String _shortDate(DateTime d) {
@@ -113,8 +166,9 @@ class _WhatsappShareCardScreenState
 
   String _defaultCaption(ShareCardData data) {
     final lines = <String>[
-      '🚨 ${data.examName.toUpperCase()} ${data.headline} — official link & '
-          'instant roll-number check.',
+      // The caption echoes the card's own subline so an admit-card share does
+      // not promise an "instant roll-number check" the card never offers.
+      '🚨 ${data.examName.toUpperCase()} ${data.headline} — ${data.subline}.',
       if (data.rollNumber.isNotEmpty)
         'Roll ${data.rollNumber}${data.selected ? ' · in the published list' : ''}',
       if (data.link != null) data.link!,
@@ -134,6 +188,18 @@ class _WhatsappShareCardScreenState
     if (_captionController.text != next) {
       _captionController.text = next;
     }
+  }
+
+  /// Syncs the caption, resetting "edited" when the exam itself changes.
+  ///
+  /// Bug: `_captionTouched` was never cleared, so after switching from one exam
+  /// to another the old exam's caption stayed on screen forever.
+  void _syncCaptionFor(String? examId, ShareCardData? data) {
+    if (examId != _captionExamId) {
+      _captionExamId = examId;
+      _captionTouched = false;
+    }
+    _syncCaption(data);
   }
 
   String _withUrl(String caption, ShareCardData data) {
@@ -157,14 +223,24 @@ class _WhatsappShareCardScreenState
         : box.localToGlobal(Offset.zero) & box.size;
 
     try {
-      final png = await share.capturePng(_boundaryKey, pixelRatio: 3.0);
+      // Bug: one 3x capture either blew the bitmap budget on a low-memory phone
+      // or silently dropped the image. Retry smaller before giving up on it.
+      Uint8List? png;
+      for (final ratio in const [3.0, 2.0, 1.0]) {
+        png = await share.capturePng(_boundaryKey, pixelRatio: ratio);
+        if (png != null) break;
+      }
+
       if (png == null) {
-        // Capture can fail on very low memory; a text share still gets the job
-        // done, so the CTA never dead-ends.
+        // Bug: this fallback was silent, so the user thought the image had been
+        // sent. A text share still gets the job done — and now says so.
         await share.shareText(
           caption: _withUrl(caption, data),
           subject: data.examName,
           origin: origin,
+        );
+        _showSnack(
+          'The card image could not be rendered — shared the message text instead.',
         );
       } else {
         await share.shareCardImage(
@@ -175,41 +251,84 @@ class _WhatsappShareCardScreenState
           fileName: 'examvault_${DateTime.now().millisecondsSinceEpoch}.png',
         );
       }
+    } catch (e, st) {
+      // Bug: a failed share left the button spinning with no explanation. The
+      // caption is still in the editor, so tell the user what to do next.
+      AppLogger.e('share', 'share failed', e, st);
+      _showSnack(
+        'Could not open the share sheet. Your caption is still here — '
+        'try again.',
+      );
     } finally {
       if (mounted) setState(() => _sharing = false);
     }
+  }
+
+  void _showSnack(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(
+            message,
+            style: context.type.label.copyWith(color: Colors.white),
+          ),
+        ),
+      );
   }
 
   @override
   Widget build(BuildContext context) {
     final p = context.ev;
     final update = ref.watch(resultExamIdProvider);
-    final cards = ref.watch(admitCardsProvider).value ?? const <AdmitCard>[];
-    final card = cards.isEmpty ? null : cards.first;
-    final lookup = ref.watch(resultCheckerProvider).result;
+    final cardsAsync = ref.watch(admitCardsProvider);
+    final cards = cardsAsync.value ?? const <AdmitCard>[];
+    final selectedId = ref.watch(selectedCardIdProvider);
+    final card = _cardFor(cards, update, selectedId);
+    final examId = update?.examId ?? card?.examId;
+    final checkState = ref.watch(resultCheckerProvider);
+    // Bug: the globally last lookup was rendered on whatever exam this screen
+    // happened to resolve. Only a verdict that belongs to this exam is used.
+    final lookup = examId != null && checkState.belongsTo(examId)
+        ? checkState.result
+        : null;
     final built = _buildCard(update, card, lookup);
     // Withholding the roll must also stop the caption from repeating it.
     final data = (built == null || _showRoll)
         ? built
         : built.copyWith(rollNumber: '', selected: false);
 
-    // Keep the caption in sync with the data, unless the user edited it.
-    _syncCaption(data);
+    // Bug: the caption was rewritten inside build(), so the controller was
+    // reset to the generated text before the user's edit could survive a
+    // rebuild. Sync after the frame instead, and only while untouched.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _syncCaptionFor(examId, data);
+    });
 
     if (data == null) {
+      // Bug: loading and error states were both collapsed into an empty list,
+      // so a slow or failed vault read looked like "nothing to share yet".
+      final Widget body;
+      if (cardsAsync.isLoading) {
+        body = const _ShareLoading();
+      } else if (cardsAsync.hasError) {
+        body = _ShareError(onRetry: () => ref.invalidate(admitCardsProvider));
+      } else {
+        body = _NothingToShare(
+          onAddCard: () => showVaultFormSheet(context, ref),
+          onOpenRadar: () =>
+              ref.read(tabIndexProvider.notifier).select(EvTab.radar),
+        );
+      }
       return Scaffold(
         backgroundColor: p.bg,
         body: SafeArea(
           child: Column(
             children: [
               _ShareNavBar(),
-              Expanded(
-                child: _NothingToShare(
-                  onAddCard: () => showVaultFormSheet(context, ref),
-                  onOpenRadar: () =>
-                      ref.read(tabIndexProvider.notifier).select(EvTab.radar),
-                ),
-              ),
+              Expanded(child: body),
             ],
           ),
         ),
@@ -299,9 +418,11 @@ class _WhatsappShareCardScreenState
   }
 }
 
-class _ShareNavBar extends StatelessWidget {
+class _ShareNavBar extends ConsumerWidget {
+  const _ShareNavBar();
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final p = context.ev;
     return SizedBox(
       height: EvSize.navBar,
@@ -315,7 +436,11 @@ class _ShareNavBar extends StatelessWidget {
                 icon: Icons.close_rounded,
                 ghost: true,
                 iconSize: 18,
-                onPressed: () => Navigator.of(context).maybePop(),
+                tooltip: 'Close',
+                // Same defect as the checker: a tab has no route to pop, so this
+                // × did nothing and system back quit the app instead.
+                onPressed: () =>
+                    ref.read(tabIndexProvider.notifier).select(EvTab.home),
               ),
               const Spacer(),
               Padding(
@@ -332,7 +457,6 @@ class _ShareNavBar extends StatelessWidget {
                   child: Text(
                     'PREVIEW',
                     style: context.type.statusPill.copyWith(
-                      fontSize: 9,
                       letterSpacing: 1.1,
                       color: p.textTertiary,
                     ),
@@ -396,7 +520,9 @@ class _ShareTargets extends StatelessWidget {
           enabled: onCopyCaption != null,
         ),
         _Target(
-          label: linkIsOfficial ? 'Official link' : 'Copy link',
+          // Bug: the tile said "Official link" but only copied it. Name the
+          // action that actually happens.
+          label: linkIsOfficial ? 'Copy official link' : 'Copy link',
           icon: Icons.link_rounded,
           color: onCopyLink == null ? p.textTertiary : p.accentText,
           onTap: onCopyLink ?? () {},
@@ -438,7 +564,9 @@ class _Target extends StatelessWidget {
           onTap: enabled ? onTap : null,
           borderRadius: BorderRadius.circular(EvRadius.inner),
           child: SizedBox(
-            width: 76,
+            // Wider than 76 so "Copy official link" can wrap to two honest
+            // lines instead of being clipped into an unreadable fragment.
+            width: 88,
             child: Column(
               children: [
                 Container(
@@ -460,9 +588,10 @@ class _Target extends StatelessWidget {
                 const SizedBox(height: 6),
                 Text(
                   label,
-                  maxLines: 1,
+                  maxLines: 2,
+                  textAlign: TextAlign.center,
+                  overflow: TextOverflow.ellipsis,
                   style: context.type.label.copyWith(
-                    fontSize: 10,
                     color: highlight ? p.textPrimary : p.textSecondary,
                   ),
                 ),
@@ -514,7 +643,7 @@ class _CaptionEditorState extends State<_CaptionEditor> {
                     _editing ? 'DONE' : 'EDIT',
                     style: context.type.statusPill.copyWith(
                       color: p.accentText,
-                      fontSize: 9,
+                      fontSize: 11,
                       letterSpacing: 0.9,
                     ),
                   ),
@@ -529,9 +658,12 @@ class _CaptionEditorState extends State<_CaptionEditor> {
               autofocus: true,
               maxLines: 4,
               minLines: 2,
+              // Bug: this field never reported edits, so the screen never learned
+              // the caption was touched and rebuilt the user's text away.
+              onChanged: (_) => widget.onChanged?.call(),
               style: context.type.body.copyWith(
                 color: p.textPrimary,
-                fontSize: 11.5,
+                fontSize: 12,
               ),
               decoration: const InputDecoration(
                 isDense: true,
@@ -542,14 +674,19 @@ class _CaptionEditorState extends State<_CaptionEditor> {
               ),
             )
           else
-            Text(
-              widget.controller.text,
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
-              style: context.type.body.copyWith(
-                color: p.textPrimary,
-                fontSize: 11.5,
-                height: 1.4,
+            // The caption is seeded after the frame, so the preview must listen
+            // to the controller or it would show the previous exam's text.
+            ListenableBuilder(
+              listenable: widget.controller,
+              builder: (context, _) => Text(
+                widget.controller.text,
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+                style: context.type.body.copyWith(
+                  color: p.textPrimary,
+                  fontSize: 12,
+                  height: 1.4,
+                ),
               ),
             ),
         ],
@@ -591,7 +728,7 @@ class _RollVisibilityRow extends StatelessWidget {
               children: [
                 Text(
                   'Show my roll number',
-                  style: context.type.tileTitle.copyWith(fontSize: 11.5),
+                  style: context.type.tileTitle.copyWith(),
                 ),
                 const SizedBox(height: 2),
                 Text(
@@ -600,17 +737,91 @@ class _RollVisibilityRow extends StatelessWidget {
                       : hidden
                       ? 'Hidden — the card still shows the result'
                       : 'Visible on the card you share',
-                  style: context.type.bodyMuted.copyWith(fontSize: 9.5),
+                  style: context.type.bodyMuted.copyWith(),
                 ),
               ],
             ),
           ),
-          Switch.adaptive(
-            value: hasRoll && value,
-            onChanged: hasRoll ? onChanged : null,
-            activeTrackColor: p.success,
+          Semantics(
+            label: 'Show my roll number on the shared card',
+            child: Switch.adaptive(
+              value: hasRoll && value,
+              onChanged: hasRoll ? onChanged : null,
+              activeTrackColor: p.success,
+            ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Shown while the vault is still being read, so a slow first frame does not
+/// masquerade as an empty vault.
+class _ShareLoading extends StatelessWidget {
+  const _ShareLoading();
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.ev;
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            width: 22,
+            height: 22,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              valueColor: AlwaysStoppedAnimation(p.accentText),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text('Loading your saved cards…', style: context.type.bodyMuted),
+        ],
+      ),
+    );
+  }
+}
+
+/// A failed vault read is not the same as an empty vault.
+class _ShareError extends StatelessWidget {
+  const _ShareError({required this.onRetry});
+
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.ev;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.error_outline_rounded, color: p.danger, size: 28),
+            const SizedBox(height: 16),
+            Text(
+              'Could not load your saved cards',
+              textAlign: TextAlign.center,
+              style: context.type.sectionTitle.copyWith(fontSize: 14),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Your vault is stored on this device. Nothing was lost — try '
+              'again in a moment.',
+              textAlign: TextAlign.center,
+              style: context.type.bodyMuted,
+            ),
+            const SizedBox(height: 20),
+            EvSecondaryButton(
+              label: 'Try again',
+              icon: Icons.refresh_rounded,
+              expand: false,
+              onPressed: onRetry,
+            ),
+          ],
+        ),
       ),
     );
   }

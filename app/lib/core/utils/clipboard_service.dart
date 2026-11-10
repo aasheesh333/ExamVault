@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../theme/app_theme.dart';
+import '../theme/motion.dart';
 import '../theme/theme_tokens.dart';
 
 /// One-tap copy with the full feedback stack: clipboard, haptic, toast.

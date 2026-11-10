@@ -67,12 +67,22 @@ class ThemePreferenceNotifier extends Notifier<ThemePreference> {
   @override
   ThemePreference build() {
     final box = ref.watch(settingsBoxProvider);
-    return ThemePreference.fromId(box.get(_key) as String?);
+    // A non-String value used to throw TypeError here, escaping into the app
+    // build and bricking the theme; treat anything unexpected as "system".
+    final raw = box.get(_key);
+    return ThemePreference.fromId(raw is String ? raw : null);
   }
 
   Future<void> select(ThemePreference pref) async {
+    final previous = state;
     state = pref;
-    await ref.read(settingsBoxProvider).put(_key, pref.id);
+    try {
+      await ref.read(settingsBoxProvider).put(_key, pref.id);
+    } catch (_) {
+      // A failed settings write must not leave the UI claiming a preference
+      // that will be gone on next launch, so roll the state back.
+      state = previous;
+    }
   }
 }
 
@@ -194,12 +204,53 @@ final categoryFilterProvider =
       CategoryFilterNotifier.new,
     );
 
-/// Vault cards after the active category filter.
+/// Free-text query over the radar and the saved cards.
+///
+/// The radar carries 60 rows from five commissions — roughly five and a half
+/// screens of scrolling — and the category chips only narrow it to about 20. A
+/// student looking for "RRB CEN 01/2025" had no way to ask for it by name, and no
+/// way at all to find the radar row that matches the card already in their wallet.
+class SearchQueryNotifier extends Notifier<String> {
+  @override
+  String build() => '';
+
+  void set(String value) => state = value.trim();
+
+  void clear() => state = '';
+}
+
+final searchQueryProvider = NotifierProvider<SearchQueryNotifier, String>(
+  SearchQueryNotifier.new,
+);
+
+/// Case- and accent-insensitive token match.
+///
+/// Deliberately forgiving: the user is typing a fragment of a long official
+/// headline ("civil serv", "rrb cen 01"), so it matches on all query tokens being
+/// present anywhere in the haystack rather than on a prefix.
+bool _matchesQuery(String query, String haystack) {
+  if (query.isEmpty) return true;
+  final hay = haystack.toLowerCase();
+  for (final token in query.toLowerCase().split(RegExp(r'\s+'))) {
+    if (token.isEmpty) continue;
+    if (!hay.contains(token)) return false;
+  }
+  return true;
+}
+
+/// Vault cards after the active category filter and search query.
 final filteredCardsProvider = Provider<List<AdmitCard>>((ref) {
   final cards = ref.watch(admitCardsProvider).value ?? const [];
   final filter = ref.watch(categoryFilterProvider);
-  if (filter == null) return cards;
-  return cards.where((c) => c.category == filter).toList(growable: false);
+  final query = ref.watch(searchQueryProvider);
+
+  return cards.where((c) {
+    if (filter != null && c.category != filter) return false;
+    return _matchesQuery(
+      query,
+      '${c.examName} ${c.examCode} ${c.conductingBody} ${c.rollNumber}',
+    );
+  }).toList(growable: false);
 });
 
 /// ---------------------------------------------------------------------------
@@ -208,6 +259,7 @@ final filteredCardsProvider = Provider<List<AdmitCard>>((ref) {
 
 class LiveFeedNotifier extends AsyncNotifier<LiveFeedSnapshot> {
   Timer? _timer;
+  AppLifecycleListener? _lifecycle;
 
   @override
   Future<LiveFeedSnapshot> build() async {
@@ -221,12 +273,33 @@ class LiveFeedNotifier extends AsyncNotifier<LiveFeedSnapshot> {
 
     // 3. Poll only while this notifier is alive, and never faster than the edge
     //    TTL — polling a cached object more often than the cache is useless.
+    _startPolling(repo);
+
+    // 4. Stop burning radio time while the app is backgrounded, and catch up
+    //    immediately on resume instead of waiting out the rest of the interval.
+    _lifecycle?.dispose();
+    _lifecycle = AppLifecycleListener(
+      onPause: () => _timer?.cancel(),
+      onHide: () => _timer?.cancel(),
+      onResume: () {
+        _startPolling(repo);
+        unawaited(_refreshInto(repo));
+      },
+    );
+
+    ref.onDispose(() {
+      _timer?.cancel();
+      _lifecycle?.dispose();
+    });
+
+    return cached;
+  }
+
+  void _startPolling(LiveFeedRepository repo) {
+    _timer?.cancel();
     _timer = Timer.periodic(AppConfig.feedPollInterval, (_) {
       unawaited(_refreshInto(repo));
     });
-    ref.onDispose(() => _timer?.cancel());
-
-    return cached;
   }
 
   Future<void> _refreshInto(LiveFeedRepository repo) async {
@@ -239,6 +312,9 @@ class LiveFeedNotifier extends AsyncNotifier<LiveFeedSnapshot> {
   Future<void> refresh({bool force = false}) async {
     final repo = ref.read(liveFeedRepositoryProvider);
     final snapshot = await repo.refresh(force: force);
+    // A refresh can outlive the notifier (tab switch); writing `state` after
+    // disposal throws. `_refreshInto` already guarded this, `refresh` did not.
+    if (!ref.mounted) return;
     state = AsyncData(snapshot);
   }
 }
@@ -249,16 +325,43 @@ final liveFeedProvider =
     );
 
 /// Radar rows after the active category filter.
+///
+/// [includeExpired] is the opt-in a future "past notices" view can use; the
+/// radar itself must never show a row the publisher has already retired.
+List<LiveUpdate> filterUpdates(
+  LiveFeed? feed,
+  ExamCategory? filter, {
+  bool includeExpired = false,
+  DateTime? now,
+  String query = '',
+}) {
+  if (feed == null) return const [];
+  final rows = includeExpired
+      ? feed.updates
+      : feed.activeAt(now ?? DateTime.now());
+  final byCategory = filter == null
+      ? rows
+      : rows.where((u) => u.category == filter);
+  if (query.isEmpty) return byCategory.toList(growable: false);
+  return byCategory
+      .where((u) => _matchesQuery(query, '${u.examName} ${u.contextLine}'))
+      .toList(growable: false);
+}
+
 final filteredUpdatesProvider = Provider<List<LiveUpdate>>((ref) {
   final feed = ref.watch(liveFeedProvider).value?.feed;
-  if (feed == null) return const [];
-
   final filter = ref.watch(categoryFilterProvider);
-  if (filter == null) return feed.updates;
-  return feed.updates
-      .where((u) => u.category == filter)
-      .toList(growable: false);
+  final query = ref.watch(searchQueryProvider);
+  // Expired rows used to render as green "RESULT OUT" for months; the publisher
+  // already told us when each row stops being useful.
+  return filterUpdates(feed, filter, query: query);
 });
+
+/// True when a search is running and matched nothing — the UI shows the "no
+/// matches" state instead of the empty-feed state.
+final searchActiveProvider = Provider<bool>(
+  (ref) => ref.watch(searchQueryProvider).isNotEmpty,
+);
 
 /// ---------------------------------------------------------------------------
 /// Instant result checker
@@ -267,6 +370,7 @@ final filteredUpdatesProvider = Provider<List<LiveUpdate>>((ref) {
 class ResultCheckState {
   const ResultCheckState({
     required this.phase,
+    this.examId,
     this.result,
     this.indexSource,
     this.warmIndex,
@@ -275,12 +379,19 @@ class ResultCheckState {
 
   const ResultCheckState.idle()
     : phase = ResultPhase.idle,
+      examId = null,
       result = null,
       indexSource = null,
       warmIndex = null,
       error = null;
 
   final ResultPhase phase;
+
+  /// Which exam this verdict belongs to.
+  ///
+  /// Without it, tapping radar row B kept rendering row A's "Roll X was not
+  /// found" under B's title, because the state had no identity to compare.
+  final String? examId;
   final RollLookupResult? result;
   final IndexSource? indexSource;
 
@@ -292,6 +403,10 @@ class ResultCheckState {
       phase == ResultPhase.downloading || phase == ResultPhase.searching;
 
   bool get isUnavailable => phase == ResultPhase.unavailable;
+
+  /// True only when this verdict was produced for [examId]; the UI should hide
+  /// a stale result rather than re-render another exam's answer.
+  bool belongsTo(String examId) => this.examId == examId;
 }
 
 enum ResultPhase {
@@ -306,6 +421,10 @@ enum ResultPhase {
 }
 
 class ResultCheckerNotifier extends Notifier<ResultCheckState> {
+  /// Monotonic request token: a slow earlier lookup that resolves after a newer
+  /// one must not overwrite it. Without this, A's verdict could land on B.
+  int _seq = 0;
+
   @override
   ResultCheckState build() => const ResultCheckState.idle();
 
@@ -313,18 +432,26 @@ class ResultCheckerNotifier extends Notifier<ResultCheckState> {
     required String examId,
     required String rollNumber,
     String? indexVersion,
+    bool force = false,
   }) async {
-    state = const ResultCheckState(phase: ResultPhase.downloading);
+    final seq = ++_seq;
+    state = ResultCheckState(phase: ResultPhase.downloading, examId: examId);
 
     try {
       final repo = ref.read(resultIndexRepositoryProvider);
-      final bundle = await repo.load(examId: examId, version: indexVersion);
+      final bundle = await repo.load(
+        examId: examId,
+        version: indexVersion,
+        force: force,
+      );
+      if (seq != _seq) return null; // superseded by a newer check
 
       // No index means no answer. Never synthesise one — a wrong "selected"
       // is worse than an honest "not published yet".
       if (!bundle.hasData) {
         state = ResultCheckState(
           phase: ResultPhase.unavailable,
+          examId: examId,
           indexSource: bundle.source,
           error:
               bundle.reason ??
@@ -335,6 +462,7 @@ class ResultCheckerNotifier extends Notifier<ResultCheckState> {
 
       state = ResultCheckState(
         phase: ResultPhase.searching,
+        examId: examId,
         indexSource: bundle.source,
       );
 
@@ -342,21 +470,25 @@ class ResultCheckerNotifier extends Notifier<ResultCheckState> {
         compressed: bundle.bytes,
         rollNumber: rollNumber,
       );
+      if (seq != _seq) return null;
 
       state = ResultCheckState(
         phase: result.state == RollLookupState.indexUnavailable
             ? ResultPhase.unavailable
             : ResultPhase.done,
+        examId: examId,
         result: result,
         indexSource: bundle.source,
         error: result.errorMessage,
       );
       return result;
     } catch (e, st) {
+      if (seq != _seq) return null;
       // Never surface a Dart exception string to a student on exam morning.
       AppLogger.e('checker', 'lookup failed', e, st);
-      state = const ResultCheckState(
+      state = ResultCheckState(
         phase: ResultPhase.unavailable,
+        examId: examId,
         error:
             'Could not reach the result index. Check your connection and '
             'tap again — nothing was lost.',
@@ -365,7 +497,11 @@ class ResultCheckerNotifier extends Notifier<ResultCheckState> {
     }
   }
 
-  void reset() => state = const ResultCheckState.idle();
+  void reset() {
+    // Invalidate any in-flight lookup so it cannot repaint after a reset.
+    _seq++;
+    state = const ResultCheckState.idle();
+  }
 }
 
 final resultCheckerProvider =
@@ -405,18 +541,51 @@ final resultExamIdProvider = NotifierProvider<ResultExamNotifier, LiveUpdate?>(
   ResultExamNotifier.new,
 );
 
+/// When the user last opened the alerts inbox.
+///
+/// The badge used to count every live row and nothing ever cleared it, so it read
+/// "9+" permanently and stopped meaning anything. It now counts updates published
+/// since the inbox was last opened.
+class AlertsSeenNotifier extends Notifier<DateTime> {
+  static const _key = 'alerts_seen_at';
+
+  @override
+  DateTime build() {
+    final box = ref.watch(settingsBoxProvider);
+    final raw = box.get(_key);
+    final parsed = raw is String ? DateTime.tryParse(raw) : null;
+    return parsed ?? DateTime.fromMillisecondsSinceEpoch(0);
+  }
+
+  Future<void> markSeen([DateTime? at]) async {
+    final value = at ?? DateTime.now();
+    state = value;
+    try {
+      await ref.read(settingsBoxProvider).put(_key, value.toIso8601String());
+    } catch (_) {
+      // A failed write only means the badge reappears; not worth interrupting.
+    }
+  }
+}
+
+final alertsSeenProvider = NotifierProvider<AlertsSeenNotifier, DateTime>(
+  AlertsSeenNotifier.new,
+);
+
 /// Number shown on the radar tab badge — expired rows do not count.
 final liveRadarBadgeProvider = Provider<int>((ref) {
   final feed = ref.watch(liveFeedProvider).value?.feed;
   if (feed == null) return 0;
+  final seen = ref.watch(alertsSeenProvider);
   final now = DateTime.now();
   return feed
       .activeAt(now)
       .where(
         (u) =>
-            u.status == UpdateStatus.resultOut ||
-            u.status == UpdateStatus.admitCardLive ||
-            u.status == UpdateStatus.formClosing,
+            u.publishedAt.isAfter(seen) &&
+            (u.status == UpdateStatus.resultOut ||
+                u.status == UpdateStatus.admitCardLive ||
+                u.status == UpdateStatus.formClosing),
       )
       .length;
 });

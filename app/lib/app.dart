@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 import 'core/theme/app_theme.dart';
 import 'features/shell/root_shell.dart';
@@ -23,33 +23,67 @@ class ExamVaultApp extends ConsumerWidget {
       // Clamping is done in a dedicated widget: doing it inline in `builder`
       // allocates a fresh TextScaler on every rebuild, which makes MediaQueryData
       // compare unequal to its ancestor and spins the tree forever.
-      builder: (context, child) =>
-          _TextScaleClamp(child: child ?? const SizedBox.shrink()),
+      builder: (context, child) => _TextScaleClamp(
+        child: _SystemChrome(child: child ?? const SizedBox.shrink()),
+      ),
       home: const RootShell(),
+    );
+  }
+}
+
+/// Keeps the status- and navigation-bar icons legible in both palettes.
+///
+/// There is no `AppBar` anywhere in the app (every screen draws its own header), so
+/// nothing ever set an overlay style. With the light palette that left the clock
+/// and battery white on a near-white background; on Android 15+ the bars are
+/// edge-to-edge and cannot fall back to an opaque scrim.
+class _SystemChrome extends StatelessWidget {
+  const _SystemChrome({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final brightness = Theme.of(context).brightness;
+    final isDark = brightness == Brightness.dark;
+
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+        statusBarBrightness: isDark ? Brightness.dark : Brightness.light,
+        systemNavigationBarColor: context.ev.bg,
+        systemNavigationBarIconBrightness: isDark
+            ? Brightness.light
+            : Brightness.dark,
+        systemNavigationBarDividerColor: Colors.transparent,
+      ),
+      child: child,
     );
   }
 }
 
 /// Keeps system text scaling inside the range the layout was designed for.
 ///
-/// Below 0.9 the pass hierarchy collapses; above 1.35 the 31px roll number stops
-/// fitting on one line. The widget only inserts a `MediaQuery` when the incoming
-/// scaler is actually out of range, so the common case costs nothing and cannot
-/// re-trigger a build.
+/// The ceiling is 2.0 — Android's own maximum — rather than the 1.35 this used to
+/// clamp to. Clamping to 1.35 silently discarded a setting the user had raised
+/// *because* they could not read the text; the layout now has to cope instead, and
+/// the widgets that could not (fixed-height pass rows, single-line exam names) were
+/// fixed rather than hidden behind the cap.
 class _TextScaleClamp extends StatelessWidget {
   const _TextScaleClamp({required this.child});
 
   final Widget child;
 
   static const _min = 0.9;
-  static const _max = 1.35;
+  static const _max = 2.0;
 
   @override
   Widget build(BuildContext context) {
     final media = MediaQuery.of(context);
     final scaler = media.textScaler;
 
-    // `scale(1)` is the scaler's factor at 1 logical px — stable and cheap.
+    // `scale(16)` is stable regardless of the nonlinear curve Android applies.
     final factor = scaler.scale(16) / 16;
     if (factor >= _min && factor <= _max) return child;
 
@@ -61,20 +95,8 @@ class _TextScaleClamp extends StatelessWidget {
   }
 }
 
-/// Boots the two bundled font families before the first frame so there is no
-/// visible flash of a fallback face.
-abstract final class FontLoader {
-  static Future<void> preload() async {
-    // Assets under `assets/google_fonts/` are discovered by google_fonts, so this
-    // resolves locally and never performs a network request.
-    GoogleFonts.plusJakartaSans();
-    GoogleFonts.ibmPlexMono();
-  }
-}
-
 /// The app is a phone-shaped utility. On tablets and foldables we centre the
-/// canvas to 480 px rather than stretching a 393 px design across 900 px of
-/// dead space — the pass cards would look absurd at that width.
+/// canvas rather than stretching a 393 px design across 900 px of dead space.
 class _EvScrollBehavior extends MaterialScrollBehavior {
   const _EvScrollBehavior();
 
@@ -89,29 +111,6 @@ class _EvScrollBehavior extends MaterialScrollBehavior {
       axisDirection: details.direction,
       color: context.ev.accent,
       child: child,
-    );
-  }
-}
-
-/// Constrains the app to a phone-like canvas on large screens.
-class PhoneCanvas extends StatelessWidget {
-  const PhoneCanvas({super.key, required this.child});
-
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    final width = MediaQuery.sizeOf(context).width;
-    if (width <= 520) return child;
-
-    return ColoredBox(
-      color: const Color(0xFF05070C),
-      child: Center(
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(28),
-          child: SizedBox(width: 420, child: child),
-        ),
-      ),
     );
   }
 }

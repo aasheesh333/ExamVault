@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/theme_tokens.dart';
+import '../../data/services/app_logger.dart';
 import '../../domain/entities/admit_card.dart';
 import '../../domain/entities/exam_category.dart';
 import '../../domain/entities/live_update.dart';
@@ -26,6 +27,9 @@ Future<void> showVaultFormSheet(
     isScrollControlled: true,
     useSafeArea: true,
     backgroundColor: Colors.transparent,
+    // Dragging the sheet down pops the route directly, bypassing PopScope — the
+    // unsaved-changes guard only works with the drag-dismiss disabled.
+    enableDrag: false,
     builder: (_) => _VaultFormSheet(existing: existing),
   );
 }
@@ -60,14 +64,106 @@ class _VaultFormSheetState extends ConsumerState<_VaultFormSheet> {
   late final _centreAddress = TextEditingController(
     text: widget.existing?.centerAddress,
   );
+  late final _gate = TextEditingController(text: widget.existing?.gate);
+  late final _reportBy = TextEditingController(text: widget.existing?.reportBy);
+  late final _shift = TextEditingController(text: widget.existing?.shift);
 
   late ExamCategory _category = widget.existing?.category ?? ExamCategory.ssc;
   late DateTime _examDate =
       widget.existing?.examDate ?? DateTime.now().add(const Duration(days: 14));
 
+  /// Baseline captured at construction so the close guard can tell a real edit
+  /// from the values a card already had.
+  late final Map<TextEditingController, String> _baseline;
+  late final ExamCategory _initialCategory;
+  late final DateTime _initialDate;
+
   bool _obscureSecret = true;
   bool _saving = false;
+  bool _confirmingDiscard = false;
   String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    // Capture eagerly: a lazy `late final` would baseline after the first edit.
+    _initialCategory = _category;
+    _initialDate = _examDate;
+    _baseline = {
+      for (final c in [
+        _examName,
+        _body,
+        _examCode,
+        _roll,
+        _regId,
+        _secret,
+        _centreCode,
+        _centreAddress,
+        _gate,
+        _reportBy,
+        _shift,
+      ])
+        c: c.text,
+    };
+  }
+
+  /// True when the form differs from what was opened.
+  bool get _dirty =>
+      _category != _initialCategory ||
+      _examDate != _initialDate ||
+      _baseline.entries.any((e) => e.key.text != e.value);
+
+  /// Close via the Cancel button, the barrier or system back.
+  Future<void> _requestClose() async {
+    if (_saving || _confirmingDiscard) return;
+    if (!_dirty) {
+      Navigator.of(context).pop();
+      return;
+    }
+    _confirmingDiscard = true;
+    final discard = await _confirmDiscard();
+    _confirmingDiscard = false;
+    if (discard && mounted) Navigator.of(context).pop();
+  }
+
+  Future<bool> _confirmDiscard() async {
+    final p = context.ev;
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: p.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(color: p.border),
+        ),
+        title: Text('Discard this card?', style: context.type.sectionTitle),
+        content: Text(
+          'Your changes, including the portal password, have not been saved.',
+          style: context.type.body,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(
+              'Keep editing',
+              style: context.type.label.copyWith(color: p.textSecondary),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(
+              'Discard',
+              style: context.type.label.copyWith(
+                color: p.dangerText,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    return result ?? false;
+  }
 
   /// True once the user taps a category chip, so inference never overrides a
   /// deliberate choice.
@@ -110,6 +206,9 @@ class _VaultFormSheetState extends ConsumerState<_VaultFormSheet> {
       _secret,
       _centreCode,
       _centreAddress,
+      _gate,
+      _reportBy,
+      _shift,
     ]) {
       c.dispose();
     }
@@ -149,10 +248,10 @@ class _VaultFormSheetState extends ConsumerState<_VaultFormSheet> {
       dobOrPortalPassword: _secret.text.trim(),
       centerCode: _centreCode.text.trim(),
       centerAddress: _centreAddress.text.trim(),
-      gate: base?.gate ?? '',
-      reportBy: base?.reportBy ?? '',
+      gate: _gate.text.trim(),
+      reportBy: _reportBy.text.trim(),
       examDate: _examDate,
-      shift: base?.shift ?? '',
+      shift: _shift.text.trim(),
       createdAt: base?.createdAt ?? now,
       updatedAt: now,
       rollNumberVerified: base?.rollNumberVerified ?? false,
@@ -171,11 +270,13 @@ class _VaultFormSheetState extends ConsumerState<_VaultFormSheet> {
           ),
         ),
       );
-    } catch (e) {
+    } catch (e, st) {
+      AppLogger.e('VaultForm', 'Admit card save failed', e, st);
       if (!mounted) return;
       setState(() {
         _saving = false;
-        _error = 'Could not save. $e';
+        // Never surface a platform exception: the user needs an action, not a stack.
+        _error = 'That card could not be saved. Your details are still here.';
       });
     }
   }
@@ -194,173 +295,285 @@ class _VaultFormSheetState extends ConsumerState<_VaultFormSheet> {
   Widget build(BuildContext context) {
     final p = context.ev;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: p.surface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-        border: Border.all(color: p.border),
+    return PopScope(
+      // canPop stays false so back/barrier can never discard the form silently;
+      // dirtiness is read at pop time, not baked into the last build.
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _requestClose();
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          color: p.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          border: Border.all(color: p.border),
+        ),
+        child: DraggableScrollableSheet(
+          expand: false,
+          // Starts fully open: this is a data-entry form with ten fields, and a
+          // half-height sheet hid the save button below the fold on a 6.1" phone.
+          initialChildSize: 0.94,
+          minChildSize: 0.6,
+          maxChildSize: 0.96,
+          builder: (context, controller) {
+            return Form(
+              key: _formKey,
+              // A lazy ListView disposes offscreen fields, and Form.validate()
+              // silently skips unregistered ones — the form could save with the
+              // exam name still empty. A plain scroll view keeps all fields alive.
+              child: SingleChildScrollView(
+                controller: controller,
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // A sheet with no handle and no close button reads as a page you
+                    // are stuck on. The handle plus Cancel says "you can leave".
+                    _FormHeader(
+                      title: widget.existing == null
+                          ? 'Add admit card'
+                          : 'Edit admit card',
+                      onClose: _requestClose,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Everything below is encrypted on this device with the Android '
+                      'Keystore. Nothing is uploaded.',
+                      style: context.type.bodyMuted,
+                    ),
+                    const SizedBox(height: 6),
+                    // Hints used to be plausible *values* ("2201049821"), which reads
+                    // as a pre-filled answer rather than an example — and a student
+                    // who saved one would carry a stranger's roll number. They now
+                    // describe the field instead.
+                    Text(
+                      'Copy the details exactly as they appear on your admit card.',
+                      style: context.type.microLabel.copyWith(),
+                    ),
+                    const SizedBox(height: 20),
+                    _Field(
+                      controller: _examName,
+                      label: 'Exam name',
+                      hint: 'As printed on your admit card',
+                      onChanged: _onExamNameChanged,
+                      validator: (v) => (v == null || v.trim().length < 3)
+                          ? 'Enter the exam name'
+                          : null,
+                    ),
+                    _CategoryPicker(
+                      value: _category,
+                      onChanged: (c) => setState(() {
+                        _category = c;
+                        _categoryPicked = true;
+                      }),
+                    ),
+                    if (_match(watch: true) case final match?)
+                      _LinkedResult(match: match)
+                    else if (_examName.text.trim().length > 3)
+                      // Say plainly that no published result is linked, so a student
+                      // does not read "no index" later as "I was not selected".
+                      _NoLinkedResult(),
+                    const SizedBox(height: 4),
+                    _Field(
+                      controller: _body,
+                      label: 'Conducting body',
+                      hint: 'e.g. Staff Selection Commission',
+                    ),
+                    _Field(
+                      controller: _examCode,
+                      label: 'Exam code',
+                      hint: 'Short code from the card',
+                      caps: TextCapitalization.characters,
+                    ),
+                    _Field(
+                      controller: _roll,
+                      label: 'Roll number',
+                      hint: 'Digits only, as printed',
+                      mono: true,
+                      caps: TextCapitalization.characters,
+                      digitsOnly: true,
+                      maxLength: 20,
+                      validator: (v) {
+                        final t = v?.trim() ?? '';
+                        if (t.length < 4) return 'Roll number looks too short';
+                        return null;
+                      },
+                    ),
+                    _Field(
+                      controller: _regId,
+                      label: 'Registration ID',
+                      hint: 'Application / registration ID',
+                      mono: true,
+                      caps: TextCapitalization.characters,
+                    ),
+                    _Field(
+                      controller: _secret,
+                      label: 'DOB / portal password',
+                      hint: 'DD/MM/YYYY or portal password',
+                      mono: true,
+                      obscure: _obscureSecret,
+                      suffix: IconButton(
+                        icon: Icon(
+                          _obscureSecret
+                              ? Icons.visibility_off_outlined
+                              : Icons.visibility_outlined,
+                          size: 18,
+                          color: p.textTertiary,
+                        ),
+                        onPressed: () =>
+                            setState(() => _obscureSecret = !_obscureSecret),
+                      ),
+                    ),
+                    _Field(
+                      controller: _centreCode,
+                      label: 'Centre code',
+                      hint: 'Centre code from the card',
+                      mono: true,
+                      caps: TextCapitalization.characters,
+                    ),
+                    _Field(
+                      controller: _centreAddress,
+                      label: 'Centre address',
+                      hint: 'Street, area, city',
+                    ),
+                    _DateField(date: _examDate, onTap: _pickDate),
+                    // Reporting time, shift and gate were copied from the old card
+                    // but never editable, so the pass showed empty lines forever.
+                    _Field(
+                      controller: _shift,
+                      label: 'Exam shift',
+                      hint: 'e.g. 10:00 AM – 11:00 AM',
+                    ),
+                    _Field(
+                      controller: _reportBy,
+                      label: 'Reporting time',
+                      hint: 'e.g. 08:00 AM',
+                      mono: true,
+                    ),
+                    _Field(
+                      controller: _gate,
+                      label: 'Gate',
+                      hint: 'e.g. Gate 2',
+                    ),
+                    if (_error != null) ...[
+                      const SizedBox(height: 8),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(
+                            Icons.error_outline_rounded,
+                            size: 16,
+                            color: p.dangerText,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              _error!,
+                              style: context.type.body.copyWith(
+                                color: p.dangerText,
+                              ),
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: _saving ? null : _save,
+                            style: TextButton.styleFrom(
+                              minimumSize: const Size(
+                                EvSize.minTapTarget,
+                                EvSize.minTapTarget,
+                              ),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                              ),
+                            ),
+                            child: Text(
+                              'Retry',
+                              style: context.type.label.copyWith(
+                                color: p.accentText,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                    const SizedBox(height: 16),
+                    EvPrimaryButton(
+                      label: 'Save to vault',
+                      icon: Icons.lock_outline_rounded,
+                      busy: _saving,
+                      onPressed: _save,
+                    ),
+                    const SizedBox(height: 8),
+                    Center(
+                      child: Text(
+                        'AES-256 · ANDROID KEYSTORE · OFFLINE',
+                        style: context.type.microLabel.copyWith(),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
       ),
-      child: DraggableScrollableSheet(
-        expand: false,
-        // Starts fully open: this is a data-entry form with ten fields, and a
-        // half-height sheet hid the save button below the fold on a 6.1" phone.
-        initialChildSize: 0.94,
-        minChildSize: 0.6,
-        maxChildSize: 0.96,
-        builder: (context, controller) {
-          return Form(
-            key: _formKey,
-            child: ListView(
-              controller: controller,
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
-              children: [
-                // A sheet with no handle and no close button reads as a page you
-                // are stuck on. The handle is the only visible affordance that
-                // says "swipe me down".
-                Center(
-                  child: Container(
-                    width: 36,
-                    height: 4,
-                    margin: const EdgeInsets.only(bottom: 14),
-                    decoration: BoxDecoration(
-                      color: p.border,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
-                Text(
-                  widget.existing == null
-                      ? 'Add admit card'
-                      : 'Edit admit card',
-                  style: context.type.sectionTitle.copyWith(fontSize: 17),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Everything below is encrypted on this device with the Android '
-                  'Keystore. Nothing is uploaded.',
-                  style: context.type.bodyMuted,
-                ),
-                const SizedBox(height: 6),
-                // Hints used to be plausible *values* ("2201049821"), which reads
-                // as a pre-filled answer rather than an example — and a student
-                // who saved one would carry a stranger's roll number. They now
-                // describe the field instead.
-                Text(
-                  'Copy the details exactly as they appear on your admit card.',
-                  style: context.type.microLabel.copyWith(fontSize: 9),
-                ),
-                const SizedBox(height: 20),
-                _Field(
-                  controller: _examName,
-                  label: 'Exam name',
-                  hint: 'As printed on your admit card',
-                  onChanged: _onExamNameChanged,
-                  validator: (v) => (v == null || v.trim().length < 3)
-                      ? 'Enter the exam name'
-                      : null,
-                ),
-                _CategoryPicker(
-                  value: _category,
-                  onChanged: (c) => setState(() {
-                    _category = c;
-                    _categoryPicked = true;
-                  }),
-                ),
-                if (_match(watch: true) case final match?)
-                  _LinkedResult(match: match)
-                else if (_examName.text.trim().length > 3)
-                  // Say plainly that no published result is linked, so a student
-                  // does not read "no index" later as "I was not selected".
-                  _NoLinkedResult(),
-                const SizedBox(height: 4),
-                _Field(
-                  controller: _body,
-                  label: 'Conducting body',
-                  hint: 'e.g. Staff Selection Commission',
-                ),
-                _Field(
-                  controller: _examCode,
-                  label: 'Exam code',
-                  hint: 'Short code from the card',
-                  caps: TextCapitalization.characters,
-                ),
-                _Field(
-                  controller: _roll,
-                  label: 'Roll number',
-                  hint: 'Digits only, as printed',
-                  mono: true,
-                  caps: TextCapitalization.characters,
-                  digitsOnly: true,
-                  validator: (v) {
-                    final t = v?.trim() ?? '';
-                    if (t.length < 4) return 'Roll number looks too short';
-                    return null;
-                  },
-                ),
-                _Field(
-                  controller: _regId,
-                  label: 'Registration ID',
-                  hint: 'Application / registration ID',
-                  mono: true,
-                  caps: TextCapitalization.characters,
-                ),
-                _Field(
-                  controller: _secret,
-                  label: 'DOB / portal password',
-                  hint: 'DD/MM/YYYY or portal password',
-                  mono: true,
-                  obscure: _obscureSecret,
-                  suffix: IconButton(
-                    icon: Icon(
-                      _obscureSecret
-                          ? Icons.visibility_off_outlined
-                          : Icons.visibility_outlined,
-                      size: 18,
-                      color: p.textTertiary,
-                    ),
-                    onPressed: () =>
-                        setState(() => _obscureSecret = !_obscureSecret),
-                  ),
-                ),
-                _Field(
-                  controller: _centreCode,
-                  label: 'Centre code',
-                  hint: 'Centre code from the card',
-                  mono: true,
-                  caps: TextCapitalization.characters,
-                ),
-                _Field(
-                  controller: _centreAddress,
-                  label: 'Centre address',
-                  hint: 'Street, area, city',
-                ),
-                _DateField(date: _examDate, onTap: _pickDate),
-                if (_error != null) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    _error!,
-                    style: context.type.body.copyWith(color: p.dangerText),
-                  ),
-                ],
-                const SizedBox(height: 16),
-                EvPrimaryButton(
-                  label: 'Save to vault',
-                  icon: Icons.lock_outline_rounded,
-                  busy: _saving,
-                  onPressed: _save,
-                ),
-                const SizedBox(height: 8),
-                Center(
-                  child: Text(
-                    'AES-256 · ANDROID KEYSTORE · OFFLINE',
-                    style: context.type.microLabel.copyWith(fontSize: 9),
-                  ),
-                ),
-              ],
+    );
+  }
+}
+
+class _FormHeader extends StatelessWidget {
+  const _FormHeader({required this.title, required this.onClose});
+
+  final String title;
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.ev;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Center(
+          child: Container(
+            width: 36,
+            height: 4,
+            margin: const EdgeInsets.only(bottom: 8),
+            decoration: BoxDecoration(
+              color: p.border,
+              borderRadius: BorderRadius.circular(2),
             ),
-          );
-        },
-      ),
+          ),
+        ),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                title,
+                style: context.type.sectionTitle.copyWith(fontSize: 17),
+              ),
+            ),
+            // Cancel, not just a chevron: it can be tapped by a thumb and it is
+            // the control that raises the unsaved-changes guard.
+            TextButton(
+              onPressed: onClose,
+              style: TextButton.styleFrom(
+                minimumSize: const Size(
+                  EvSize.minTapTarget,
+                  EvSize.minTapTarget,
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+              ),
+              child: Text(
+                'Cancel',
+                style: context.type.label.copyWith(
+                  color: p.textSecondary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }
@@ -376,6 +589,7 @@ class _Field extends StatelessWidget {
     this.validator,
     this.caps = TextCapitalization.sentences,
     this.digitsOnly = false,
+    this.maxLength,
     this.onChanged,
   });
 
@@ -388,6 +602,7 @@ class _Field extends StatelessWidget {
   final String? Function(String?)? validator;
   final TextCapitalization caps;
   final bool digitsOnly;
+  final int? maxLength;
   final ValueChanged<String>? onChanged;
 
   @override
@@ -411,11 +626,15 @@ class _Field extends StatelessWidget {
             autocorrect: false,
             enableSuggestions: false,
             textCapitalization: caps,
-            keyboardType: obscure || mono
+            keyboardType: digitsOnly
+                ? TextInputType.number
+                : obscure || mono
                 ? TextInputType.visiblePassword
                 : TextInputType.text,
+            maxLength: maxLength,
             inputFormatters: digitsOnly
-                ? [FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z0-9\-/]'))]
+                // digitsOnly also strips the spaces people paste in roll numbers.
+                ? [FilteringTextInputFormatter.digitsOnly]
                 : null,
             style: mono
                 ? context.type.fieldValue
@@ -426,6 +645,8 @@ class _Field extends StatelessWidget {
             decoration: InputDecoration(
               hintText: hint,
               suffixIcon: suffix,
+              // maxLength would otherwise add a counter row under the field.
+              counterText: maxLength == null ? null : '',
               suffixIconConstraints: const BoxConstraints(
                 minWidth: 44,
                 minHeight: 44,
@@ -573,23 +794,20 @@ class _LinkedResult extends StatelessWidget {
               children: [
                 Text(
                   'Linked to a published result',
-                  style: context.type.tileTitle.copyWith(
-                    fontSize: 10.5,
-                    color: p.successText,
-                  ),
+                  style: context.type.tileTitle.copyWith(color: p.successText),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   match.examName,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: context.type.bodyMuted.copyWith(fontSize: 9.5),
+                  style: context.type.bodyMuted.copyWith(),
                 ),
                 if (match.hasIndex) ...[
                   const SizedBox(height: 3),
                   Text(
                     'Your roll number can be checked in this list.',
-                    style: context.type.microLabel.copyWith(fontSize: 9),
+                    style: context.type.microLabel.copyWith(),
                   ),
                 ],
               ],
@@ -620,7 +838,7 @@ class _NoLinkedResult extends StatelessWidget {
               'No published result matches this name yet. The card still works '
               'for exam-day details; result checking starts when the commission '
               'publishes a list.',
-              style: context.type.bodyMuted.copyWith(fontSize: 9.5),
+              style: context.type.bodyMuted.copyWith(),
             ),
           ),
         ],

@@ -24,8 +24,14 @@ abstract final class LiveFeedDto {
     if (rawUpdates is List) {
       for (final row in rawUpdates) {
         if (row is! Map) continue;
-        final update = _parseRow(row.cast<String, dynamic>());
-        if (update != null) updates.add(update);
+        // A single malformed row must be skipped, never allowed to abort the
+        // whole document: one bad record used to blank the entire radar.
+        try {
+          final update = _parseRow(row.cast<String, dynamic>());
+          if (update != null) updates.add(update);
+        } catch (_) {
+          continue;
+        }
       }
     }
 
@@ -46,21 +52,26 @@ abstract final class LiveFeedDto {
     final out = <SourceHealth>[];
     for (final entry in raw) {
       if (entry is! Map) continue;
-      final id = entry['id'];
-      final label = entry['label'];
-      final status = entry['status'];
-      if (id is! String || label is! String || status is! String) continue;
-      out.add(
-        SourceHealth(
-          id: id,
-          label: label,
-          status: status,
-          rows: _tryInt(entry['rows']) ?? 0,
-          homepage: _tryUrl(entry['homepage']),
-          note: entry['note'] as String?,
-          checkedAt: _tryDate(entry['checked_at']),
-        ),
-      );
+      try {
+        final id = entry['id'];
+        final label = entry['label'];
+        final status = entry['status'];
+        if (id is! String || label is! String || status is! String) continue;
+        out.add(
+          SourceHealth(
+            id: id,
+            label: label,
+            status: status,
+            rows: _tryInt(entry['rows']) ?? 0,
+            homepage: _tryUrl(entry['homepage']),
+            note: entry['note'] is String ? entry['note'] as String : null,
+            checkedAt: _tryDate(entry['checked_at']),
+          ),
+        );
+      } catch (_) {
+        // A malformed source entry degrades provenance, not the feed.
+        continue;
+      }
     }
     return List.unmodifiable(out);
   }
@@ -70,24 +81,35 @@ abstract final class LiveFeedDto {
     final examName = row['exam_name'];
     if (examId is! String || examName is! String) return null;
 
-    final category = ExamCategory.fromId(row['category'] as String?);
+    // Every string field below is read defensively: a publisher sending a
+    // number where a string belongs used to throw TypeError and kill the feed.
+    final categoryRaw = row['category'];
+    final category = ExamCategory.fromId(
+      categoryRaw is String ? categoryRaw : null,
+    );
     if (category == null) return null;
 
     final publishedAt = _tryDate(row['published_at']);
     if (publishedAt == null) return null;
 
-    final status = UpdateStatus.fromId(row['status'] as String?);
+    final statusRaw = row['status'];
+    final status = UpdateStatus.fromId(statusRaw is String ? statusRaw : null);
+    final contextRaw = row['context'];
+    final context = contextRaw is String ? contextRaw.trim() : null;
+    final indexVersionRaw = row['index_version'];
 
     return LiveUpdate(
       examId: examId,
       category: category,
       examName: examName,
-      contextLine: (row['context'] as String?)?.trim().isNotEmpty == true
-          ? (row['context'] as String).trim()
+      contextLine: context != null && context.isNotEmpty
+          ? context
           : 'Tap for details',
       status: status,
       publishedAt: publishedAt,
-      pdfSizeLabel: row['pdf_size'] as String?,
+      pdfSizeLabel: row['pdf_size'] is String
+          ? row['pdf_size'] as String
+          : null,
       mirrorLatencyMs: _tryInt(row['mirror_latency_ms']),
       expiresAt:
           _tryDate(row['expires_at']) ?? _defaultExpiry(status, publishedAt),
@@ -96,8 +118,8 @@ abstract final class LiveFeedDto {
       officialPage: _tryUrl(row['official_page']),
       // The content hash of the published index, if there is one. Part of the
       // CDN path, so dropping it silently would make every lookup 404.
-      indexVersion: row['index_available'] == true
-          ? row['index_version'] as String?
+      indexVersion: row['index_available'] == true && indexVersionRaw is String
+          ? indexVersionRaw
           : null,
       rollCount: _tryInt(row['roll_count']),
     );
@@ -138,7 +160,9 @@ abstract final class LiveFeedDto {
 
   static int? _tryInt(Object? value) {
     if (value is int) return value;
-    if (value is num) return value.toInt();
+    // `toInt()` throws UnsupportedError on Infinity/NaN, which a JSON payload
+    // can carry as `1e999`; reject non-finite values instead of crashing.
+    if (value is num) return value.isFinite ? value.toInt() : null;
     if (value is String) return int.tryParse(value);
     return null;
   }
@@ -176,6 +200,9 @@ abstract final class LiveFeedStore {
           'context': u.contextLine,
           'status': u.status.id,
           'published_at': u.publishedAt.toIso8601String(),
+          // Without this the cached row re-parsed with the default 30-day TTL,
+          // silently resurrecting a row the publisher had already retired.
+          if (u.expiresAt != null) 'expires_at': u.expiresAt!.toIso8601String(),
           if (u.pdfSizeLabel != null) 'pdf_size': u.pdfSizeLabel,
           if (u.mirrorLatencyMs != null) 'mirror_latency_ms': u.mirrorLatencyMs,
           if (u.officialPdf != null) 'official_pdf': u.officialPdf,
@@ -210,6 +237,25 @@ extension LiveUpdateFormatting on LiveUpdate {
     if (delta.inHours < 24) return '${delta.inHours}h';
     return '${delta.inDays}d';
   }
+
+  /// A compact age that reads correctly aloud and still means something after
+  /// a week.
+  ///
+  /// `relativeAge()` returns "now", so screen readers announced "now ago", and
+  /// the row showed "621d" for a notice from 2025 with no hint of the date.
+  String ageLabel([DateTime? now]) {
+    final delta = (now ?? DateTime.now()).difference(publishedAt);
+    if (delta.inSeconds < 60) return 'just now';
+    if (delta.inMinutes < 60) return '${delta.inMinutes}m ago';
+    if (delta.inHours < 24) return '${delta.inHours}h ago';
+    if (delta.inDays < 8) return '${delta.inDays}d ago';
+    return '${publishedAt.day} ${_months[publishedAt.month - 1]}';
+  }
+
+  static const _months = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  ];
 
   String get cdnPdfPath => AppConfig.resultPdfPath(examId);
   String get cdnRollIndexPath =>

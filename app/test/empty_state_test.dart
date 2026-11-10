@@ -2,7 +2,9 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:examvault/app.dart';
+import 'package:examvault/data/local/secure_vault_store.dart';
 import 'package:examvault/data/remote/cdn_client.dart';
+import 'package:examvault/data/repositories/admit_card_repository.dart';
 import 'package:examvault/providers/app_providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -21,6 +23,7 @@ void main() {
   late Directory dir;
   late Box<dynamic> cacheBox;
   late Box<dynamic> settingsBox;
+  late _EmptyStore store;
 
   setUpAll(() async {
     dir = await Directory.systemTemp.createTemp('ev_empty_test');
@@ -31,6 +34,7 @@ void main() {
     final stamp = DateTime.now().microsecondsSinceEpoch;
     cacheBox = await Hive.openBox<dynamic>('c$stamp');
     settingsBox = await Hive.openBox<dynamic>('s$stamp');
+    store = _EmptyStore();
   });
 
   tearDownAll(() async {
@@ -46,6 +50,9 @@ void main() {
       overrides: [
         httpCacheBoxProvider.overrideWithValue(cacheBox),
         settingsBoxProvider.overrideWithValue(settingsBox),
+        admitCardRepositoryProvider.overrideWith(
+          (ref) => AdmitCardRepository(store: store),
+        ),
         cdnClientProvider.overrideWithValue(
           CdnClient(cache: cacheBox, client: mock, baseUrl: 'https://cdn.test'),
         ),
@@ -72,6 +79,9 @@ void main() {
       overrides: [
         httpCacheBoxProvider.overrideWithValue(cacheBox),
         settingsBoxProvider.overrideWithValue(settingsBox),
+        admitCardRepositoryProvider.overrideWith(
+          (ref) => AdmitCardRepository(store: store),
+        ),
         cdnClientProvider.overrideWithValue(
           CdnClient(cache: cacheBox, client: mock, baseUrl: 'https://cdn.test'),
         ),
@@ -120,7 +130,9 @@ void main() {
     ) async {
       await pumpPhone(tester, appWithEmptyFeed());
 
-      expect(find.textContaining('Nothing live yet'), findsOneWidget);
+      // The exact wording may change; what must not change is that the radar
+      // states it is empty instead of inventing rows.
+      expect(find.textContaining('Nothing live'), findsOneWidget);
       expect(find.textContaining('0 live updates'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
@@ -170,4 +182,35 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   });
+}
+
+/// An empty vault that resolves immediately.
+///
+/// The shipped `SecureVaultStore` talks to `flutter_secure_storage`, whose
+/// platform channel never completes in a widget test — so the vault stayed in
+/// `AsyncLoading` forever and the share tab rendered its loading branch instead of
+/// its empty state. The behaviour under test here is the empty state, so the
+/// storage primitive is the one thing worth faking. Production also bounds the
+/// read (5 s) so a hung channel cannot strand the UI.
+class _EmptyStore implements SecureVaultStore {
+  @override
+  Future<List<String>> readIndex() async => const [];
+
+  @override
+  Future<String?> readRaw(String id) async => null;
+
+  @override
+  Future<Map<String, String>> readAllRaw() async => const {};
+
+  @override
+  Future<void> writeIndex(List<String> ids) async {}
+
+  @override
+  Future<void> writeRaw(String id, String payload) async {}
+
+  @override
+  Future<void> deleteRaw(String id) async {}
+
+  @override
+  Future<void> wipe() async {}
 }

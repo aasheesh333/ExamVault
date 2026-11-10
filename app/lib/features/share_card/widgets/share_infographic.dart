@@ -112,7 +112,7 @@ class ShareInfographic extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _AlertStrip(dateLine: data.dateLine),
+            _AlertStrip(dateLine: data.dateLine, headline: data.headline),
             Padding(
               padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
               child: Column(
@@ -122,14 +122,16 @@ class ShareInfographic extends StatelessWidget {
                   const SizedBox(height: 14),
                   Text(
                     data.examName.toUpperCase(),
-                    maxLines: 1,
+                    // Bug: one line at 9 px clipped the distinguishing tail of
+                    // real exam names ("...Tier-1 2026" vs "...Tier-2 2026").
+                    maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       fontFamily: EvFont.mono,
                       fontFamilyFallback: EvFont.fallbackMono,
-                      fontSize: 9,
+                      fontSize: 11,
                       fontWeight: FontWeight.w600,
-                      letterSpacing: 1.5,
+                      letterSpacing: 1.2,
                       color: _blue,
                     ),
                   ),
@@ -165,7 +167,9 @@ class ShareInfographic extends StatelessWidget {
                       style: TextStyle(
                         fontFamily: EvFont.mono,
                         fontFamilyFallback: EvFont.fallbackMono,
-                        fontSize: 8,
+                        // Bug: 8 px is illegible once WhatsApp shrinks the card
+                        // into a chat thumbnail; 9 is the floor used here.
+                        fontSize: 9,
                         fontWeight: FontWeight.w500,
                         letterSpacing: 0.7,
                         color: _faint,
@@ -183,9 +187,15 @@ class ShareInfographic extends StatelessWidget {
 }
 
 class _AlertStrip extends StatelessWidget {
-  const _AlertStrip({required this.dateLine});
+  const _AlertStrip({required this.dateLine, required this.headline});
 
   final String dateLine;
+
+  /// The same words as the headline below.
+  ///
+  /// Bug: this was hardcoded to "RESULT IS LIVE", so every admit-card, answer-key
+  /// and closing-soon share contradicted the card it was printed on.
+  final String headline;
 
   @override
   Widget build(BuildContext context) {
@@ -207,13 +217,15 @@ class _AlertStrip extends StatelessWidget {
             color: Colors.white,
           ),
           const SizedBox(width: 8),
-          const Expanded(
+          Expanded(
             child: Text(
-              'RESULT IS LIVE',
-              style: TextStyle(
+              headline,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
                 fontFamily: EvFont.ui,
                 fontFamilyFallback: EvFont.fallbackUi,
-                fontSize: 10,
+                fontSize: 11,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 1.3,
                 color: Colors.white,
@@ -225,7 +237,7 @@ class _AlertStrip extends StatelessWidget {
             style: TextStyle(
               fontFamily: EvFont.mono,
               fontFamilyFallback: EvFont.fallbackMono,
-              fontSize: 8,
+              fontSize: 9,
               fontWeight: FontWeight.w500,
               letterSpacing: 0.9,
               color: Colors.white.withValues(alpha: 0.86),
@@ -271,7 +283,7 @@ class _BrandRow extends StatelessWidget {
           style: TextStyle(
             fontFamily: EvFont.mono,
             fontFamilyFallback: EvFont.fallbackMono,
-            fontSize: 8.5,
+            fontSize: 9.5,
             fontWeight: FontWeight.w600,
             letterSpacing: 1.9,
             color: ShareInfographic._faint,
@@ -289,7 +301,7 @@ class _BrandRow extends StatelessWidget {
               style: const TextStyle(
                 fontFamily: EvFont.mono,
                 fontFamilyFallback: EvFont.fallbackMono,
-                fontSize: 8,
+                fontSize: 9,
                 color: ShareInfographic._faint,
                 letterSpacing: 0.3,
               ),
@@ -383,7 +395,8 @@ class _CutoffBlock extends StatelessWidget {
             style: TextStyle(
               fontFamily: EvFont.mono,
               fontFamilyFallback: EvFont.fallbackMono,
-              fontSize: 7,
+              // Bug: 7 px micro-labels vanish in a WhatsApp thumbnail.
+              fontSize: 9,
               fontWeight: FontWeight.w500,
               letterSpacing: 1.3,
               color: Color(0xFF8CA0BA),
@@ -401,7 +414,7 @@ class _CutoffBlock extends StatelessWidget {
                         style: const TextStyle(
                           fontFamily: EvFont.mono,
                           fontFamilyFallback: EvFont.fallbackMono,
-                          fontSize: 7,
+                          fontSize: 9,
                           color: Color(0xFF7E90A8),
                         ),
                       ),
@@ -460,7 +473,8 @@ class _RollBlock extends StatelessWidget {
                   style: const TextStyle(
                     fontFamily: EvFont.mono,
                     fontFamilyFallback: EvFont.fallbackMono,
-                    fontSize: 7,
+                    // Bug: the roll badge label was 7 px, unreadable at share size.
+                    fontSize: 9,
                     fontWeight: FontWeight.w500,
                     letterSpacing: 1.2,
                     color: Color(0xFF8CA0BA),

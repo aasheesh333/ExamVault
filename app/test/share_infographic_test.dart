@@ -1,7 +1,16 @@
+import 'dart:io';
+
 import 'package:examvault/core/theme/app_theme.dart';
+import 'package:examvault/domain/entities/admit_card.dart';
+import 'package:examvault/domain/entities/exam_category.dart';
+import 'package:examvault/domain/entities/live_update.dart';
+import 'package:examvault/features/share_card/whatsapp_share_card_screen.dart';
 import 'package:examvault/features/share_card/widgets/share_infographic.dart';
+import 'package:examvault/providers/app_providers.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hive_ce/hive.dart';
 
 /// The share card is the only part of the app that leaves the device as an image.
 ///
@@ -14,9 +23,10 @@ void main() {
     bool selected = true,
     Map<String, String>? cutoffs,
     String roll = '0801786',
+    String headline = 'RESULT IS LIVE',
   }) => ShareCardData(
     examName: 'Final Result: Combined Section Officers',
-    headline: 'RESULT IS LIVE',
+    headline: headline,
     subline: 'Official link & instant roll-number check',
     dateLine: '10 NOV 2026',
     rollNumber: roll,
@@ -37,6 +47,26 @@ void main() {
     );
     await tester.pump();
   }
+
+  late Directory hiveDir;
+  late Box<dynamic> cacheBox;
+
+  setUpAll(() async {
+    hiveDir = await Directory.systemTemp.createTemp('ev_share_card');
+    Hive.init(hiveDir.path);
+  });
+
+  setUp(() async {
+    cacheBox = await Hive.openBox<dynamic>(
+      'share${DateTime.now().microsecondsSinceEpoch}',
+    );
+  });
+
+  tearDownAll(() async {
+    try {
+      if (hiveDir.existsSync()) await hiveDir.delete(recursive: true);
+    } catch (_) {}
+  });
 
   testWidgets('the card never shows a cut-off it was not given', (
     tester,
@@ -164,4 +194,122 @@ void main() {
       );
     }
   });
+
+  testWidgets('the alert strip says what the card actually is', (tester) async {
+    // Bug: the strip was hardcoded to "RESULT IS LIVE", so an admit-card share
+    // contradicted itself in the same image.
+    await pumpCard(tester, data(headline: 'ADMIT CARD IS LIVE'));
+
+    expect(find.text('ADMIT CARD IS LIVE'), findsOneWidget);
+    expect(
+      find.text('RESULT IS LIVE'),
+      findsNothing,
+      reason: 'an admit card must never be announced as a result',
+    );
+    expect(find.text('ADMIT CARD IS'), findsOneWidget);
+  });
+
+  testWidgets('the alert strip follows every non-result status', (
+    tester,
+  ) async {
+    for (final headline in [
+      'ANSWER KEY IS OUT',
+      'LAST DATE IS NEAR',
+      'UPDATE AWAITED',
+    ]) {
+      await pumpCard(tester, data(headline: headline));
+      expect(
+        find.text(headline),
+        findsOneWidget,
+        reason: '"$headline" must reach the strip',
+      );
+      expect(find.text('RESULT IS LIVE'), findsNothing);
+    }
+  });
+
+  testWidgets('editing the caption survives a rebuild', (tester) async {
+    // Bug: the caption was rewritten inside build(), and the TextField never
+    // reported edits, so any rebuild silently replaced what the user typed.
+    await tester.binding.setSurfaceSize(const Size(393, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    final card = _savedCard();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          httpCacheBoxProvider.overrideWithValue(cacheBox),
+          admitCardsProvider.overrideWith(() => _FakeAdmitCards([card])),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.dark(),
+          home: const WhatsappShareCardScreen(),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('ADMIT CARD IS LIVE'), findsWidgets);
+
+    await tester.tap(find.text('EDIT'));
+    await tester.pump();
+    await tester.enterText(
+      find.byType(TextField),
+      'Custom caption for my group',
+    );
+    await tester.pump();
+
+    // A rebuild that is not an exam change: the same radar row is selected.
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(WhatsappShareCardScreen)),
+    );
+    container.read(resultExamIdProvider.notifier).select(_radarRow());
+    await tester.pump();
+    await tester.pump();
+
+    expect(
+      find.text('Custom caption for my group'),
+      findsOneWidget,
+      reason: 'a rebuild must not overwrite a caption the user edited',
+    );
+  });
 }
+
+class _FakeAdmitCards extends AdmitCardsNotifier {
+  _FakeAdmitCards(this.cards);
+
+  final List<AdmitCard> cards;
+
+  @override
+  Future<List<AdmitCard>> build() async => cards;
+}
+
+AdmitCard _savedCard() => AdmitCard(
+  id: 'card-1',
+  examId: 'upsc_ldce_2025',
+  category: ExamCategory.upsc,
+  examName: 'Combined Section Officers',
+  conductingBody: 'UPSC',
+  examCode: 'LDCE',
+  rollNumber: '0801786',
+  registrationId: 'R1',
+  dobOrPortalPassword: '01/01/1990',
+  centerCode: 'DL-01',
+  centerAddress: 'New Delhi',
+  gate: 'Gate 1',
+  reportBy: '09:00 AM',
+  examDate: DateTime(2026, 12, 1),
+  shift: '10:00 AM',
+  createdAt: DateTime(2026, 11, 1),
+  updatedAt: DateTime(2026, 11, 1),
+);
+
+LiveUpdate _radarRow() => LiveUpdate(
+  examId: 'upsc_ldce_2025',
+  category: ExamCategory.upsc,
+  examName: 'Combined Section Officers',
+  contextLine: 'Official PDF · upsc.gov.in',
+  status: UpdateStatus.resultOut,
+  publishedAt: DateTime(2026, 11, 10),
+  officialPdf: 'https://www.upsc.gov.in/sites/default/files/example.pdf',
+);

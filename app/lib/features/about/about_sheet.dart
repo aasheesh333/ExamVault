@@ -175,7 +175,7 @@ class _AboutSheet extends ConsumerWidget {
                     Expanded(
                       child: Text(
                         'Read the privacy policy',
-                        style: context.type.bodyMuted.copyWith(fontSize: 10.5),
+                        style: context.type.bodyMuted.copyWith(),
                       ),
                     ),
                     Icon(
@@ -193,10 +193,7 @@ class _AboutSheet extends ConsumerWidget {
               'ExamVault is not affiliated with, endorsed by, or acting on behalf '
               'of any of these commissions. Always verify against the official '
               'notice before acting on a result.',
-              style: context.type.bodyMuted.copyWith(
-                fontSize: 9.5,
-                height: 1.5,
-              ),
+              style: context.type.bodyMuted.copyWith(height: 1.5),
             ),
           ],
         ),
@@ -266,7 +263,7 @@ class _SheetHeader extends StatelessWidget {
         ),
         if (subtitle != null) ...[
           const SizedBox(height: 4),
-          Text(subtitle!, style: context.type.microLabel.copyWith(fontSize: 9)),
+          Text(subtitle!, style: context.type.microLabel.copyWith()),
         ],
       ],
     );
@@ -303,10 +300,7 @@ class _Paragraph extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Text(
-      text,
-      style: context.type.bodyMuted.copyWith(fontSize: 11, height: 1.55),
-    );
+    return Text(text, style: context.type.bodyMuted.copyWith(height: 1.55));
   }
 }
 
@@ -337,10 +331,7 @@ class _Bullet extends StatelessWidget {
           Expanded(
             child: Text(
               text,
-              style: context.type.bodyMuted.copyWith(
-                fontSize: 10.5,
-                height: 1.5,
-              ),
+              style: context.type.bodyMuted.copyWith(height: 1.5),
             ),
           ),
         ],
@@ -372,17 +363,13 @@ class _SourceRow extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           Expanded(
-            child: Text(
-              source.label,
-              style: context.type.tileTitle.copyWith(fontSize: 11),
-            ),
+            child: Text(source.label, style: context.type.tileTitle.copyWith()),
           ),
           Text(
             // Never "OK" when it is not: the count and the status come from the
             // publisher's own refresh, so a quiet or broken source is visible.
             ok ? '${source.rows} items' : source.status,
             style: context.type.microLabel.copyWith(
-              fontSize: 9,
               color: ok ? p.textTertiary : p.warningText,
             ),
           ),
@@ -422,10 +409,7 @@ class _Link extends StatelessWidget {
         child: Row(
           children: [
             Expanded(
-              child: Text(
-                label,
-                style: context.type.bodyMuted.copyWith(fontSize: 10.5),
-              ),
+              child: Text(label, style: context.type.bodyMuted.copyWith()),
             ),
             Icon(Icons.open_in_new_rounded, size: 12, color: p.textTertiary),
           ],
@@ -525,10 +509,7 @@ class _PolicySheet extends StatelessWidget {
             ),
             const SizedBox(height: 18),
             for (final (title, body) in _sections) ...[
-              Text(
-                title,
-                style: context.type.tileTitle.copyWith(fontSize: 11.5),
-              ),
+              Text(title, style: context.type.tileTitle.copyWith()),
               const SizedBox(height: 4),
               _Paragraph(body),
               const SizedBox(height: 14),

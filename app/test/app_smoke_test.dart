@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:examvault/app.dart';
+import 'package:examvault/data/repositories/admit_card_repository.dart';
 import 'package:examvault/data/remote/cdn_client.dart';
 import 'package:examvault/providers/app_providers.dart';
 import 'package:flutter/material.dart';
@@ -10,6 +11,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+
+import 'support/fake_vault_store.dart';
 
 /// A feed document shaped exactly like the edge object.
 String _feedJson() => jsonEncode({
@@ -86,6 +89,9 @@ void main() {
       overrides: [
         httpCacheBoxProvider.overrideWithValue(cacheBox),
         settingsBoxProvider.overrideWithValue(settingsBox),
+        admitCardRepositoryProvider.overrideWith(
+          (ref) => AdmitCardRepository(store: FakeVaultStore()),
+        ),
         cdnClientProvider.overrideWithValue(
           CdnClient(cache: cacheBox, client: mock, baseUrl: 'https://cdn.test'),
         ),

@@ -33,7 +33,11 @@ class AdmitCardRepository {
     if (_loaded && !force) return _cache;
 
     try {
-      final ids = await _store.readIndex();
+      // A secure-storage read can hang outright on some OEMs (Keystore bugs,
+      // device restores). Without a ceiling that hang becomes a permanent
+      // spinner on every screen that depends on the vault, so it is bounded and
+      // treated as a failure.
+      final ids = await _store.readIndex().timeout(_readTimeout);
       final cards = <AdmitCard>[];
 
       for (final id in ids) {
@@ -51,14 +55,22 @@ class AdmitCardRepository {
       _emit();
       return _cache;
     } catch (e, st) {
-      // A Keystore reset (device restore, OEM bug) must not brick the app.
+      // Deliberately NOT cached as "empty".
+      //
+      // This used to set `_loaded = true` and return an empty list, which turned
+      // a transient Keystore failure into a permanent, indistinguishable
+      // "Add your first admit card" — the most alarming screen this app can show,
+      // and unrecoverable without a reinstall. Leaving `_loaded` false and
+      // rethrowing lets Riverpod publish AsyncError, so the UI can offer a retry
+      // and the next read tries again.
       AppLogger.e('vault', 'load failed', e, st);
-      _cache = const [];
-      _loaded = true;
-      _emit();
-      return _cache;
+      _loaded = false;
+      rethrow;
     }
   }
+
+  /// Upper bound on a single secure-storage read.
+  static const _readTimeout = Duration(seconds: 5);
 
   Future<AdmitCard> save(AdmitCard card) {
     return _enqueue(() async {

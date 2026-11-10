@@ -17,7 +17,6 @@ dependencies:
   flutter_riverpod: ^3.5.0
 
   # --- design system ---
-  google_fonts: ^9.0.0
 
   # --- local persistence ---
   hive_ce_flutter: ^2.5.0
@@ -53,12 +52,12 @@ flutter:
   uses-material-design: true
 
   assets:
-    # Fonts are bundled so the app never fetches them at runtime:
-    # google_fonts resolves these by basename before it ever touches the network.
+    # Fonts are bundled and declared as families below, so the app never resolves
+    # a typeface at runtime or touches the network for one.
     - assets/google_fonts/
 
   fonts:
-    - family: PlusJakartaSans
+    - family: Plus Jakarta Sans
       fonts:
         - asset: assets/google_fonts/PlusJakartaSans-Regular.ttf
           weight: 400
@@ -70,7 +69,7 @@ flutter:
           weight: 700
         - asset: assets/google_fonts/PlusJakartaSans-ExtraBold.ttf
           weight: 800
-    - family: IBMPlexMono
+    - family: IBM Plex Mono
       fonts:
         - asset: assets/google_fonts/IBMPlexMono-Regular.ttf
           weight: 400

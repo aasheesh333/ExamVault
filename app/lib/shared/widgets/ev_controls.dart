@@ -1,6 +1,9 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_theme.dart';
+import '../../core/theme/motion.dart';
 import '../../core/theme/theme_tokens.dart';
 
 /// 52px primary action. The gradient + inner top highlight is what makes it read
@@ -31,7 +34,7 @@ class EvPrimaryButton extends StatelessWidget {
     final active = enabled && !busy && onPressed != null;
 
     final content = AnimatedSwitcher(
-      duration: EvMotion.fast,
+      duration: EvMotion.of(context, EvMotion.micro),
       child: busy
           ? SizedBox(
               key: const ValueKey('busy'),
@@ -69,7 +72,7 @@ class EvPrimaryButton extends StatelessWidget {
       enabled: active,
       label: label,
       child: AnimatedOpacity(
-        duration: EvMotion.fast,
+        duration: EvMotion.of(context, EvMotion.micro),
         opacity: active ? 1 : 0.55,
         child: Material(
           color: Colors.transparent,
@@ -180,7 +183,7 @@ class EvSecondaryButton extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: context.type.label.copyWith(
                       color: p.textPrimary,
-                      fontSize: 11.5,
+                      fontSize: 12,
                     ),
                   ),
                 ),
@@ -257,7 +260,7 @@ class EvIconButton extends StatelessWidget {
                         badgeCount! > 9 ? '9+' : '$badgeCount',
                         style: context.type.statusPill.copyWith(
                           color: Colors.white,
-                          fontSize: 9,
+                          fontSize: 11,
                           letterSpacing: 0,
                         ),
                       ),
@@ -270,7 +273,21 @@ class EvIconButton extends StatelessWidget {
       ),
     );
 
-    return tooltip == null ? button : Tooltip(message: tooltip!, child: button);
+    // An icon-only button with no tooltip was announced as just "button" by
+    // TalkBack, so back/close/share were unusable with a screen reader. The tooltip
+    // doubles as the accessible name, and a hit area of at least 44px is enforced
+    // around whatever visual size was asked for.
+    final hit = SizedBox(
+      width: math.max(size, EvSize.minTapTarget),
+      height: math.max(size, EvSize.minTapTarget),
+      child: Center(child: button),
+    );
+
+    return Semantics(
+      button: true,
+      label: tooltip,
+      child: tooltip == null ? hit : Tooltip(message: tooltip!, child: hit),
+    );
   }
 }
 
@@ -312,8 +329,8 @@ class EvChip extends StatelessWidget {
             widthFactor: 1,
             heightFactor: 1,
             child: AnimatedContainer(
-              duration: EvMotion.fast,
-              curve: EvMotion.curve,
+              duration: EvMotion.of(context, EvMotion.micro),
+              curve: EvMotion.enter,
               height: EvSize.chip,
               padding: const EdgeInsets.symmetric(horizontal: 14),
               decoration: BoxDecoration(
@@ -331,7 +348,6 @@ class EvChip extends StatelessWidget {
                   Text(
                     label,
                     style: context.type.label.copyWith(
-                      fontSize: 11.5,
                       color: selected ? p.accentText : p.textSecondary,
                     ),
                   ),

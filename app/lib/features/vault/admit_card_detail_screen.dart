@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/theme/app_theme.dart';
+import '../../core/theme/motion.dart';
 import '../../core/theme/theme_tokens.dart';
 import '../../core/utils/clipboard_service.dart';
 import '../../domain/entities/admit_card.dart';
@@ -11,6 +12,13 @@ import '../../providers/app_providers.dart';
 import '../../shared/widgets/ev_controls.dart';
 import '../../shared/widgets/ev_surfaces.dart';
 import 'vault_form_sheet.dart';
+
+/// Status colours tuned for the navy pass: the theme's `*Text` tokens invert in
+/// light mode and drop to ~2:1 on navy, so the pass never uses them.
+abstract final class _OnPass {
+  static const accent = Color(0xFFBFDBFE);
+  static const success = Color(0xFF6EE7B7);
+}
 
 /// Screen 2 — Boarding-pass roll number vault.
 ///
@@ -53,34 +61,91 @@ class AdmitCardDetailScreen extends ConsumerWidget {
   }
 }
 
-class _PassPager extends ConsumerWidget {
+class _PassPager extends ConsumerStatefulWidget {
   const _PassPager({required this.cards, required this.initialIndex});
 
   final List<AdmitCard> cards;
   final int initialIndex;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final controller = PageController(initialPage: initialIndex);
+  ConsumerState<_PassPager> createState() => _PassPagerState();
+}
+
+class _PassPagerState extends ConsumerState<_PassPager> {
+  /// Created once and disposed with the widget. Building it in `build()` made a
+  /// new controller on every selection change — mid-gesture — and leaked it.
+  late final PageController _controller = PageController(
+    initialPage: widget.initialIndex,
+  );
+
+  /// The page actually on screen. The dock must act on this card, never on the
+  /// stale `initialIndex` the parent computed before a swipe or a delete.
+  late int _index = widget.initialIndex;
+
+  @override
+  void didUpdateWidget(covariant _PassPager oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Deleting the visible card shrinks the list underneath the pager.
+    if (_index >= widget.cards.length) {
+      _index = widget.cards.isEmpty ? 0 : widget.cards.length - 1;
+      _jumpAfterLayout();
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  int _indexOfSelected(String? id) {
+    if (id == null || widget.cards.isEmpty) return 0;
+    final at = widget.cards.indexWhere((c) => c.id == id);
+    return at < 0 ? 0 : at;
+  }
+
+  /// Jump to the page the provider now points at (delete, dock, checker).
+  void _jumpAfterLayout() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_controller.hasClients) return;
+      _controller.jumpToPage(_index);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Follow selection changes that did not come from this PageView's gesture.
+    ref.listen<String?>(selectedCardIdProvider, (_, next) {
+      final target = _indexOfSelected(next);
+      if (target != _index) {
+        setState(() => _index = target);
+        _jumpAfterLayout();
+      }
+    });
+
     final p = context.ev;
+    final current = widget.cards[_index.clamp(0, widget.cards.length - 1)];
 
     return Stack(
       children: [
         Column(
           children: [
             _DetailNavBar(
-              count: cards.length,
-              controller: controller,
-              card: cards[initialIndex],
+              count: widget.cards.length,
+              controller: _controller,
+              card: current,
             ),
             Expanded(
               child: PageView.builder(
-                controller: controller,
-                itemCount: cards.length,
-                onPageChanged: (i) => ref
-                    .read(selectedCardIdProvider.notifier)
-                    .select(cards[i].id),
-                itemBuilder: (context, i) => _PassPage(card: cards[i]),
+                controller: _controller,
+                itemCount: widget.cards.length,
+                onPageChanged: (i) {
+                  setState(() => _index = i);
+                  ref
+                      .read(selectedCardIdProvider.notifier)
+                      .select(widget.cards[i].id);
+                },
+                itemBuilder: (context, i) => _PassPage(card: widget.cards[i]),
               ),
             ),
           ],
@@ -107,7 +172,7 @@ class _PassPager extends ConsumerWidget {
           left: EvSpace.gutter,
           right: EvSpace.gutter,
           bottom: MediaQuery.paddingOf(context).bottom + 14,
-          child: _ActionDock(card: cards[initialIndex]),
+          child: _ActionDock(card: current),
         ),
       ],
     );
@@ -133,6 +198,8 @@ class _DetailNavBar extends ConsumerWidget {
       height: EvSize.navBar,
       child: Stack(
         alignment: Alignment.center,
+        // The kebab's 44px hit box is 4px taller than the 40px bar.
+        clipBehavior: Clip.none,
         children: [
           Row(
             children: [
@@ -299,8 +366,8 @@ class _BoardingPass extends ConsumerWidget {
                                   : '${card.category.label} · ${card.examCode}'
                                         .toUpperCase(),
                               style: context.type.statusPill.copyWith(
-                                color: p.accentText,
-                                fontSize: 9,
+                                color: _OnPass.accent,
+                                fontSize: 11,
                                 letterSpacing: 1.4,
                               ),
                             ),
@@ -311,7 +378,7 @@ class _BoardingPass extends ConsumerWidget {
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
                                 fontFamily: EvFont.ui,
-                                fontSize: 10.5,
+                                fontSize: 11.5,
                                 fontWeight: FontWeight.w500,
                                 color: p.onWalletMuted,
                               ),
@@ -345,8 +412,8 @@ class _BoardingPass extends ConsumerWidget {
                             Text(
                               card.rollNumberVerified ? 'VERIFIED' : 'SAVED',
                               style: context.type.statusPill.copyWith(
-                                color: p.successText,
-                                fontSize: 9,
+                                color: _OnPass.success,
+                                fontSize: 11,
                               ),
                             ),
                           ],
@@ -391,7 +458,7 @@ class _BoardingPass extends ConsumerWidget {
                         'SAVED ON DEVICE',
                         style: context.type.statusPill.copyWith(
                           color: p.onWalletFaint,
-                          fontSize: 9,
+                          fontSize: 11,
                           letterSpacing: 1,
                         ),
                       ),
@@ -484,43 +551,54 @@ class _CopyField extends StatelessWidget {
               )
             : null,
         borderRadius: BorderRadius.circular(6),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 2),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                field.label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: context.type.microLabel.copyWith(color: p.onWalletFaint),
-              ),
-              const SizedBox(height: 4),
-              Row(
-                children: [
-                  Flexible(
-                    child: Text(
-                      hasValue ? field.value : '—',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontFamily: EvFont.mono,
-                        fontFamilyFallback: EvFont.fallbackMono,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                        letterSpacing: 0.2,
-                        color: hasValue ? p.onWallet : p.onWalletFaint,
-                        fontFeatures: const [FontFeature.tabularFigures()],
+        // A two-line field is ~37px; the floor keeps the whole row tappable.
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: EvSize.minTapTarget),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 2),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  field.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: context.type.microLabel.copyWith(
+                    color: p.onWalletFaint,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        hasValue ? field.value : '—',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontFamily: EvFont.mono,
+                          fontFamilyFallback: EvFont.fallbackMono,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          letterSpacing: 0.2,
+                          color: hasValue ? p.onWallet : p.onWalletFaint,
+                          fontFeatures: const [FontFeature.tabularFigures()],
+                        ),
                       ),
                     ),
-                  ),
-                  if (hasValue) ...[
-                    const SizedBox(width: 6),
-                    Icon(Icons.copy_rounded, size: 12, color: p.onWalletFaint),
+                    if (hasValue) ...[
+                      const SizedBox(width: 6),
+                      Icon(
+                        Icons.copy_rounded,
+                        size: 12,
+                        color: p.onWalletFaint,
+                      ),
+                    ],
                   ],
-                ],
-              ),
-            ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -552,7 +630,7 @@ class _SquareCopy extends StatelessWidget {
             borderRadius: BorderRadius.circular(10),
             border: Border.all(color: p.accent.withValues(alpha: 0.34)),
           ),
-          child: Icon(Icons.copy_rounded, size: 17, color: p.accentText),
+          child: Icon(Icons.copy_rounded, size: 17, color: _OnPass.accent),
         ),
       ),
     );
@@ -687,7 +765,7 @@ class _CountdownCard extends StatelessWidget {
                       : card.reportBy.isEmpty
                       ? 'Report on time'
                       : 'Report by ${card.reportBy}',
-                  style: context.type.bodyMuted.copyWith(fontSize: 10.5),
+                  style: context.type.bodyMuted.copyWith(),
                 ),
               ],
             ),
@@ -711,7 +789,7 @@ class _CountdownCard extends StatelessWidget {
                   : 'IN $days DAYS',
               style: context.type.statusPill.copyWith(
                 color: urgent ? p.dangerText : p.accentText,
-                fontSize: 11,
+                fontSize: 12,
                 letterSpacing: 1,
               ),
             ),
@@ -750,7 +828,7 @@ class _DocumentChecklist extends ConsumerWidget {
                   color: done == ChecklistItem.values.length
                       ? p.successText
                       : p.textTertiary,
-                  fontSize: 9,
+                  fontSize: 11,
                 ),
               ),
             ],
@@ -791,60 +869,66 @@ class _CheckRow extends StatelessWidget {
       child: InkWell(
         onTap: onToggle,
         borderRadius: BorderRadius.circular(8),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 9),
-          child: Row(
-            children: [
-              AnimatedContainer(
-                duration: EvMotion.fast,
-                width: 24,
-                height: 24,
-                decoration: BoxDecoration(
-                  color: checked
-                      ? p.success.withValues(alpha: 0.15)
-                      : Colors.transparent,
-                  borderRadius: BorderRadius.circular(7),
-                  border: Border.all(
+        child: ConstrainedBox(
+          // Two-line rows already clear this; the floor covers single-line ones.
+          constraints: const BoxConstraints(minHeight: EvSize.minTapTarget),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 9),
+            child: Row(
+              children: [
+                AnimatedContainer(
+                  duration: EvMotion.of(context, EvMotion.micro),
+                  width: 24,
+                  height: 24,
+                  decoration: BoxDecoration(
                     color: checked
-                        ? p.success.withValues(alpha: 0.5)
-                        : p.borderStrong,
-                    width: 1.2,
+                        ? p.success.withValues(alpha: 0.15)
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(7),
+                    border: Border.all(
+                      color: checked
+                          ? p.success.withValues(alpha: 0.5)
+                          : p.borderStrong,
+                      width: 1.2,
+                    ),
+                  ),
+                  child: checked
+                      ? Icon(Icons.check_rounded, size: 14, color: p.success)
+                      : null,
+                ),
+                const SizedBox(width: 11),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        item.title,
+                        style: context.type.tileTitle.copyWith(
+                          decoration: checked
+                              ? TextDecoration.lineThrough
+                              : null,
+                          decorationColor: p.textTertiary,
+                          color: checked ? p.textSecondary : p.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 1),
+                      Text(
+                        item.subtitle,
+                        style: context.type.bodyMuted.copyWith(),
+                      ),
+                    ],
                   ),
                 ),
-                child: checked
-                    ? Icon(Icons.check_rounded, size: 14, color: p.success)
-                    : null,
-              ),
-              const SizedBox(width: 11),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      item.title,
-                      style: context.type.tileTitle.copyWith(
-                        decoration: checked ? TextDecoration.lineThrough : null,
-                        decorationColor: p.textTertiary,
-                        color: checked ? p.textSecondary : p.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 1),
-                    Text(
-                      item.subtitle,
-                      style: context.type.bodyMuted.copyWith(fontSize: 9.5),
-                    ),
-                  ],
+                Text(
+                  checked ? 'DONE' : 'TAP',
+                  style: context.type.statusPill.copyWith(
+                    color: checked ? p.successText : p.textTertiary,
+                    fontSize: 11,
+                    letterSpacing: 1,
+                  ),
                 ),
-              ),
-              Text(
-                checked ? 'DONE' : 'TAP',
-                style: context.type.statusPill.copyWith(
-                  color: checked ? p.successText : p.textTertiary,
-                  fontSize: 9,
-                  letterSpacing: 1,
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -897,14 +981,14 @@ class _CenterCard extends StatelessWidget {
                   'EXAM CENTRE · ${card.centerCode}'.toUpperCase(),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: context.type.microLabel.copyWith(fontSize: 9),
+                  style: context.type.microLabel.copyWith(),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   card.centerAddress,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: context.type.tileTitle.copyWith(fontSize: 11),
+                  style: context.type.tileTitle.copyWith(),
                 ),
                 if (card.gate.isNotEmpty || card.reportBy.isNotEmpty) ...[
                   const SizedBox(height: 1),
@@ -914,7 +998,7 @@ class _CenterCard extends StatelessWidget {
                       if (card.reportBy.isNotEmpty)
                         'report by ${card.reportBy}',
                     ].join(' · '),
-                    style: context.type.bodyMuted.copyWith(fontSize: 9.5),
+                    style: context.type.bodyMuted.copyWith(),
                   ),
                 ],
               ],
@@ -924,7 +1008,7 @@ class _CenterCard extends StatelessWidget {
             'MAP',
             style: context.type.statusPill.copyWith(
               color: p.accentText,
-              fontSize: 9,
+              fontSize: 11,
               letterSpacing: 0.9,
             ),
           ),
@@ -985,7 +1069,6 @@ class _ActionDock extends ConsumerWidget {
         Text(
           'TAP ANY FIELD TO COPY · AES-256 · OFFLINE',
           style: context.type.microLabel.copyWith(
-            fontSize: 9,
             letterSpacing: 0.7,
             color: context.ev.textTertiary,
           ),
@@ -1046,62 +1129,69 @@ class _CardMenu extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final p = context.ev;
 
-    return PopupMenuButton<String>(
-      tooltip: 'Card options',
-      color: p.surface,
-      surfaceTintColor: Colors.transparent,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(EvRadius.inner),
-        side: BorderSide(color: p.border),
-      ),
-      icon: Icon(Icons.more_horiz_rounded, size: 20, color: p.textSecondary),
-      onSelected: (value) async {
-        switch (value) {
-          case 'edit':
-            await showVaultFormSheet(context, ref, existing: card);
-          case 'delete':
-            final confirmed = await _confirmDelete(context, card);
-            if (!confirmed) return;
-            await ref.read(admitCardsProvider.notifier).delete(card.id);
-            ref.read(selectedCardIdProvider.notifier).select(null);
-            if (!context.mounted) return;
-            ScaffoldMessenger.of(context)
-              ..hideCurrentSnackBar()
-              ..showSnackBar(
-                SnackBar(
-                  content: Text(
-                    '${card.examName} deleted',
-                    style: context.type.label.copyWith(color: Colors.white),
+    return SizedBox(
+      // The 20px glyph sits in a 44px target; the popup's default padding made
+      // the kebab a ~36px tap.
+      width: EvSize.minTapTarget,
+      height: EvSize.minTapTarget,
+      child: PopupMenuButton<String>(
+        tooltip: 'Card options',
+        color: p.surface,
+        surfaceTintColor: Colors.transparent,
+        padding: EdgeInsets.zero,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(EvRadius.inner),
+          side: BorderSide(color: p.border),
+        ),
+        icon: Icon(Icons.more_horiz_rounded, size: 20, color: p.textSecondary),
+        onSelected: (value) async {
+          switch (value) {
+            case 'edit':
+              await showVaultFormSheet(context, ref, existing: card);
+            case 'delete':
+              final confirmed = await _confirmDelete(context, card);
+              if (!confirmed) return;
+              await ref.read(admitCardsProvider.notifier).delete(card.id);
+              ref.read(selectedCardIdProvider.notifier).select(null);
+              if (!context.mounted) return;
+              ScaffoldMessenger.of(context)
+                ..hideCurrentSnackBar()
+                ..showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      '${card.examName} deleted',
+                      style: context.type.label.copyWith(color: Colors.white),
+                    ),
                   ),
+                );
+          }
+        },
+        itemBuilder: (context) => [
+          PopupMenuItem(
+            value: 'edit',
+            child: Row(
+              children: [
+                Icon(Icons.edit_outlined, size: 16, color: p.textSecondary),
+                const SizedBox(width: 10),
+                Text('Edit details', style: context.type.body),
+              ],
+            ),
+          ),
+          PopupMenuItem(
+            value: 'delete',
+            child: Row(
+              children: [
+                Icon(Icons.delete_outline_rounded, size: 16, color: p.danger),
+                const SizedBox(width: 10),
+                Text(
+                  'Delete card',
+                  style: context.type.body.copyWith(color: p.dangerText),
                 ),
-              );
-        }
-      },
-      itemBuilder: (context) => [
-        PopupMenuItem(
-          value: 'edit',
-          child: Row(
-            children: [
-              Icon(Icons.edit_outlined, size: 16, color: p.textSecondary),
-              const SizedBox(width: 10),
-              Text('Edit details', style: context.type.body),
-            ],
+              ],
+            ),
           ),
-        ),
-        PopupMenuItem(
-          value: 'delete',
-          child: Row(
-            children: [
-              Icon(Icons.delete_outline_rounded, size: 16, color: p.danger),
-              const SizedBox(width: 10),
-              Text(
-                'Delete card',
-                style: context.type.body.copyWith(color: p.dangerText),
-              ),
-            ],
-          ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 

@@ -176,7 +176,7 @@ class EvTextAction extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: context.type.label.copyWith(
                     color: fg,
-                    fontSize: 11,
+                    fontSize: 12,
                     fontWeight: FontWeight.w600,
                   ),
                 ),

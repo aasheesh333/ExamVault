@@ -194,7 +194,12 @@ abstract final class EvSize {
   static const double statusPill = 22;
   static const double copyPill = 32;
 
-  static const double iconButton = 36;
+  /// Visual size of an icon button's *chevron/dot*, not its hit area.
+  ///
+  /// Kept at 36 for the visual, but `EvIconButton` wraps it in a 44x44 hit box —
+  /// the value below was being used as the tap target itself, which is under both
+  /// Material's 48 and this app's own `minTapTarget`.
+  static const double iconButton = 44;
   static const double navBar = 40;
 
   static const double tabBar = 58;
@@ -208,20 +213,19 @@ abstract final class EvSize {
   static const double minTapTarget = 44;
 }
 
-abstract final class EvMotion {
-  static const fast = Duration(milliseconds: 160);
-  static const medium = Duration(milliseconds: 260);
-  static const slow = Duration(milliseconds: 420);
-  static const toast = Duration(milliseconds: 1600);
-
-  static const curve = Curves.easeOutCubic;
-}
+// Motion tokens live in `motion.dart`: they are semantic durations/curves plus a
+// reduce-motion resolver, which needs a BuildContext and so does not belong in a
+// const-only token file.
 
 /// ---------------------------------------------------------------------------
 /// Type scale
 /// ---------------------------------------------------------------------------
-/// Families are resolved through `google_fonts`, but every file is bundled in
-/// `assets/google_fonts/` so `GoogleFonts` never performs a network fetch.
+/// Families are declared in `pubspec.yaml` and bundled in `assets/google_fonts/`.
+///
+/// These names must match the `family:` strings exactly. They did not: the code
+/// asked for `Plus Jakarta Sans` while pubspec declared `PlusJakartaSans`, so every
+/// glyph in the app silently fell back to Roboto and the design typeface was never
+/// actually rendered.
 abstract final class EvFont {
   static const ui = 'Plus Jakarta Sans';
   static const mono = 'IBM Plex Mono';
@@ -244,7 +248,7 @@ class EvTextStyles {
   TextStyle get hero => TextStyle(
     fontFamily: EvFont.ui,
     fontFamilyFallback: EvFont.fallbackUi,
-    fontSize: 26.5,
+    fontSize: 28,
     height: 1.13,
     fontWeight: FontWeight.w700,
     letterSpacing: -0.2,
@@ -254,7 +258,7 @@ class EvTextStyles {
   TextStyle get screenTitle => TextStyle(
     fontFamily: EvFont.ui,
     fontFamilyFallback: EvFont.fallbackUi,
-    fontSize: 23,
+    fontSize: 24,
     height: 1.2,
     fontWeight: FontWeight.w700,
     letterSpacing: -0.2,
@@ -264,7 +268,7 @@ class EvTextStyles {
   TextStyle get navTitle => TextStyle(
     fontFamily: EvFont.ui,
     fontFamilyFallback: EvFont.fallbackUi,
-    fontSize: 13.5,
+    fontSize: 15,
     height: 1.25,
     fontWeight: FontWeight.w600,
     color: p.textPrimary,
@@ -273,7 +277,7 @@ class EvTextStyles {
   TextStyle get cardTitle => TextStyle(
     fontFamily: EvFont.ui,
     fontFamilyFallback: EvFont.fallbackUi,
-    fontSize: 17,
+    fontSize: 18,
     height: 1.24,
     fontWeight: FontWeight.w700,
     color: p.textPrimary,
@@ -282,7 +286,7 @@ class EvTextStyles {
   TextStyle get sectionTitle => TextStyle(
     fontFamily: EvFont.ui,
     fontFamilyFallback: EvFont.fallbackUi,
-    fontSize: 14,
+    fontSize: 15,
     height: 1.28,
     fontWeight: FontWeight.w700,
     color: p.textPrimary,
@@ -291,7 +295,7 @@ class EvTextStyles {
   TextStyle get tileTitle => TextStyle(
     fontFamily: EvFont.ui,
     fontFamilyFallback: EvFont.fallbackUi,
-    fontSize: 12,
+    fontSize: 14.5,
     height: 1.3,
     fontWeight: FontWeight.w600,
     color: p.textPrimary,
@@ -300,7 +304,7 @@ class EvTextStyles {
   TextStyle get body => TextStyle(
     fontFamily: EvFont.ui,
     fontFamilyFallback: EvFont.fallbackUi,
-    fontSize: 12,
+    fontSize: 14,
     height: 1.45,
     fontWeight: FontWeight.w500,
     color: p.textSecondary,
@@ -309,7 +313,7 @@ class EvTextStyles {
   TextStyle get bodyMuted => TextStyle(
     fontFamily: EvFont.ui,
     fontFamilyFallback: EvFont.fallbackUi,
-    fontSize: 11,
+    fontSize: 12.5,
     height: 1.4,
     fontWeight: FontWeight.w500,
     color: p.textTertiary,
@@ -318,7 +322,7 @@ class EvTextStyles {
   TextStyle get label => TextStyle(
     fontFamily: EvFont.ui,
     fontFamilyFallback: EvFont.fallbackUi,
-    fontSize: 11,
+    fontSize: 12.5,
     height: 1.3,
     fontWeight: FontWeight.w600,
     color: p.textSecondary,
@@ -327,7 +331,7 @@ class EvTextStyles {
   TextStyle get button => TextStyle(
     fontFamily: EvFont.ui,
     fontFamilyFallback: EvFont.fallbackUi,
-    fontSize: 13,
+    fontSize: 14.5,
     height: 1.2,
     fontWeight: FontWeight.w700,
     letterSpacing: -0.1,
@@ -339,7 +343,7 @@ class EvTextStyles {
   TextStyle get rollHero => TextStyle(
     fontFamily: EvFont.mono,
     fontFamilyFallback: EvFont.fallbackMono,
-    fontSize: 31,
+    fontSize: 32,
     height: 1.1,
     fontWeight: FontWeight.w500,
     letterSpacing: 1.6,
@@ -350,7 +354,7 @@ class EvTextStyles {
   TextStyle get rollCard => TextStyle(
     fontFamily: EvFont.mono,
     fontFamilyFallback: EvFont.fallbackMono,
-    fontSize: 23,
+    fontSize: 24,
     height: 1.12,
     fontWeight: FontWeight.w500,
     letterSpacing: 1.2,
@@ -361,7 +365,7 @@ class EvTextStyles {
   TextStyle get fieldValue => TextStyle(
     fontFamily: EvFont.mono,
     fontFamilyFallback: EvFont.fallbackMono,
-    fontSize: 12,
+    fontSize: 14,
     height: 1.3,
     fontWeight: FontWeight.w500,
     letterSpacing: 0.2,
@@ -374,7 +378,7 @@ class EvTextStyles {
   TextStyle get microLabel => TextStyle(
     fontFamily: EvFont.mono,
     fontFamilyFallback: EvFont.fallbackMono,
-    fontSize: 9,
+    fontSize: 10.5,
     height: 1.3,
     fontWeight: FontWeight.w500,
     letterSpacing: 1.25,
@@ -384,7 +388,7 @@ class EvTextStyles {
   TextStyle get monoMeta => TextStyle(
     fontFamily: EvFont.mono,
     fontFamilyFallback: EvFont.fallbackMono,
-    fontSize: 10,
+    fontSize: 11.5,
     height: 1.3,
     fontWeight: FontWeight.w400,
     letterSpacing: 0.55,
@@ -395,7 +399,7 @@ class EvTextStyles {
   TextStyle get statusPill => TextStyle(
     fontFamily: EvFont.mono,
     fontFamilyFallback: EvFont.fallbackMono,
-    fontSize: 8.5,
+    fontSize: 10,
     height: 1.2,
     fontWeight: FontWeight.w600,
     letterSpacing: 0.6,

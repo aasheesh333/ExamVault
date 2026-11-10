@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_theme.dart';
+import '../../core/theme/motion.dart';
+import '../../core/utils/ev_haptics.dart';
 import '../../core/theme/theme_tokens.dart';
 import '../../features/command_center/command_center_screen.dart';
 import '../../features/result_checker/instant_result_checker_screen.dart';
@@ -47,19 +49,43 @@ class RootShell extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final tab = ref.watch(tabIndexProvider);
 
-    return Scaffold(
-      backgroundColor: context.ev.bg,
-      extendBody: true,
-      body: IndexedStack(
-        index: tab.index,
-        children: const [
-          CommandCenterScreen(),
-          AdmitCardDetailScreen(),
-          InstantResultCheckerScreen(),
-          WhatsappShareCardScreen(),
-        ],
+    // Android back, handled.
+    //
+    // Every tab lives in one IndexedStack under a single route, so
+    // `Navigator.canPop` is always false and the system back gesture finished the
+    // activity from *any* tab — including mid-check, and immediately after landing
+    // there from a radar tap. The manifest opts into predictive back, so the OS
+    // even previewed the exit.
+    //
+    // Back now means "go up one level": leave the current tab for Home, and only
+    // exit when Home is already showing.
+    return PopScope(
+      canPop: tab == EvTab.home,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        ref.read(tabIndexProvider.notifier).select(EvTab.home);
+      },
+      child: Scaffold(
+        backgroundColor: context.ev.bg,
+        extendBody: true,
+        // A cross-fade, not a hard swap.
+        //
+        // `IndexedStack` keeps every tab alive (scroll offsets, downloaded
+        // indexes) but changed screens in a single frame, so a tap felt
+        // unregistered until the new screen had already replaced the old one.
+        // Fading the outgoing tab out and the incoming one in — while both stay
+        // mounted — gives the change a direction without losing state.
+        body: _TabSwitcher(
+          index: tab.index,
+          children: const [
+            CommandCenterScreen(),
+            AdmitCardDetailScreen(),
+            InstantResultCheckerScreen(),
+            WhatsappShareCardScreen(),
+          ],
+        ),
+        bottomNavigationBar: const EvTabBar(),
       ),
-      bottomNavigationBar: const EvTabBar(),
     );
   }
 }
@@ -105,8 +131,11 @@ class EvTabBar extends ConsumerWidget {
                       badge: t == EvTab.radar && liveCount > 0
                           ? liveCount
                           : null,
-                      onTap: () =>
-                          ref.read(tabIndexProvider.notifier).select(t),
+                      onTap: () {
+                        if (active == t) return;
+                        EvHaptics.select();
+                        ref.read(tabIndexProvider.notifier).select(t);
+                      },
                     ),
                   ),
               ],
@@ -143,7 +172,7 @@ class _TabButton extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(EvRadius.button),
         child: AnimatedContainer(
-          duration: EvMotion.fast,
+          duration: EvMotion.of(context, EvMotion.micro),
           decoration: BoxDecoration(
             color: selected
                 ? p.accent.withValues(alpha: 0.13)
@@ -186,7 +215,6 @@ class _TabButton extends StatelessWidget {
               Text(
                 tab.label,
                 style: context.type.label.copyWith(
-                  fontSize: 8.5,
                   letterSpacing: 0.2,
                   color: selected ? p.accentText : p.textTertiary,
                 ),
@@ -195,6 +223,69 @@ class _TabButton extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Cross-fades between tab bodies while keeping all of them mounted.
+///
+/// Only the incoming and outgoing tabs are painted, so the cost is one fade rather
+/// than four always-visible layers.
+class _TabSwitcher extends StatefulWidget {
+  const _TabSwitcher({required this.index, required this.children});
+
+  final int index;
+  final List<Widget> children;
+
+  @override
+  State<_TabSwitcher> createState() => _TabSwitcherState();
+}
+
+class _TabSwitcherState extends State<_TabSwitcher> {
+  late int _current = widget.index;
+  late int _previous = widget.index;
+
+  @override
+  void didUpdateWidget(_TabSwitcher old) {
+    super.didUpdateWidget(old);
+    if (widget.index != _current) {
+      _previous = _current;
+      _current = widget.index;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final duration = EvMotion.of(context, EvMotion.paneIn);
+
+    // Reduced motion (or a zero duration) collapses to the plain stack.
+    if (duration == Duration.zero) {
+      return IndexedStack(index: _current, children: widget.children);
+    }
+
+    return Stack(
+      children: [
+        for (var i = 0; i < widget.children.length; i++)
+          if (i == _current || i == _previous)
+            TweenAnimationBuilder<double>(
+              key: ValueKey(i == _current),
+              tween: Tween(begin: i == _current ? 0 : 1, end: i == _current ? 1 : 0),
+              duration: duration,
+              curve: EvMotion.curveOf(
+                context,
+                i == _current ? EvMotion.enter : EvMotion.exit,
+              ),
+              builder: (context, t, child) => IgnorePointer(
+                // The outgoing tab must not accept taps while it fades.
+                ignoring: i != _current,
+                child: Opacity(opacity: t, child: child),
+              ),
+              child: widget.children[i],
+            )
+          else
+            // Off-stage tabs stay mounted but unsized.
+            Offstage(offstage: true, child: widget.children[i]),
+      ],
     );
   }
 }

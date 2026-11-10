@@ -105,7 +105,11 @@ class CommandCenterScreen extends ConsumerWidget {
                 ),
               ),
               const SliverToBoxAdapter(child: SizedBox(height: EvSpace.x2)),
-              _RadarSliver(updates: updates, filter: filter, searching: searching),
+              _RadarSliver(
+                updates: updates,
+                filter: filter,
+                searching: searching,
+              ),
               const SliverToBoxAdapter(child: SizedBox(height: 120)),
             ],
           ),
@@ -407,9 +411,7 @@ class _SearchFieldState extends ConsumerState<_SearchField> {
                   focusedBorder: InputBorder.none,
                   contentPadding: EdgeInsets.zero,
                   hintText: 'Search exam, result or your card',
-                  hintStyle: context.type.body.copyWith(
-                    color: p.textTertiary,
-                  ),
+                  hintStyle: context.type.body.copyWith(color: p.textTertiary),
                 ),
               ),
             ),
@@ -782,9 +784,7 @@ class _RadarSliver extends ConsumerWidget {
             child: Row(
               children: [
                 Icon(
-                  searching
-                      ? Icons.search_off_rounded
-                      : Icons.radar_rounded,
+                  searching ? Icons.search_off_rounded : Icons.radar_rounded,
                   color: p.textTertiary,
                   size: 20,
                 ),
@@ -794,8 +794,11 @@ class _RadarSliver extends ConsumerWidget {
                     // "Nothing live yet" was a lie when the real answer was
                     // "nothing matched your search".
                     searching
-                        ? 'No exam matches that search. Try the exam name, '
-                              'the commission, or a year.'
+                        // Scoped to the radar: a saved card matching the same
+                        // query is shown above, so "no exam matches" contradicted
+                        // what was on screen.
+                        ? 'No radar result matches. Try an exam name, a '
+                              'commission, or a year.'
                         : filter == null
                         ? 'Nothing live right now. We check the edge every '
                               '60 seconds.'

@@ -347,25 +347,30 @@ class _Headline extends StatelessWidget {
       children: [
         Text(lead, maxLines: 2, overflow: TextOverflow.visible, style: base),
         if (accent.isNotEmpty)
-          Stack(
-            // The highlight bar is painted behind the word and the glyphs are
-            // allowed outside their line box, so nothing here may clip.
-            clipBehavior: Clip.none,
-            children: [
-              Positioned(
-                left: 0,
-                right: 0,
-                bottom: 4,
-                child: Container(
-                  height: 12,
-                  decoration: BoxDecoration(
-                    color: ShareInfographic._blue.withValues(alpha: 0.22),
-                    borderRadius: BorderRadius.circular(2),
+          // IntrinsicWidth pins the Stack to the word's own width, so the marker
+          // bar can never end up narrower (or wider) than the word it marks — the
+          // exported PNG showed the highlight stopping halfway under "LIVE".
+          IntrinsicWidth(
+            child: Stack(
+              // The bar is painted behind the word and the glyphs are allowed
+              // outside their line box, so nothing here may clip.
+              clipBehavior: Clip.none,
+              children: [
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 4,
+                  child: Container(
+                    height: 12,
+                    decoration: BoxDecoration(
+                      color: ShareInfographic._blue.withValues(alpha: 0.22),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
                   ),
                 ),
-              ),
-              Text(accent, overflow: TextOverflow.visible, style: base),
-            ],
+                Text(accent, overflow: TextOverflow.visible, style: base),
+              ],
+            ),
           ),
       ],
     );

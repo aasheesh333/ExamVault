@@ -244,13 +244,15 @@ final filteredCardsProvider = Provider<List<AdmitCard>>((ref) {
   final filter = ref.watch(categoryFilterProvider);
   final query = ref.watch(searchQueryProvider);
 
-  return cards.where((c) {
-    if (filter != null && c.category != filter) return false;
-    return _matchesQuery(
-      query,
-      '${c.examName} ${c.examCode} ${c.conductingBody} ${c.rollNumber}',
-    );
-  }).toList(growable: false);
+  return cards
+      .where((c) {
+        if (filter != null && c.category != filter) return false;
+        return _matchesQuery(
+          query,
+          '${c.examName} ${c.examCode} ${c.conductingBody} ${c.rollNumber}',
+        );
+      })
+      .toList(growable: false);
 });
 
 /// ---------------------------------------------------------------------------

@@ -34,15 +34,16 @@ class _AlertsSheet extends ConsumerWidget {
     final p = context.ev;
     final feed = ref.watch(liveFeedProvider).value?.feed;
 
-    final alerts = (feed?.activeAt(DateTime.now()) ?? const <LiveUpdate>[])
-        .where(
-          (u) =>
-              u.status == UpdateStatus.resultOut ||
-              u.status == UpdateStatus.admitCardLive ||
-              u.status == UpdateStatus.formClosing,
-        )
-        .toList()
-      ..sort((a, b) => b.publishedAt.compareTo(a.publishedAt));
+    final alerts =
+        (feed?.activeAt(DateTime.now()) ?? const <LiveUpdate>[])
+            .where(
+              (u) =>
+                  u.status == UpdateStatus.resultOut ||
+                  u.status == UpdateStatus.admitCardLive ||
+                  u.status == UpdateStatus.formClosing,
+            )
+            .toList()
+          ..sort((a, b) => b.publishedAt.compareTo(a.publishedAt));
 
     return Container(
       decoration: BoxDecoration(
@@ -50,17 +51,20 @@ class _AlertsSheet extends ConsumerWidget {
         borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
         border: Border.all(color: p.border),
       ),
+      // A rounded decoration does not clip its child, so rows scrolled past the
+      // top edge painted over the dimmed page outside the corners.
+      clipBehavior: Clip.antiAlias,
       child: DraggableScrollableSheet(
         expand: false,
         initialChildSize: 0.72,
         minChildSize: 0.4,
         maxChildSize: 0.94,
-        builder: (context, controller) => ListView(
-          controller: controller,
-          padding: const EdgeInsets.fromLTRB(0, 8, 0, 32),
+        builder: (context, controller) => Column(
           children: [
+            // Header sits outside the scroll view: inside it, the title and close
+            // button rode up over the first row at 320px and at 2.0x.
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -74,6 +78,10 @@ class _AlertsSheet extends ConsumerWidget {
                           alerts.isEmpty
                               ? 'Nothing needs your attention.'
                               : '${alerts.length} updates need a look',
+                          // Two lines maximum, so a long subtitle can never push
+                          // the list out of the sheet.
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                           style: context.type.microLabel.copyWith(fontSize: 11),
                         ),
                       ],
@@ -105,41 +113,48 @@ class _AlertsSheet extends ConsumerWidget {
                 ],
               ),
             ),
-            const SizedBox(height: 12),
-            if (alerts.isEmpty)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Text(
-                  'When a commission publishes a result or releases an admit '
-                  'card, it appears here — and the badge clears once you have '
-                  'read it.',
-                  style: context.type.bodyMuted,
-                ),
-              )
-            else
-              EvCard(
-                padding: EdgeInsets.zero,
-                onTap: null,
-                child: Column(
-                  children: [
-                    for (var i = 0; i < alerts.length; i++)
-                      _AlertRow(
-                        update: alerts[i],
-                        first: i == 0,
-                        last: i == alerts.length - 1,
-                        onTap: () {
-                          ref
-                              .read(resultExamIdProvider.notifier)
-                              .select(alerts[i]);
-                          Navigator.of(context).maybePop();
-                          ref
-                              .read(tabIndexProvider.notifier)
-                              .select(EvTab.radar);
-                        },
+            Expanded(
+              child: ListView(
+                controller: controller,
+                padding: const EdgeInsets.only(bottom: 32),
+                children: [
+                  if (alerts.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: Text(
+                        'When a commission publishes a result or releases an '
+                        'admit card, it appears here — and the badge clears '
+                        'once you have read it.',
+                        style: context.type.bodyMuted,
                       ),
-                  ],
-                ),
+                    )
+                  else
+                    EvCard(
+                      padding: EdgeInsets.zero,
+                      onTap: null,
+                      child: Column(
+                        children: [
+                          for (var i = 0; i < alerts.length; i++)
+                            _AlertRow(
+                              update: alerts[i],
+                              first: i == 0,
+                              last: i == alerts.length - 1,
+                              onTap: () {
+                                ref
+                                    .read(resultExamIdProvider.notifier)
+                                    .select(alerts[i]);
+                                Navigator.of(context).maybePop();
+                                ref
+                                    .read(tabIndexProvider.notifier)
+                                    .select(EvTab.radar);
+                              },
+                            ),
+                        ],
+                      ),
+                    ),
+                ],
               ),
+            ),
           ],
         ),
       ),

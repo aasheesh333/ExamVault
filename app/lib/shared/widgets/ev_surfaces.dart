@@ -97,31 +97,55 @@ class EvSectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // At large text the label and its trailing actions cannot share a line: the
+    // title collapsed to "MY ADMIT C…" while "2 saved" and "Add" stayed full size.
+    // Past 1.4x they stack instead of fighting.
+    final scale = MediaQuery.textScalerOf(context).scale(1);
+    final stacked = trailing != null && scale > 1.4;
+
+    final title = Semantics(
+      // Header text is a label, never a control.
+      container: true,
+      child: Text(
+        label.toUpperCase(),
+        style: context.type.microLabel,
+        maxLines: stacked ? 2 : 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+    );
+
     return Padding(
       padding: padding,
       child: ConstrainedBox(
         // A fixed 20px box clipped the trailing action: EvTextAction renders
         // ~30px tall, so "3 saved" was sliced in half. Size to the tallest child.
         constraints: const BoxConstraints(minHeight: 32),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            if (leading != null) ...[leading!, const SizedBox(width: 8)],
-            Expanded(
-              child: Semantics(
-                // Header text is a label, never a control.
-                container: true,
-                child: Text(
-                  label.toUpperCase(),
-                  style: context.type.microLabel,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
+        child: stacked
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      if (leading != null) ...[
+                        leading!,
+                        const SizedBox(width: 8),
+                      ],
+                      Expanded(child: title),
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  Align(alignment: Alignment.centerRight, child: trailing!),
+                ],
+              )
+            : Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  if (leading != null) ...[leading!, const SizedBox(width: 8)],
+                  Expanded(child: title),
+                  ?trailing,
+                ],
               ),
-            ),
-            ?trailing,
-          ],
-        ),
       ),
     );
   }

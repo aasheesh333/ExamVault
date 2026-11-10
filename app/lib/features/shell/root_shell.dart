@@ -110,7 +110,11 @@ class EvTabBar extends ConsumerWidget {
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 22, sigmaY: 22),
           child: Container(
-            height: EvSize.tabBar,
+            // Height follows the label scale: the fixed 58px box sliced label
+            // text through its baseline at 2.0x and the selected pill cut the
+            // word in half. Icon (19) + gap (3) + label, plus padding, with the
+            // token as the floor.
+            height: _barHeight(context),
             padding: const EdgeInsets.all(5),
             decoration: BoxDecoration(
               color: p.surface.withValues(alpha: p.isDark ? 0.82 : 0.9),
@@ -145,6 +149,16 @@ class EvTabBar extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// Tab bar height for the current text scale.
+///
+/// Deliberately a computed height rather than `minHeight`: a Column inside an
+/// unconstrained Row would stretch to the screen instead of hugging its content.
+double _barHeight(BuildContext context) {
+  final scale = MediaQuery.textScalerOf(context).scale(1);
+  final extra = ((scale - 1).clamp(0.0, 1.0)) * 22.0;
+  return EvSize.tabBar + extra;
 }
 
 class _TabButton extends StatelessWidget {
@@ -269,7 +283,10 @@ class _TabSwitcherState extends State<_TabSwitcher> {
           if (i == _current || i == _previous)
             TweenAnimationBuilder<double>(
               key: ValueKey(i == _current),
-              tween: Tween(begin: i == _current ? 0 : 1, end: i == _current ? 1 : 0),
+              tween: Tween(
+                begin: i == _current ? 0 : 1,
+                end: i == _current ? 1 : 0,
+              ),
               duration: duration,
               curve: EvMotion.curveOf(
                 context,

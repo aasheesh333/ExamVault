@@ -11,6 +11,29 @@ import '../../domain/entities/live_update.dart';
 import '../../domain/services/exam_matcher.dart';
 import '../../providers/app_providers.dart';
 import '../../shared/widgets/ev_controls.dart';
+import '../result_checker/engine/roll_index_engine.dart';
+
+/// The id the result checker will look the roll index up by.
+///
+/// A fresh feed match wins over the stored id: renaming a card, or saving one
+/// before the exam was published, must re-resolve instead of pinning a slug
+/// that the checker can never find.
+@visibleForTesting
+String resolveExamId({
+  required String examName,
+  LiveUpdate? match,
+  String? previous,
+}) {
+  final fresh = match?.examId;
+  if (fresh != null && fresh.isNotEmpty) return fresh;
+  if (previous != null && previous.isNotEmpty) return previous;
+  return slugifyExamName(examName);
+}
+
+/// Fallback id when nothing has been published for the typed name yet.
+@visibleForTesting
+String slugifyExamName(String examName) =>
+    examName.trim().toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '_');
 
 /// Add / edit an admit card.
 ///
@@ -69,19 +92,24 @@ class _VaultFormSheetState extends ConsumerState<_VaultFormSheet> {
   late final _shift = TextEditingController(text: widget.existing?.shift);
 
   late ExamCategory _category = widget.existing?.category ?? ExamCategory.ssc;
-  late DateTime _examDate =
-      widget.existing?.examDate ?? DateTime.now().add(const Duration(days: 14));
+  // No fabricated default: a date the user never chose must never become an
+  // exam-day countdown.
+  late DateTime? _examDate = widget.existing?.examDate;
 
   /// Baseline captured at construction so the close guard can tell a real edit
   /// from the values a card already had.
   late final Map<TextEditingController, String> _baseline;
   late final ExamCategory _initialCategory;
-  late final DateTime _initialDate;
+  late final DateTime? _initialDate;
 
   bool _obscureSecret = true;
   bool _saving = false;
   bool _confirmingDiscard = false;
   String? _error;
+
+  /// A blocking reason shown next to Save (missing date, duplicate card) —
+  /// distinct from [_error], which is a failed write and offers Retry.
+  String? _validationNotice;
 
   @override
   void initState() {
@@ -217,40 +245,68 @@ class _VaultFormSheetState extends ConsumerState<_VaultFormSheet> {
 
   Future<void> _save() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
-    setState(() {
-      _saving = true;
-      _error = null;
-    });
+
+    final date = _examDate;
+    if (date == null) {
+      setState(() {
+        _validationNotice = 'Choose the exam date — tap the field above.';
+        _error = null;
+      });
+      return;
+    }
 
     final now = DateTime.now();
     final base = widget.existing;
+    final roll = _roll.text.trim().toUpperCase();
+
+    // The checker looks the index up by this id, so a hand-derived slug could
+    // never resolve. Re-resolve on every save: a fresh match first, then the id
+    // the card already had, then a slug of the typed name.
+    final examId = resolveExamId(
+      examName: _examName.text,
+      match: _match(watch: false),
+      previous: base?.examId,
+    );
+
+    final cards = ref.read(admitCardsProvider).value ?? const <AdmitCard>[];
+    final duplicate = cards.any(
+      (c) =>
+          c.id != base?.id &&
+          c.examId == examId &&
+          normaliseRoll(c.rollNumber) == normaliseRoll(roll),
+    );
+    if (duplicate) {
+      setState(() {
+        _validationNotice =
+            'You already saved this card — same exam and roll number.';
+        _error = null;
+      });
+      return;
+    }
+
+    setState(() {
+      _saving = true;
+      _error = null;
+      _validationNotice = null;
+    });
 
     final card = AdmitCard(
       id:
           base?.id ??
           '${_category.id}_${now.millisecondsSinceEpoch.toRadixString(36)}',
-      // Reuse the published row's id when we matched one. The checker looks up
-      // the roll index by this id, so a hand-derived id could never resolve —
-      // which made a saved card useless on result day.
-      examId:
-          base?.examId ??
-          _match(watch: false)?.examId ??
-          _examName.text.trim().toLowerCase().replaceAll(
-            RegExp(r'[^a-z0-9]+'),
-            '_',
-          ),
+      examId: examId,
       category: _category,
       examName: _examName.text.trim(),
       conductingBody: _body.text.trim(),
       examCode: _examCode.text.trim(),
-      rollNumber: _roll.text.trim().toUpperCase(),
+      rollNumber: roll,
       registrationId: _regId.text.trim(),
       dobOrPortalPassword: _secret.text.trim(),
       centerCode: _centreCode.text.trim(),
       centerAddress: _centreAddress.text.trim(),
       gate: _gate.text.trim(),
       reportBy: _reportBy.text.trim(),
-      examDate: _examDate,
+      examDate: date,
       shift: _shift.text.trim(),
       createdAt: base?.createdAt ?? now,
       updatedAt: now,
@@ -282,13 +338,30 @@ class _VaultFormSheetState extends ConsumerState<_VaultFormSheet> {
   }
 
   Future<void> _pickDate() async {
+    final now = DateTime.now();
+    final current = _examDate;
+    final earliest = DateTime(now.year - 1, now.month, now.day);
+    final latest = DateTime(now.year + 3, now.month, now.day);
+    // The range must contain the value, or showDatePicker asserts for any card
+    // saved more than a year (or three years) out.
+    final firstDate = current != null && current.isBefore(earliest)
+        ? DateTime(current.year, current.month, current.day)
+        : earliest;
+    final lastDate = current != null && current.isAfter(latest)
+        ? DateTime(current.year, current.month, current.day)
+        : latest;
     final picked = await showDatePicker(
       context: context,
-      initialDate: _examDate,
-      firstDate: DateTime.now().subtract(const Duration(days: 365)),
-      lastDate: DateTime.now().add(const Duration(days: 365 * 3)),
+      initialDate: current ?? now,
+      firstDate: firstDate,
+      lastDate: lastDate,
     );
-    if (picked != null) setState(() => _examDate = picked);
+    if (picked != null) {
+      setState(() {
+        _examDate = picked;
+        _validationNotice = null;
+      });
+    }
   }
 
   @override
@@ -323,7 +396,14 @@ class _VaultFormSheetState extends ConsumerState<_VaultFormSheet> {
               // exam name still empty. A plain scroll view keeps all fields alive.
               child: SingleChildScrollView(
                 controller: controller,
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
+                // Keyboard-aware: the drop-down keyboard used to cover the
+                // Save button with no way to scroll it clear.
+                padding: EdgeInsets.fromLTRB(
+                  20,
+                  8,
+                  20,
+                  28 + MediaQuery.viewInsetsOf(context).bottom,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -369,7 +449,7 @@ class _VaultFormSheetState extends ConsumerState<_VaultFormSheet> {
                     ),
                     if (_match(watch: true) case final match?)
                       _LinkedResult(match: match)
-                    else if (_examName.text.trim().length > 3)
+                    else if (_examName.text.trim().length >= 3)
                       // Say plainly that no published result is linked, so a student
                       // does not read "no index" later as "I was not selected".
                       _NoLinkedResult(),
@@ -388,11 +468,15 @@ class _VaultFormSheetState extends ConsumerState<_VaultFormSheet> {
                     _Field(
                       controller: _roll,
                       label: 'Roll number',
-                      hint: 'Digits only, as printed',
+                      // Several boards and state PSCs issue alphanumeric rolls;
+                      // a digits-only filter silently turned "A1234567" into a
+                      // different, plausible-looking number on paste.
+                      hint: 'Letters, digits, - or / as printed',
                       mono: true,
                       caps: TextCapitalization.characters,
-                      digitsOnly: true,
-                      maxLength: 20,
+                      rollChars: true,
+                      upperCase: true,
+                      maxLength: 24,
                       validator: (v) {
                         final t = v?.trim() ?? '';
                         if (t.length < 4) return 'Roll number looks too short';
@@ -496,6 +580,28 @@ class _VaultFormSheetState extends ConsumerState<_VaultFormSheet> {
                         ],
                       ),
                     ],
+                    if (_validationNotice != null) ...[
+                      const SizedBox(height: 8),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(
+                            Icons.error_outline_rounded,
+                            size: 16,
+                            color: p.dangerText,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              _validationNotice!,
+                              style: context.type.body.copyWith(
+                                color: p.dangerText,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                     const SizedBox(height: 16),
                     EvPrimaryButton(
                       label: 'Save to vault',
@@ -588,7 +694,8 @@ class _Field extends StatelessWidget {
     this.suffix,
     this.validator,
     this.caps = TextCapitalization.sentences,
-    this.digitsOnly = false,
+    this.rollChars = false,
+    this.upperCase = false,
     this.maxLength,
     this.onChanged,
   });
@@ -601,13 +708,26 @@ class _Field extends StatelessWidget {
   final Widget? suffix;
   final String? Function(String?)? validator;
   final TextCapitalization caps;
-  final bool digitsOnly;
+
+  /// Restricts input to the roll grammar the result engine accepts.
+  final bool rollChars;
+
+  /// Upper-cases the visible value, so a pasted lowercase roll is normalised.
+  final bool upperCase;
+
   final int? maxLength;
   final ValueChanged<String>? onChanged;
 
   @override
   Widget build(BuildContext context) {
     final p = context.ev;
+    final formatters = <TextInputFormatter>[
+      if (rollChars)
+        // Same grammar as roll_index_engine: A-Z, digits, dash, slash. The
+        // filter also strips the spaces people paste in from a PDF.
+        FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z0-9\-/]')),
+      if (upperCase) const _UpperCaseFormatter(),
+    ];
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -626,16 +746,11 @@ class _Field extends StatelessWidget {
             autocorrect: false,
             enableSuggestions: false,
             textCapitalization: caps,
-            keyboardType: digitsOnly
-                ? TextInputType.number
-                : obscure || mono
+            keyboardType: obscure || mono
                 ? TextInputType.visiblePassword
                 : TextInputType.text,
             maxLength: maxLength,
-            inputFormatters: digitsOnly
-                // digitsOnly also strips the spaces people paste in roll numbers.
-                ? [FilteringTextInputFormatter.digitsOnly]
-                : null,
+            inputFormatters: formatters.isEmpty ? null : formatters,
             style: mono
                 ? context.type.fieldValue
                 : context.type.body.copyWith(
@@ -659,10 +774,29 @@ class _Field extends StatelessWidget {
   }
 }
 
+/// Normalises the visible roll to upper case as it is typed or pasted.
+class _UpperCaseFormatter extends TextInputFormatter {
+  const _UpperCaseFormatter();
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final upper = newValue.text.toUpperCase();
+    if (upper == newValue.text) return newValue;
+    return TextEditingValue(
+      text: upper,
+      selection: newValue.selection,
+      composing: TextRange.empty,
+    );
+  }
+}
+
 class _DateField extends StatelessWidget {
   const _DateField({required this.date, required this.onTap});
 
-  final DateTime date;
+  final DateTime? date;
   final VoidCallback onTap;
 
   @override
@@ -682,6 +816,7 @@ class _DateField extends StatelessWidget {
       'NOV',
       'DEC',
     ];
+    final selected = date;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -696,8 +831,9 @@ class _DateField extends StatelessWidget {
             onTap: onTap,
             borderRadius: BorderRadius.circular(EvRadius.button),
             child: Container(
-              height: 52,
-              padding: const EdgeInsets.symmetric(horizontal: 14),
+              // Min height, not a fixed 52px: the placeholder wraps at 2.0x.
+              constraints: const BoxConstraints(minHeight: 52),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
               decoration: BoxDecoration(
                 color: p.surfaceSunken,
                 borderRadius: BorderRadius.circular(EvRadius.button),
@@ -707,11 +843,20 @@ class _DateField extends StatelessWidget {
                 children: [
                   Expanded(
                     child: Text(
-                      '${date.day.toString().padLeft(2, '0')} '
-                      '${months[date.month - 1]} ${date.year}',
-                      style: context.type.fieldValue,
+                      // An untouched date must read as missing, never as a
+                      // confident exam-day countdown.
+                      selected == null
+                          ? 'Not set — tap to choose'
+                          : '${selected.day.toString().padLeft(2, '0')} '
+                                '${months[selected.month - 1]} ${selected.year}',
+                      style: selected == null
+                          ? context.type.fieldValue.copyWith(
+                              color: p.textTertiary,
+                            )
+                          : context.type.fieldValue,
                     ),
                   ),
+                  const SizedBox(width: 8),
                   Icon(
                     Icons.calendar_today_rounded,
                     size: 16,

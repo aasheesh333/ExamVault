@@ -47,6 +47,9 @@ class _AboutSheet extends ConsumerWidget {
         borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
         border: Border.all(color: p.border),
       ),
+      // A rounded decoration does not clip its child, so scrolled text painted
+      // over the dimmed page outside the sheet's corners.
+      clipBehavior: Clip.antiAlias,
       child: DraggableScrollableSheet(
         expand: false,
         initialChildSize: 0.9,
@@ -54,7 +57,7 @@ class _AboutSheet extends ConsumerWidget {
         maxChildSize: 0.95,
         builder: (context, controller) => ListView(
           controller: controller,
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
+          padding: const EdgeInsets.fromLTRB(20, EvSpace.x4, 20, 32),
           children: [
             const _SheetHeader(
               title: 'About ExamVault',
@@ -241,20 +244,27 @@ class _SheetHeader extends StatelessWidget {
               child: InkWell(
                 borderRadius: BorderRadius.circular(16),
                 onTap: () => Navigator.of(context).maybePop(),
+                // 44px hit box around the 32px circle: the visual can be small,
+                // the tap target may not.
                 child: Container(
-                  width: 32,
-                  height: 32,
-                  margin: const EdgeInsets.only(left: 8),
+                  width: EvSize.minTapTarget,
+                  height: EvSize.minTapTarget,
+                  margin: const EdgeInsets.only(left: 4),
                   alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: p.surfaceElevated,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: p.border),
-                  ),
-                  child: Icon(
-                    Icons.close_rounded,
-                    size: 15,
-                    color: p.textSecondary,
+                  child: Container(
+                    width: 32,
+                    height: 32,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: p.surfaceElevated,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: p.border),
+                    ),
+                    child: Icon(
+                      Icons.close_rounded,
+                      size: 15,
+                      color: p.textSecondary,
+                    ),
                   ),
                 ),
               ),
@@ -493,6 +503,9 @@ class _PolicySheet extends StatelessWidget {
         borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
         border: Border.all(color: p.border),
       ),
+      // Same clip as the About sheet: the policy list is taller than the sheet and
+      // its lines were drawn over the page above the rounded corners.
+      clipBehavior: Clip.antiAlias,
       child: DraggableScrollableSheet(
         expand: false,
         initialChildSize: 0.92,
@@ -500,7 +513,7 @@ class _PolicySheet extends StatelessWidget {
         maxChildSize: 0.95,
         builder: (context, controller) => ListView(
           controller: controller,
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
+          padding: const EdgeInsets.fromLTRB(20, EvSpace.x4, 20, 32),
           children: [
             const _SheetHeader(
               title: 'Privacy policy',

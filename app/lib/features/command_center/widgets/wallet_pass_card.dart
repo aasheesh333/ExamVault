@@ -146,6 +146,11 @@ class WalletPassCard extends StatelessWidget {
   }
 }
 
+/// Above ~1.45x the header's badge + countdown no longer fit on one line, so
+/// both bodies drop to a two-line header instead of overflowing the pass.
+bool _needsStackedHeader(BuildContext context) =>
+    MediaQuery.textScalerOf(context).scale(11) > 16;
+
 class _CompactBody extends StatelessWidget {
   const _CompactBody({required this.card, required this.days});
 
@@ -155,30 +160,54 @@ class _CompactBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = context.ev;
+    final badge = _CategoryBadge(category: card.category.label);
+    final title = Text(
+      card.examName,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(
+        fontFamily: EvFont.ui,
+        fontSize: 12,
+        fontWeight: FontWeight.w600,
+        color: p.onWallet.withValues(alpha: 0.92),
+      ),
+    );
+    final countdown = Text(
+      WalletPassCard._countdownLabel(days),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: context.type.monoMeta.copyWith(
+        color: p.onWalletFaint,
+        fontSize: 11,
+      ),
+    );
+
+    if (_needsStackedHeader(context)) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              badge,
+              const SizedBox(width: 8),
+              Expanded(child: title),
+            ],
+          ),
+          const SizedBox(height: 4),
+          countdown,
+        ],
+      );
+    }
+
     return Row(
       children: [
-        _CategoryBadge(category: card.category.label),
+        badge,
         const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            card.examName,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontFamily: EvFont.ui,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: p.onWallet.withValues(alpha: 0.92),
-            ),
-          ),
-        ),
-        Text(
-          WalletPassCard._countdownLabel(days),
-          style: context.type.monoMeta.copyWith(
-            color: p.onWalletFaint,
-            fontSize: 11,
-          ),
-        ),
+        Expanded(child: title),
+        // Without the gap the ellipsised title ran straight into the countdown.
+        const SizedBox(width: 8),
+        countdown,
       ],
     );
   }
@@ -196,30 +225,53 @@ class _FullBody extends StatelessWidget {
     final p = context.ev;
     final isUrgent = days <= 3 && days >= 0;
 
+    final badge = _CategoryBadge(category: card.category.label);
+    // Expanded, not Flexible+Spacer: the spacer stole half the row and
+    // truncated the exam code even when there was room for it.
+    final code = Text(
+      card.examCode.toUpperCase(),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: context.type.microLabel.copyWith(
+        color: p.onWalletFaint,
+        fontSize: 11,
+        letterSpacing: 1.4,
+      ),
+    );
+    final countdown = _CountdownBadge(days: days, urgent: isUrgent);
+
+    final header = _needsStackedHeader(context)
+        ? Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  badge,
+                  const SizedBox(width: 8),
+                  Expanded(child: code),
+                ],
+              ),
+              const SizedBox(height: 6),
+              countdown,
+            ],
+          )
+        : Row(
+            children: [
+              badge,
+              const SizedBox(width: 8),
+              Expanded(child: code),
+              const SizedBox(width: 8),
+              countdown,
+            ],
+          );
+
     final body = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
+      // Hug the content: the stack measures this card, so it must never fill a
+      // loose height constraint.
+      mainAxisSize: MainAxisSize.min,
       children: [
-        Row(
-          children: [
-            _CategoryBadge(category: card.category.label),
-            const SizedBox(width: 8),
-            Flexible(
-              child: Text(
-                card.examCode.toUpperCase(),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: context.type.microLabel.copyWith(
-                  color: p.onWalletFaint,
-                  fontSize: 11,
-                  letterSpacing: 1.4,
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            const Spacer(),
-            _CountdownBadge(days: days, urgent: isUrgent),
-          ],
-        ),
+        header,
         const SizedBox(height: 10),
         Text(
           card.examName,
@@ -273,17 +325,17 @@ class _FullBody extends StatelessWidget {
         const SizedBox(height: 9),
         Container(height: 1, color: Colors.white.withValues(alpha: 0.07)),
         const SizedBox(height: 8),
-        Row(
+        // A Row forced the date to ellipsise to "24 N…" at 2.0x; a Wrap lets the
+        // status fall to its own run so the complete date stays readable.
+        Wrap(
+          spacing: 6,
+          runSpacing: 4,
+          crossAxisAlignment: WrapCrossAlignment.center,
           children: [
-            Expanded(
-              child: Text(
-                _examDateLine(card),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: context.type.monoMeta.copyWith(color: p.onWalletMuted),
-              ),
+            Text(
+              _examDateLine(card),
+              style: context.type.monoMeta.copyWith(color: p.onWalletMuted),
             ),
-            const SizedBox(width: 8),
             Container(
               width: 4,
               height: 4,
@@ -299,7 +351,6 @@ class _FullBody extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(width: 5),
             Text(
               'SAVED OFFLINE',
               style: context.type.statusPill.copyWith(
@@ -313,20 +364,10 @@ class _FullBody extends StatelessWidget {
       ],
     );
 
-    // Home's wallet stack caps the pass at 180px; at a large text scale the body
-    // needs more than that, so scale it down instead of painting an overflow.
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        if (!constraints.hasBoundedHeight || !constraints.hasBoundedWidth) {
-          return body;
-        }
-        return FittedBox(
-          fit: BoxFit.scaleDown,
-          alignment: Alignment.topLeft,
-          child: SizedBox(width: constraints.maxWidth, child: body),
-        );
-      },
-    );
+    // The stack now measures the card, so there is no 180px cap to squeeze into:
+    // the old FittedBox shrank the body to ~70 % at 2.0x instead of letting the
+    // pass grow with its text.
+    return body;
   }
 
   static String _examDateLine(AdmitCard card) {
@@ -472,8 +513,9 @@ class _CountdownBadge extends StatelessWidget {
     final color = urgent ? _OnPass.danger : _OnPass.warning;
 
     return Container(
-      height: 24,
-      padding: const EdgeInsets.symmetric(horizontal: 9),
+      // Was a fixed 24px: at 2.0x the 22px label needs ~26px and overflowed.
+      constraints: const BoxConstraints(minHeight: 24),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(EvRadius.pill),
         color: color.withValues(alpha: 0.16),

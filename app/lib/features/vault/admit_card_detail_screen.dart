@@ -82,12 +82,22 @@ class _PassPagerState extends ConsumerState<_PassPager> {
   /// stale `initialIndex` the parent computed before a swipe or a delete.
   late int _index = widget.initialIndex;
 
+  /// Measured height of the floating dock, so the list can reserve exactly that
+  /// space instead of guessing 150px.
+  final GlobalKey _dockKey = GlobalKey(debugLabel: 'pass-action-dock');
+  double _dockHeight = 0;
+
   @override
   void didUpdateWidget(covariant _PassPager oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // Deleting the visible card shrinks the list underneath the pager.
-    if (_index >= widget.cards.length) {
-      _index = widget.cards.isEmpty ? 0 : widget.cards.length - 1;
+    if (widget.cards.isEmpty) return;
+    // A delete shrinks the list and an edited exam date re-sorts it, so the old
+    // index now points at a different card: re-resolve the page from the id.
+    final target =
+        _indexOfSelected(ref.read(selectedCardIdProvider)) ??
+        _index.clamp(0, widget.cards.length - 1);
+    if (target != _index) {
+      _index = target;
       _jumpAfterLayout();
     }
   }
@@ -98,10 +108,12 @@ class _PassPagerState extends ConsumerState<_PassPager> {
     super.dispose();
   }
 
-  int _indexOfSelected(String? id) {
-    if (id == null || widget.cards.isEmpty) return 0;
+  /// Page index of the selected card, or null when it is not in the list (for
+  /// example the frame between a delete and the new selection).
+  int? _indexOfSelected(String? id) {
+    if (id == null || widget.cards.isEmpty) return null;
     final at = widget.cards.indexWhere((c) => c.id == id);
-    return at < 0 ? 0 : at;
+    return at < 0 ? null : at;
   }
 
   /// Jump to the page the provider now points at (delete, dock, checker).
@@ -112,19 +124,38 @@ class _PassPagerState extends ConsumerState<_PassPager> {
     });
   }
 
+  /// The dock wraps taller as the caption takes a second line at 2.0×, so its
+  /// real height is measured rather than assumed.
+  void _measureDock() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final box = _dockKey.currentContext?.findRenderObject() as RenderBox?;
+      final height = box?.size.height ?? 0;
+      if (height > 0 && (height - _dockHeight).abs() > 0.5) {
+        setState(() => _dockHeight = height);
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     // Follow selection changes that did not come from this PageView's gesture.
     ref.listen<String?>(selectedCardIdProvider, (_, next) {
-      final target = _indexOfSelected(next);
+      final target = _indexOfSelected(next) ?? _index;
       if (target != _index) {
         setState(() => _index = target);
         _jumpAfterLayout();
       }
     });
 
+    _measureDock();
+
     final p = context.ev;
     final current = widget.cards[_index.clamp(0, widget.cards.length - 1)];
+    // Reserve the dock's real footprint plus the safe-area inset, so the last
+    // checklist row can always be scrolled clear of "Check my result".
+    final dockBottom = MediaQuery.paddingOf(context).bottom + 14;
+    final listBottom = dockBottom + _dockHeight + 16;
 
     return Stack(
       children: [
@@ -145,7 +176,8 @@ class _PassPagerState extends ConsumerState<_PassPager> {
                       .read(selectedCardIdProvider.notifier)
                       .select(widget.cards[i].id);
                 },
-                itemBuilder: (context, i) => _PassPage(card: widget.cards[i]),
+                itemBuilder: (context, i) =>
+                    _PassPage(card: widget.cards[i], bottomInset: listBottom),
               ),
             ),
           ],
@@ -155,7 +187,7 @@ class _PassPagerState extends ConsumerState<_PassPager> {
           left: 0,
           right: 0,
           bottom: 0,
-          height: 130,
+          height: dockBottom + _dockHeight + 24,
           child: IgnorePointer(
             child: DecoratedBox(
               decoration: BoxDecoration(
@@ -171,8 +203,8 @@ class _PassPagerState extends ConsumerState<_PassPager> {
         Positioned(
           left: EvSpace.gutter,
           right: EvSpace.gutter,
-          bottom: MediaQuery.paddingOf(context).bottom + 14,
-          child: _ActionDock(card: current),
+          bottom: dockBottom,
+          child: _ActionDock(key: _dockKey, card: current),
         ),
       ],
     );
@@ -192,15 +224,28 @@ class _DetailNavBar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final p = context.ev;
-
-    return SizedBox(
-      height: EvSize.navBar,
+    return ConstrainedBox(
+      // A fixed 40px bar clipped "Saved Pass" to 7px of overflow at 2.0×, so the
+      // token is a floor for content-driven height.
+      constraints: const BoxConstraints(minHeight: EvSize.navBar),
       child: Stack(
         alignment: Alignment.center,
         // The kebab's 44px hit box is 4px taller than the 40px bar.
         clipBehavior: Clip.none,
         children: [
+          // Title before actions: a screen reader used to announce "button,
+          // button" and only then "Saved Pass".
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('Saved Pass', style: context.type.navTitle),
+                const SizedBox(height: 3),
+                _PageCounter(count: count, controller: controller),
+              ],
+            ),
+          ),
           Row(
             children: [
               const SizedBox(width: EvSpace.x2),
@@ -208,6 +253,7 @@ class _DetailNavBar extends ConsumerWidget {
                 icon: Icons.arrow_back_ios_new_rounded,
                 ghost: true,
                 iconSize: 17,
+                tooltip: 'Back',
                 // This screen is a tab, not a pushed route — `maybePop()` was a
                 // no-op, so the chevron did nothing. Go to Home instead.
                 onPressed: () =>
@@ -221,60 +267,64 @@ class _DetailNavBar extends ConsumerWidget {
               const SizedBox(width: EvSpace.x2),
             ],
           ),
-          Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text('Saved Pass', style: context.type.navTitle),
-              const SizedBox(height: 5),
-              // Dots communicate "there are 3 passes, swipe" far better than a
-              // bordered "1 / 3" chip, which reads as a tappable counter.
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  for (var i = 0; i < count; i++)
-                    AnimatedBuilder(
-                      animation: controller,
-                      builder: (context, _) {
-                        final page =
-                            controller.hasClients &&
-                                controller.position.haveDimensions
-                            ? controller.page ?? 0
-                            : 0;
-                        final active = (page - i).abs() < 0.5;
-                        return Container(
-                          width: active ? 6 : 4,
-                          height: 4,
-                          margin: const EdgeInsets.symmetric(horizontal: 2),
-                          decoration: BoxDecoration(
-                            color: active ? p.accent : p.borderStrong,
-                            borderRadius: BorderRadius.circular(2),
-                          ),
-                        );
-                      },
-                    ),
-                ],
-              ),
-            ],
-          ),
         ],
       ),
     );
   }
 }
 
+/// "3 / 10" position indicator.
+///
+/// The old 4×4px dots carried no count, were not announced, and the inactive
+/// dot sat at ~1.5:1 on navy.
+class _PageCounter extends StatelessWidget {
+  const _PageCounter({required this.count, required this.controller});
+
+  final int count;
+  final PageController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.ev;
+
+    return AnimatedBuilder(
+      animation: controller,
+      builder: (context, _) {
+        final ready =
+            controller.hasClients && controller.position.haveDimensions;
+        final page = ready ? (controller.page ?? 0) : 0;
+        final index = page.round().clamp(0, count - 1);
+
+        return Semantics(
+          container: true,
+          excludeSemantics: true,
+          label: 'Pass ${index + 1} of $count',
+          child: Text(
+            '${index + 1} / $count',
+            style: context.type.monoMeta.copyWith(color: p.textSecondary),
+          ),
+        );
+      },
+    );
+  }
+}
+
 class _PassPage extends ConsumerWidget {
-  const _PassPage({required this.card});
+  const _PassPage({required this.card, required this.bottomInset});
 
   final AdmitCard card;
+
+  /// Space reserved for the floating dock, measured by the pager.
+  final double bottomInset;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return ListView(
-      padding: const EdgeInsets.fromLTRB(
+      padding: EdgeInsets.fromLTRB(
         EvSpace.gutter,
         8,
         EvSpace.gutter,
-        150,
+        bottomInset,
       ),
       children: [
         _BoardingPass(card: card),
@@ -283,7 +333,11 @@ class _PassPage extends ConsumerWidget {
         const SizedBox(height: EvSpace.x3),
         _DocumentChecklist(card: card),
         const SizedBox(height: EvSpace.x3),
-        if (card.centerAddress.isNotEmpty) _CenterCard(card: card),
+        // Gate and reporting time matter even when no address was saved.
+        if (card.centerAddress.isNotEmpty ||
+            card.gate.isNotEmpty ||
+            card.reportBy.isNotEmpty)
+          _CenterCard(card: card),
       ],
     );
   }
@@ -454,12 +508,19 @@ class _BoardingPass extends ConsumerWidget {
                     children: [
                       const Expanded(child: _Barcode(height: 24)),
                       const SizedBox(width: 12),
-                      Text(
-                        'SAVED ON DEVICE',
-                        style: context.type.statusPill.copyWith(
-                          color: p.onWalletFaint,
-                          fontSize: 11,
-                          letterSpacing: 1,
+                      // The label used to be an unbounded Text beside a flexible
+                      // barcode: at 2.0x on a 320px phone the barcode collapsed to
+                      // zero and the label overflowed 107px past the card edge.
+                      Flexible(
+                        child: Text(
+                          'SAVED ON DEVICE',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: context.type.statusPill.copyWith(
+                            color: p.onWalletFaint,
+                            fontSize: 11,
+                            letterSpacing: 1,
+                          ),
                         ),
                       ),
                     ],
@@ -483,20 +544,17 @@ class _FieldGrid extends StatelessWidget {
   Widget build(BuildContext context) {
     final fields = <({String label, String value, String copyLabel})>[
       (
-        label: 'REGISTRATION ID',
+        // Short labels: the full words ellipsised at 1.0× on a 393px screen.
+        label: 'REG. ID',
         value: card.registrationId,
         copyLabel: 'Registration ID',
       ),
       (
-        label: 'DOB / PORTAL PASSWORD',
+        label: 'DOB / PASSWORD',
         value: card.dobOrPortalPassword,
         copyLabel: 'Password',
       ),
-      (
-        label: 'EXAM CENTRE CODE',
-        value: card.centerCode,
-        copyLabel: 'Centre code',
-      ),
+      (label: 'CENTRE', value: card.centerCode, copyLabel: 'Centre code'),
       (
         label: 'EXAM DATE',
         value: _formatDate(card.examDate),
@@ -944,6 +1002,10 @@ class _CenterCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = context.ev;
+    final hasAddress = card.centerAddress.isNotEmpty;
+    final heading = card.centerCode.isEmpty
+        ? 'EXAM CENTRE'
+        : 'EXAM CENTRE · ${card.centerCode}'.toUpperCase();
 
     final query = Uri.encodeComponent(
       '${card.centerAddress} ${card.centerCode}'.trim(),
@@ -951,15 +1013,23 @@ class _CenterCard extends StatelessWidget {
 
     return EvCard(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 13),
-      onTap: () async {
-        final uri = Uri.parse(
-          'https://www.google.com/maps/search/?api=1&query=$query',
-        );
-        if (await canLaunchUrl(uri)) {
-          await launchUrl(uri, mode: LaunchMode.externalApplication);
-        }
-      },
-      semanticLabel: 'Exam centre ${card.centerAddress}. Open in maps.',
+      // Maps needs an address; a gate-only card stays informative, not a dead link.
+      onTap: hasAddress
+          ? () async {
+              final uri = Uri.parse(
+                'https://www.google.com/maps/search/?api=1&query=$query',
+              );
+              if (await canLaunchUrl(uri)) {
+                await launchUrl(uri, mode: LaunchMode.externalApplication);
+              }
+            }
+          : null,
+      semanticLabel: [
+        heading,
+        if (hasAddress) card.centerAddress,
+        if (card.gate.isNotEmpty) card.gate,
+        if (card.reportBy.isNotEmpty) 'report by ${card.reportBy}',
+      ].join('. '),
       child: Row(
         children: [
           Container(
@@ -978,18 +1048,20 @@ class _CenterCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'EXAM CENTRE · ${card.centerCode}'.toUpperCase(),
+                  heading,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: context.type.microLabel.copyWith(),
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  card.centerAddress,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: context.type.tileTitle.copyWith(),
-                ),
+                if (hasAddress) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    card.centerAddress,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: context.type.tileTitle.copyWith(),
+                  ),
+                ],
                 if (card.gate.isNotEmpty || card.reportBy.isNotEmpty) ...[
                   const SizedBox(height: 1),
                   Text(
@@ -1004,15 +1076,17 @@ class _CenterCard extends StatelessWidget {
               ],
             ),
           ),
-          Text(
-            'MAP',
-            style: context.type.statusPill.copyWith(
-              color: p.accentText,
-              fontSize: 11,
-              letterSpacing: 0.9,
+          if (hasAddress) ...[
+            Text(
+              'MAP',
+              style: context.type.statusPill.copyWith(
+                color: p.accentText,
+                fontSize: 11,
+                letterSpacing: 0.9,
+              ),
             ),
-          ),
-          Icon(Icons.open_in_new_rounded, size: 11, color: p.accentText),
+            Icon(Icons.open_in_new_rounded, size: 11, color: p.accentText),
+          ],
         ],
       ),
     );
@@ -1024,7 +1098,7 @@ class _CenterCard extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _ActionDock extends ConsumerWidget {
-  const _ActionDock({required this.card});
+  const _ActionDock({super.key, required this.card});
 
   final AdmitCard card;
 
@@ -1049,10 +1123,14 @@ class _ActionDock extends ConsumerWidget {
             SizedBox(
               width: EvSize.primaryButton,
               height: EvSize.primaryButton,
-              child: EvSecondaryButton(
-                label: '',
+              // Icon-only secondary action: the icon button exposes a real name
+              // ("Share pass"), where `EvSecondaryButton(label: '')` announced a
+              // bare button with no label at all.
+              child: EvIconButton(
                 icon: Icons.ios_share_rounded,
-                expand: false,
+                tooltip: 'Share pass',
+                size: EvSize.primaryButton,
+                iconSize: 17,
                 onPressed: () async {
                   final service = ref.read(shareServiceProvider);
                   await service.shareText(
@@ -1148,11 +1226,23 @@ class _CardMenu extends ConsumerWidget {
           switch (value) {
             case 'edit':
               await showVaultFormSheet(context, ref, existing: card);
+              if (!context.mounted) return;
+              // Saving re-sorts by exam date; keep the pager on this card's id
+              // instead of the index it happened to occupy before the edit.
+              ref.read(selectedCardIdProvider.notifier).select(card.id);
             case 'delete':
               final confirmed = await _confirmDelete(context, card);
               if (!confirmed) return;
+              // The list is sorted, so the card's index before the delete is the
+              // index of the card that should stay on screen afterwards.
+              final before = ref.read(admitCardsProvider).value;
+              final at = before?.indexWhere((c) => c.id == card.id) ?? -1;
               await ref.read(admitCardsProvider.notifier).delete(card.id);
-              ref.read(selectedCardIdProvider.notifier).select(null);
+              final after = ref.read(admitCardsProvider).value;
+              final stay = (after == null || after.isEmpty)
+                  ? null
+                  : after[(at < 0 ? 0 : at).clamp(0, after.length - 1)].id;
+              ref.read(selectedCardIdProvider.notifier).select(stay);
               if (!context.mounted) return;
               ScaffoldMessenger.of(context)
                 ..hideCurrentSnackBar()

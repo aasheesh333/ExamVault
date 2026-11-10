@@ -46,21 +46,27 @@ void main() {
     } catch (_) {}
   });
 
-  AdmitCard card() => AdmitCard(
-    id: 'chsl',
+  AdmitCard card({
+    String id = 'chsl',
+    String rollNumber = '2201098765',
+    String centerAddress = 'Sector 9, Rohini, New Delhi',
+    String gate = 'Gate 2',
+    int daysFromNow = 9,
+  }) => AdmitCard(
+    id: id,
     examId: 'ssc_chsl_tier1_2026',
     category: ExamCategory.ssc,
     examName: 'SSC CHSL Tier-1 2026',
     conductingBody: 'Staff Selection Commission',
     examCode: 'CHSL · TIER-1',
-    rollNumber: '2201098765',
+    rollNumber: rollNumber,
     registrationId: 'SSC-CHSL-26-441122',
     dobOrPortalPassword: '11/05/1998',
     centerCode: 'DL-07-2210',
-    centerAddress: 'Sector 9, Rohini, New Delhi',
-    gate: 'Gate 2',
+    centerAddress: centerAddress,
+    gate: gate,
     reportBy: '08:00 AM',
-    examDate: DateTime.now().add(const Duration(days: 9)),
+    examDate: DateTime.now().add(Duration(days: daysFromNow)),
     shift: '10:00 AM – 11:00 AM',
     createdAt: DateTime.now(),
     updatedAt: DateTime.now(),
@@ -105,7 +111,12 @@ void main() {
 
   Future<void> seed(AdmitCard value) async {
     await store.writeRaw(value.id, AdmitCardCodec.encode(value));
-    await store.writeIndex([value.id]);
+    // Append, don't replace: seeding three cards used to leave only the last one,
+    // so the multi-card tests were silently exercising a single-card vault.
+    final ids = await store.readIndex();
+    if (!ids.contains(value.id)) {
+      await store.writeIndex([...ids, value.id]);
+    }
   }
 
   /// The form is taller than a phone; a tall viewport keeps every field built so
@@ -172,8 +183,7 @@ void main() {
     testWidgets('home wallet stack does not overflow at a 1.35 text scale', (
       tester,
     ) async {
-      // The design frame: the extra height the raised scale needs is what the
-      // pass must absorb, since the stack pins it to 180px.
+      // The deck now measures the front card, so its height follows the scale.
       tester.view.physicalSize = const Size(393, 852);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.reset);
@@ -194,6 +204,118 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
+    testWidgets('wallet stack measures itself at 320px and a 2.0 text scale', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(320, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      for (final count in [2, 3]) {
+        await tester.pumpWidget(
+          harness(
+            Scaffold(
+              body: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SizedBox(
+                      width: 320,
+                      child: WalletCardStack(
+                        cards: List<AdmitCard>.generate(count, (_) => card()),
+                        onOpen: (_) {},
+                      ),
+                    ),
+                    const Text('NEXT SECTION'),
+                  ],
+                ),
+              ),
+            ),
+            textScaler: const TextScaler.linear(2.0),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull, reason: '$count cards');
+
+        // The old hard-coded 180 + 44 * layers deck painted over the header of
+        // the next section; the deck must now be as tall as the grown card.
+        final stack = tester.getSize(find.byType(WalletCardStack));
+        expect(stack.height, greaterThan(180 + 44.0 * (count - 1)));
+
+        final front = tester.getRect(find.byType(WalletPassCard).last);
+        final next = tester.getRect(find.text('NEXT SECTION'));
+        expect(
+          front.bottom,
+          lessThanOrEqualTo(next.top),
+          reason: '$count cards must not paint over the next section',
+        );
+      }
+    });
+
+    testWidgets('pass lays out at 320px with a 2.0 text scale', (tester) async {
+      tester.view.physicalSize = const Size(320, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      await tester.pumpWidget(
+        harness(
+          Scaffold(
+            body: Center(
+              child: SizedBox(
+                width: 320,
+                child: WalletPassCard(card: card(), onOpen: () {}),
+              ),
+            ),
+          ),
+          textScaler: const TextScaler.linear(2.0),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('2201098765'), findsOneWidget);
+    });
+
+    testWidgets('compact header keeps a gap before the countdown', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(320, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      // Inline at a normal scale, stacked at 2.0x — both must leave a gap.
+      for (final scale in [1.35, 2.0]) {
+        await tester.pumpWidget(
+          harness(
+            Scaffold(
+              body: Center(
+                child: SizedBox(
+                  width: 280,
+                  child: WalletPassCard(
+                    card: card(),
+                    compact: true,
+                    onOpen: () {},
+                  ),
+                ),
+              ),
+            ),
+            textScaler: TextScaler.linear(scale),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull, reason: 'scale $scale');
+
+        // "Combined Gra…IN 14 DAYS": the ellipsised title used to touch it.
+        final title = tester.getRect(find.text('SSC CHSL Tier-1 2026'));
+        final countdown = tester.getRect(find.text('IN 9 DAYS'));
+        final inlineGap = title.right + 8 <= countdown.left + 0.5;
+        final stackedGap = title.bottom <= countdown.top + 0.5;
+        expect(inlineGap || stackedGap, isTrue, reason: 'scale $scale');
+      }
+    });
+
     testWidgets('detail pass lays out at 320px with a 1.35 text scale', (
       tester,
     ) async {
@@ -212,6 +334,122 @@ void main() {
 
       expect(find.text('2201098765'), findsOneWidget);
       expect(tester.takeException(), isNull);
+    });
+  });
+
+  group('vault detail at 2.0x', () {
+    testWidgets('the nav bar and pass do not overflow at 320px', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(320, 640);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+      await seed(card());
+
+      await tester.pumpWidget(
+        harness(
+          const AdmitCardDetailScreen(),
+          textScaler: const TextScaler.linear(2),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Saved Pass'), findsOneWidget);
+      // The fixed 40px nav bar overflowed by 7px once the scale reached 2.0x.
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('the dock leaves the last checklist row tappable', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(393, 852);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+      await seed(card());
+
+      await tester.pumpWidget(
+        harness(
+          const AdmitCardDetailScreen(),
+          textScaler: const TextScaler.linear(2),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Scroll the pass to the end, where the dock used to sit on top of the row.
+      await tester.drag(find.byType(ListView), const Offset(0, -700));
+      await tester.pumpAndSettle();
+      await tester.drag(find.byType(ListView), const Offset(0, -700));
+      await tester.pumpAndSettle();
+
+      final row = tester.getRect(find.text('Original photo ID'));
+      final dock = tester.getRect(find.text('Check my result'));
+      expect(row.bottom, lessThanOrEqualTo(dock.top));
+
+      // Tapping the row must tick the box, not fire the dock's result button.
+      await tester.tap(find.text('Original photo ID'));
+      await tester.pumpAndSettle();
+      expect(find.text('1 / 3 READY'), findsOneWidget);
+      expect(find.text('DONE'), findsOneWidget);
+    });
+
+    testWidgets('pagination shows the position and count', (tester) async {
+      // Disposed inline: a SemanticsHandle registered only via addTearDown is
+      // still open when the binding runs its end-of-test verifications.
+      final semantics = tester.ensureSemantics();
+      await seed(card(id: 'a', rollNumber: '1111111111', daysFromNow: 3));
+      await seed(card(id: 'b', rollNumber: '2222222222', daysFromNow: 6));
+      await seed(card(id: 'c', rollNumber: '3333333333', daysFromNow: 9));
+
+      await tester.pumpWidget(harness(const AdmitCardDetailScreen()));
+      await tester.pumpAndSettle();
+
+      expect(find.text('1 / 3'), findsOneWidget);
+      expect(find.bySemanticsLabel('Pass 1 of 3'), findsOneWidget);
+
+      await tester.fling(find.byType(PageView), const Offset(-300, 0), 1200);
+      await tester.pumpAndSettle();
+      expect(find.text('2 / 3'), findsOneWidget);
+      expect(find.bySemanticsLabel('Pass 2 of 3'), findsOneWidget);
+      semantics.dispose();
+    });
+
+    testWidgets('deleting a pass keeps its neighbour on screen', (
+      tester,
+    ) async {
+      await seed(card(id: 'a', rollNumber: '1111111111', daysFromNow: 3));
+      await seed(card(id: 'b', rollNumber: '2222222222', daysFromNow: 6));
+      await seed(card(id: 'c', rollNumber: '3333333333', daysFromNow: 9));
+
+      await tester.pumpWidget(harness(const AdmitCardDetailScreen()));
+      await tester.pumpAndSettle();
+      await tester.fling(find.byType(PageView), const Offset(-300, 0), 1200);
+      await tester.pumpAndSettle();
+      expect(find.text('2 / 3'), findsOneWidget);
+
+      await tester.tap(find.byTooltip('Card options'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Delete card'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Delete'));
+      await tester.pumpAndSettle();
+
+      // Deleting card 2 of 3 used to throw the pager back to card 1.
+      expect(find.text('2 / 2'), findsOneWidget);
+      expect(find.text('3333333333'), findsOneWidget);
+    });
+
+    testWidgets('a gate shows even when no centre address was saved', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(400, 2000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+      await seed(card(centerAddress: ''));
+
+      await tester.pumpWidget(harness(const AdmitCardDetailScreen()));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('Gate 2'), findsOneWidget);
     });
   });
 
@@ -248,8 +486,8 @@ void main() {
       final value = tester.widget<EditableText>(
         find.descendant(of: roll, matching: find.byType(EditableText)),
       );
-      expect(value.controller.text, '12345678901234567890');
-      expect(value.controller.text.length, 20);
+      expect(value.controller.text, '123456789012345678901234');
+      expect(value.controller.text.length, 24);
     });
 
     testWidgets('cancel on a pristine form closes without asking', (

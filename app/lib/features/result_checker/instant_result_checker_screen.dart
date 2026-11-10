@@ -174,9 +174,7 @@ class _InstantResultCheckerScreenState
     // Fire-and-forget on purpose: awaiting a haptic puts the platform channel on
     // the critical path between "answer known" and "answer shown", and if the
     // platform never replies the dialog never opens.
-    unawaited(
-      result.isFound ? EvHaptics.success() : EvHaptics.failure(),
-    );
+    unawaited(result.isFound ? EvHaptics.success() : EvHaptics.failure());
 
     if (result.isFound) {
       // A bookkeeping update must never swallow the answer. If marking the card
@@ -243,6 +241,29 @@ class _InstantResultCheckerScreenState
     final examName = tapped?.examName ?? card?.examName;
     final examId = tapped?.examId ?? card?.examId;
 
+    // Clear a roll that belongs to a different exam.
+    //
+    // Tapping a radar row for exam B while a saved exam-A card existed left A's
+    // roll in the field, the header saying B, and "YOUR CHECK" showing A. One tap
+    // on Check then searched A's roll against B's list and could report "not in
+    // this list" — the worst possible wrong answer.
+    if (tapped != null && _cardId != null) {
+      final fieldCard = cards?.where((c) => c.id == _cardId).firstOrNull;
+      // Only clear when the field still holds *that card's* number — never a
+      // value the student typed by hand.
+      final stale =
+          fieldCard != null &&
+          fieldCard.examId != tapped.examId &&
+          _roll.text == fieldCard.rollNumber;
+      if (stale) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          _roll.clear();
+          ref.read(resultCheckerProvider.notifier).reset();
+        });
+      }
+    }
+
     return Scaffold(
       backgroundColor: p.bg,
       body: SafeArea(
@@ -252,9 +273,13 @@ class _InstantResultCheckerScreenState
           children: [
             _NavBar(update: update),
             Padding(
-              padding: const EdgeInsets.fromLTRB(
+              // On a 320x568 screen the primary CTA landed under the tab bar on
+              // first paint. The content does scroll, but an exam-morning user
+              // should not have to discover that, so a short viewport tightens the
+              // vertical rhythm until the button clears the bar.
+              padding: EdgeInsets.fromLTRB(
                 EvSpace.gutter,
-                14,
+                MediaQuery.sizeOf(context).height < 700 ? 6 : 14,
                 EvSpace.gutter,
                 0,
               ),
@@ -788,10 +813,16 @@ class _MirrorRowView extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 10),
+          // Wide enough for "MISSING" on one line: at 42px it broke into
+          // "MISSI / NG", which reads as broken chrome on the panel whose whole
+          // job is to look trustworthy. Never wraps, shrinks instead.
           SizedBox(
-            width: 42,
+            width: 58,
             child: Text(
               row.state,
+              maxLines: 1,
+              softWrap: false,
+              overflow: TextOverflow.visible,
               textAlign: TextAlign.right,
               style: context.type.statusPill.copyWith(
                 color: row.textColor,
@@ -799,11 +830,14 @@ class _MirrorRowView extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 8),
           SizedBox(
-            width: 52,
+            width: 62,
             child: Text(
               row.value,
+              maxLines: 1,
+              softWrap: false,
+              overflow: TextOverflow.visible,
               textAlign: TextAlign.right,
               style: context.type.monoMeta.copyWith(color: p.textTertiary),
             ),

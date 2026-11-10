@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_ce_flutter/hive_flutter.dart';
 
@@ -27,6 +28,58 @@ final httpCacheBoxProvider = Provider<Box<dynamic>>(
 final settingsBoxProvider = Provider<Box<dynamic>>(
   (ref) => throw UnimplementedError('override settingsBoxProvider in main()'),
 );
+
+/// Light / dark / follow-system.
+///
+/// The palette already shipped both modes with contrast verified for each, but
+/// the app was hardwired to `ThemeMode.dark` — so half the design system was dead
+/// code and a student on a bright train had no way out of a dark screen.
+///
+/// Default is `system`: a utility should look like the rest of the phone unless
+/// the user says otherwise.
+enum ThemePreference {
+  system('system', 'Match system'),
+  light('light', 'Light'),
+  dark('dark', 'Dark');
+
+  const ThemePreference(this.id, this.label);
+
+  final String id;
+  final String label;
+
+  static ThemePreference fromId(String? id) {
+    for (final p in values) {
+      if (p.id == id) return p;
+    }
+    return ThemePreference.system;
+  }
+
+  ThemeMode get mode => switch (this) {
+    ThemePreference.system => ThemeMode.system,
+    ThemePreference.light => ThemeMode.light,
+    ThemePreference.dark => ThemeMode.dark,
+  };
+}
+
+class ThemePreferenceNotifier extends Notifier<ThemePreference> {
+  static const _key = 'theme';
+
+  @override
+  ThemePreference build() {
+    final box = ref.watch(settingsBoxProvider);
+    return ThemePreference.fromId(box.get(_key) as String?);
+  }
+
+  Future<void> select(ThemePreference pref) async {
+    state = pref;
+    await ref.read(settingsBoxProvider).put(_key, pref.id);
+  }
+}
+
+final themePreferenceProvider =
+    NotifierProvider<ThemePreferenceNotifier, ThemePreference>(
+      ThemePreferenceNotifier.new,
+    );
 
 final cdnClientProvider = Provider<CdnClient>((ref) {
   final client = CdnClient(cache: ref.watch(httpCacheBoxProvider));

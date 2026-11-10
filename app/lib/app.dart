@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import 'core/theme/app_theme.dart';
 import 'features/shell/root_shell.dart';
+import 'providers/app_providers.dart';
 
 class ExamVaultApp extends ConsumerWidget {
   const ExamVaultApp({super.key});
@@ -13,8 +14,11 @@ class ExamVaultApp extends ConsumerWidget {
     return MaterialApp(
       title: 'ExamVault',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.dark(),
-      themeMode: ThemeMode.dark,
+      theme: AppTheme.light(),
+      darkTheme: AppTheme.dark(),
+      // Both palettes ship; the wallet pass stays deep navy either way, because it
+      // is a physical object rather than a themed surface.
+      themeMode: ref.watch(themePreferenceProvider).mode,
       scrollBehavior: const _EvScrollBehavior(),
       // Clamping is done in a dedicated widget: doing it inline in `builder`
       // allocates a fresh TextScaler on every rebuild, which makes MediaQueryData

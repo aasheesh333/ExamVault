@@ -6,6 +6,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/theme/theme_tokens.dart';
 import '../../domain/entities/live_update.dart';
 import '../../providers/app_providers.dart';
+import '../../shared/widgets/ev_controls.dart';
 import '../../shared/widgets/ev_surfaces.dart';
 
 /// About, data provenance and privacy.
@@ -60,6 +61,16 @@ class _AboutSheet extends ConsumerWidget {
               subtitle: 'Version 1.0.0 · free · no account required',
             ),
             const SizedBox(height: 18),
+
+            // --- Appearance ---------------------------------------------------
+            const EvSectionHeader(
+              label: 'Appearance',
+              padding: EdgeInsets.zero,
+            ),
+            const SizedBox(height: 8),
+            _ThemePicker(),
+
+            const SizedBox(height: 20),
 
             // --- Where the data comes from -----------------------------------
             const EvSectionHeader(
@@ -257,6 +268,29 @@ class _SheetHeader extends StatelessWidget {
           const SizedBox(height: 4),
           Text(subtitle!, style: context.type.microLabel.copyWith(fontSize: 9)),
         ],
+      ],
+    );
+  }
+}
+
+/// Light / dark / follow-system, persisted in the settings box.
+class _ThemePicker extends ConsumerWidget {
+  const _ThemePicker();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final active = ref.watch(themePreferenceProvider);
+    return Wrap(
+      spacing: 7,
+      runSpacing: 7,
+      children: [
+        for (final pref in ThemePreference.values)
+          EvChip(
+            label: pref.label,
+            selected: active == pref,
+            onTap: () =>
+                ref.read(themePreferenceProvider.notifier).select(pref),
+          ),
       ],
     );
   }

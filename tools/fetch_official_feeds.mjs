@@ -1,46 +1,57 @@
 #!/usr/bin/env node
 /**
- * Pulls the official SSC feed and writes `data/live_feed.json`.
+ * Builds `data/live_feed.json` from the official commissions' own websites.
  *
- * This is the missing half of the pipeline: `publish_feed.mjs` takes a document
- * and puts it on the edge; this script produces that document from the source of
- * truth instead of a hand-maintained file.
+ * This is the producer behind `publish_feed.mjs`. The app reads one document; this
+ * script decides what is true in it.
  *
- * ## What is real here
+ * ## Sources (all official, all verified live on 2026-11-10)
  *
- * SSC exposes a public, unauthenticated JSON API used by its own website:
+ *   ssc       ssc.gov.in          JSON API        results + notice boards
+ *   upsc      upsc.gov.in         HTML            "What's New" + detail pages
+ *   ibps      ibps.in             HTML            ongoing-recruitment grid
+ *   tnpsc     tnpsc.gov.in        HTML            results grid (state PSC)
+ *   railways  rrbchennai.gov.in   HTML            CEN notices (RRB)
  *
- *   GET /api/general-website/portal/records?contentType=results&…
- *   GET /api/general-website/portal/notice-boards?…
+ * Together they cover the five categories the app ships with: SSC, UPSC,
+ * Banking, Railways, State PSC.
  *
- * Each record carries a headline, a publication date, an exam id and zero or
- * more PDF attachments. Everything written to the feed comes from those fields —
- * nothing is inferred, filled in, or invented.
+ * ## Two hard rules
  *
- * ## Legal stance: link, never mirror
- *
- * The app links to the **official** PDF on ssc.gov.in. The PDFs are not copied to
- * our CDN. The only thing we derive ourselves is a sorted list of roll numbers,
- * which is a set of facts rather than a reproduction of the document.
+ * 1. **Never invent a row.** Every field comes from the source document. If a
+ *    source is unreachable, this script records the outage in the `sources` block
+ *    and continues — a missing category is visible, and a fabricated "RESULT OUT"
+ *    is impossible.
+ * 2. **Link, never mirror.** The official PDF stays on the commission's server.
+ *    Only a one-way hashed index of the roll numbers is ever published (`See
+ *    tools/build_indexes.py`), which is a derived artefact, not a copy.
  *
  *   node fetch_official_feeds.mjs --out ../data/live_feed.json [--dry-run]
  */
 
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { argv } from 'node:process';
 
-const BASE = 'https://ssc.gov.in/api/general-website/portal';
+import ssc from './sources/ssc.mjs';
+import upsc from './sources/upsc.mjs';
+import ibps from './sources/ibps.mjs';
+import tnpsc from './sources/tnpsc.mjs';
+import railways from './sources/railways.mjs';
 
-/** SSC's own site sends a normal browser UA; a bare node UA gets 403. */
-const UA =
-  'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) ' +
-  'Chrome/155.0.0.0 Safari/537.36';
+/** Registry order is also the order the health block is reported in. */
+const SOURCES = [ssc, upsc, ibps, tnpsc, railways];
 
-const HEADERS = {
-  'user-agent': UA,
-  accept: 'application/json',
-  referer: 'https://ssc.gov.in/',
-};
+/** Enough rows that every category has content, small enough to stay cacheable. */
+const MAX_UPDATES = 80;
+
+/**
+ * Per-source cap.
+ *
+ * One board can emit twenty dated items in a week (RRB Chennai does), which would
+ * bury SSC and UPSC in an unfiltered radar. Capping each source keeps the default
+ * view a digest of *all* exams rather than a feed of one.
+ */
+const MAX_PER_SOURCE = Number(arg('per-source', '20'));
 
 const out = arg('out', '../data/live_feed.json');
 const dryRun = argv.includes('--dry-run');
@@ -51,220 +62,202 @@ function arg(name, fallback) {
   return i >= 0 && argv[i + 1] ? argv[i + 1] : fallback;
 }
 
+/** Statuses the app understands. Anything else indicates an adapter bug. */
+const VALID_STATUS = new Set([
+  'result_out',
+  'admit_card_live',
+  'answer_key',
+  'form_closing',
+  'awaited',
+]);
+
 /**
- * Maps an SSC headline onto our five categories.
+ * Carries the index fields forward from the previous feed.
  *
- * Ordered most-specific first: "SSC Selection Posts" must not be caught by the
- * generic `selection` rule before `chsl`/`cgl` get a chance, and `mts` appears in
- * several composite names.
+ * `build_indexes.py` runs *after* this script and stamps `index_available`,
+ * `index_version` and `roll_count` onto rows it publishes. Without this, the next
+ * 30-minute refresh would erase those stamps and the app would stop offering
+ * "check my result" until the index was rebuilt — even though the object is still
+ * on the CDN.
  */
-function categoryOf(headline) {
-  const h = headline.toLowerCase();
-  if (/\b(cgl|combined graduate level)\b/.test(h)) return 'ssc';
-  if (/\b(chsl|10\+2|higher secondary)\b/.test(h)) return 'ssc';
-  if (/\b(mts|multi[- ]tasking)\b/.test(h)) return 'ssc';
-  if (/\b(gd|constable|capf|delhi police|si in delhi)\b/.test(h)) return 'ssc';
-  if (/\b(stenographer|je|junior engineer|jht|hindi translator)\b/.test(h)) return 'ssc';
-  return 'ssc';
+function carryIndexFields(rows, previous) {
+  const byId = new Map();
+  for (const row of previous?.updates ?? []) {
+    if (row?.exam_id) byId.set(row.exam_id, row);
+  }
+
+  for (const row of rows) {
+    const old = byId.get(row.exam_id);
+    if (!old || !old.index_available) continue;
+    // Only trust the old index when it was built from the same PDF.
+    if ((old.official_pdf ?? null) !== (row.official_pdf ?? null)) continue;
+    row.index_available = true;
+    if (old.index_version) row.index_version = old.index_version;
+    if (typeof old.roll_count === 'number') row.roll_count = old.roll_count;
+  }
+  return rows;
 }
 
-/**
- * Maps a headline onto a status, or null when it is not a student-facing event.
- *
- * Null is important: a notice about "debarred candidates" or a tender is not an
- * update a student needs pushed to their phone. Dropping it is better than
- * relabelling it as something it is not.
- */
-/**
- * Notices that are published on the same board but are not for candidates:
- * procurement, empanelment, retired-officer engagement, debarment lists. They must
- * never reach a student's radar.
- */
-const NOT_FOR_CANDIDATES =
-  /(engagement of|retired|consultant|tender|expression of interest|eoi|empanel|debarred|quotation|auction|corrigendum to the tender)/;
-
-function statusOf(headline) {
-  const h = headline.toLowerCase();
-  if (NOT_FOR_CANDIDATES.test(h)) return null;
-
-  // NOTE ON WORD BOUNDARIES
-  // An earlier version used a trailing \b on every alternative, so `shortlist\b`
-  // failed to match "shortlisted" and `result\b` failed to match "results".
-  // Real declarations — "List of Candidates shortlisted…", "Declaration of
-  // results…" — were therefore silently dropped. Stems match without a trailing
-  // boundary; only the *leading* boundary is kept so "consultant" cannot match
-  // "result".
-
-  // Order matters. A headline mentioning both a result and an admit card is a
-  // result announcement (the admit card is usually a footnote).
-  // `select` alone used to match 'Staff Selection Commission', turning a
-  // consultant-engagement notice into a result. Only the candidate-facing forms
-  // are matched now.
-  if (/(result|merit|cut.?off|selected|selection list|select list|shortlist|declaration|marks|writeup)/.test(h)) {
-    return 'result_out';
+/** Drops rows that cannot be shown or opened, and rows the app would reject. */
+function validate(row) {
+  if (!row?.exam_id || !row?.exam_name) return 'missing id or name';
+  if (!VALID_STATUS.has(row.status)) return `bad status ${row.status}`;
+  if (!row.published_at || Number.isNaN(Date.parse(row.published_at))) {
+    return 'missing date';
   }
-  if (/(admit.?card|call.?letter|admission|exam.*city|examination.*city|roll.?number)/.test(h)) {
-    return 'admit_card_live';
+  if (!row.official_pdf && !row.official_page) return 'no source link';
+  if (row.official_pdf && !/^https?:\/\//i.test(row.official_pdf)) {
+    return 'relative pdf url';
   }
-  if (/(answer.?key|response.?sheet)/.test(h)) return 'answer_key';
-  if (/(last.?date|closing|closes|apply.?online|application|registration)/.test(h)) {
-    return 'form_closing';
-  }
-  if (/(schedule|calendar|exam.?date|notice|corrigendum|revised)/.test(h)) {
-    return 'awaited';
+  if (row.official_page && !/^https?:\/\//i.test(row.official_page)) {
+    return 'relative page url';
   }
   return null;
 }
 
-/** Turns an SSC attachment path into a public URL. */
-function attachmentUrl(path) {
-  if (!path) return null;
-  // The API stores Windows-style paths with backslashes, and several real file
-  // names contain spaces ("CHT 2025 FRTA notice 07112026.pdf"). Those must be
-  // percent-encoded or every fetch fails with "URL can't contain control
-  // characters".
-  const normalised = path.replace(/\\/g, '/').trim();
-  const encoded = normalised
-    .split('/')
-    .map((segment) => encodeURIComponent(segment))
-    .join('/');
-  return `https://ssc.gov.in/api/attachment/${encoded}`;
-}
-
-function clean(text) {
-  return (text ?? '')
-    .replace(/\r\n|\r|\n/g, ' ')
-    .replace(/\s{2,}/g, ' ')
-    .trim();
-}
-
-/** Trims a long SSC headline into a radar-sized context line. */
-function contextLine(headline, attachment) {
-  const h = headline.toLowerCase();
-  if (h.includes('admit card') || h.includes('exam city')) {
-    return 'Admit card available on ssc.gov.in';
-  }
-  if (h.includes('result')) {
-    return attachment
-      ? `Official PDF · ${(attachment.size / 1024 / 1024).toFixed(1)} MB`
-      : 'Declared on ssc.gov.in';
-  }
-  if (h.includes('answer key')) return 'Answer key released';
-  if (h.includes('last date') || h.includes('closing')) return 'Apply before the deadline';
-  return 'Notice board · ssc.gov.in';
-}
-
-async function fetchRecords(contentType, attributes) {
-  const params = new URLSearchParams({
-    page: '1',
-    limit: String(limit),
-    contentType,
-    key: 'createdAt',
-    order: 'DESC',
-    language: 'english',
-    isAttachment: 'true',
-    attributes,
-  });
-
-  const res = await fetch(`${BASE}/records?${params}`, { headers: HEADERS });
-  if (!res.ok) {
-    throw new Error(`${contentType}: HTTP ${res.status}`);
-  }
-  const json = await res.json();
-  if (!Array.isArray(json.data)) {
-    throw new Error(`${contentType}: unexpected payload`);
-  }
-  return json.data;
-}
-
 async function main() {
-  const ATTRS =
-    'id,headline,examId,contentType,redirectUrl,startDate,endDate,createdAt';
+  const health = [];
+  const rows = [];
 
-  const [results, notices] = await Promise.all([
-    fetchRecords('results', ATTRS),
-    fetchRecords('notice-boards', ATTRS),
-  ]);
+  for (const source of SOURCES) {
+    const started = Date.now();
+    try {
+      const produced = await source.run({ limit });
+      const elapsed = Date.now() - started;
 
-  console.log(`results        ${results.length}`);
-  console.log(`notice-boards  ${notices.length}`);
+      let kept = 0;
+      for (const row of produced) {
+        const problem = validate(row);
+        if (problem) {
+          console.log(`  drop (${source.id}): ${problem} — ${row?.exam_name?.slice(0, 50)}`);
+          continue;
+        }
+        rows.push(row);
+        kept += 1;
+      }
 
-  const updates = [];
-  const seen = new Set();
-
-  for (const row of [...results, ...notices]) {
-    const headline = clean(row.headline);
-    if (!headline) continue;
-
-    const status = statusOf(headline);
-    if (!status) {
-      console.log(`skip (not student-facing): ${headline.slice(0, 60)}`);
-      continue;
+      health.push({
+        id: source.id,
+        label: source.label,
+        category: source.category,
+        homepage: source.homepage,
+        status: kept > 0 ? 'ok' : 'empty',
+        rows: kept,
+        checked_at: new Date().toISOString(),
+        elapsed_ms: elapsed,
+        ...(source.note ? { note: source.note } : {}),
+      });
+      console.log(
+        `${source.id.padEnd(9)} ${String(kept).padStart(3)} rows  ${elapsed} ms` +
+          (source.note ? `  (${source.note})` : ''),
+      );
+    } catch (e) {
+      // An outage is a fact about the world, not a reason to invent rows.
+      health.push({
+        id: source.id,
+        label: source.label,
+        category: source.category,
+        homepage: source.homepage,
+        status: 'unavailable',
+        rows: 0,
+        checked_at: new Date().toISOString(),
+        elapsed_ms: Date.now() - started,
+        reason: String(e?.message ?? e).slice(0, 160),
+      });
+      console.log(`${source.id.padEnd(9)}   -  unavailable: ${String(e?.message ?? e).slice(0, 90)}`);
     }
-
-    // Deduplicate twice:
-    //   1. by record id, because the same notice appears under both content types
-    //   2. by headline + day, because SSC publishes one notice per force
-    //      ("Constable GD in CAPFs / SSF / Assam Rifles") with identical text, and
-    //      four identical radar rows is noise, not information.
-    const byId = `${row.id}|${status}`;
-    const byText = `${slug(headline)}|${String(row.createdAt).slice(0, 10)}`;
-    if (seen.has(byId) || seen.has(byText)) continue;
-    seen.add(byId);
-    seen.add(byText);
-
-    const attachment = (row.attachments ?? [])[0] ?? null;
-    const pdfUrl = attachmentUrl(attachment?.path);
-
-    // Stable, deterministic id so the app can key rows without collisions.
-    const examId = slug(`${row.examId || 'ssc'}-${row.id}`);
-
-    updates.push({
-      exam_id: examId,
-      category: categoryOf(headline),
-      // The headline IS the exam name in SSC's data; truncating it would lose the
-      // stage ("Paper-II", "PET/PST") that makes the row meaningful.
-      exam_name: headline.length > 96 ? `${headline.slice(0, 93)}…` : headline,
-      context: contextLine(headline, attachment),
-      status,
-      published_at: new Date(row.createdAt).toISOString(),
-      // Link-only: the official PDF stays on ssc.gov.in.
-      source: 'ssc.gov.in',
-      official_pdf: pdfUrl,
-      ...(attachment
-        ? { pdf_size: `${(attachment.size / 1024 / 1024).toFixed(1)} MB` }
-        : {}),
-    });
   }
 
-  updates.sort((a, b) => Date.parse(b.published_at) - Date.parse(a.published_at));
+  // Deduplicate by exam id, keeping the first (adapters emit newest first).
+  const byId = new Map();
+  for (const row of rows) if (!byId.has(row.exam_id)) byId.set(row.exam_id, row);
+
+  let previous = null;
+  try {
+    previous = JSON.parse(readFileSync(out, 'utf8'));
+  } catch {
+    previous = null;
+  }
+
+  // Cap per source before the global sort, so a quiet week on one board cannot
+  // push another board's news out entirely.
+  const counts = new Map();
+  const capped = [...byId.values()]
+    .sort((a, b) => Date.parse(b.published_at) - Date.parse(a.published_at))
+    .filter((row) => {
+      const key = row.source_id ?? row.category;
+      const n = counts.get(key) ?? 0;
+      if (n >= MAX_PER_SOURCE) return false;
+      counts.set(key, n + 1);
+      return true;
+    });
+
+  const carried = carryIndexFields(capped, previous);
+
+  /**
+   * Keep searchable results even after the notice scrolls off the board.
+   *
+   * The radar shows what is *new*; the result checker answers what is *true*. A
+   * shortlist published six weeks ago still needs to answer "am I in it", so a
+   * row with a live index is retained past the recency window. Without this, a
+   * student who saved an admit card would find the checker empty a month later,
+   * even though the hashed index is still on the CDN.
+   */
+  const RETAIN_MS = 150 * 24 * 60 * 60 * 1000;
+  const present = new Set(carried.map((r) => r.exam_id));
+  for (const row of previous?.updates ?? []) {
+    if (!row?.index_available || present.has(row.exam_id)) continue;
+    if (Date.now() - Date.parse(row.published_at) > RETAIN_MS) continue;
+    if (!row.official_pdf) continue;
+    carried.push(row);
+    present.add(row.exam_id);
+  }
+
+  const updates = carried
+    .sort((a, b) => Date.parse(b.published_at) - Date.parse(a.published_at))
+    .slice(0, MAX_UPDATES);
 
   const doc = {
-    revision: 1,
-    source: 'ssc.gov.in (official JSON API)',
+    revision: (previous?.revision ?? 1) + 1,
+    source: 'official commission websites',
     fetched_at: new Date().toISOString(),
-    updates: updates.slice(0, 20),
+    // Machine-readable coverage: which bodies answered, and which did not. The
+    // app ignores this today, but publishing it means a silent loss of a
+    // category is visible in the artefact rather than only in CI logs.
+    sources: health,
+    updates,
   };
 
-  console.log(`kept           ${doc.updates.length}`);
-  for (const u of doc.updates.slice(0, 6)) {
-    console.log(`  ${u.published_at.slice(0, 10)}  ${u.status.padEnd(16)} ${u.exam_name.slice(0, 56)}`);
+  const byCategory = {};
+  for (const u of updates) byCategory[u.category] = (byCategory[u.category] ?? 0) + 1;
+  console.log(`\nkept           ${updates.length}`);
+  console.log('categories     ' + JSON.stringify(byCategory));
+  for (const u of updates.slice(0, 8)) {
+    console.log(
+      `  ${u.published_at.slice(0, 10)}  ${u.category.padEnd(9)} ${u.status.padEnd(16)} ${u.exam_name.slice(0, 52)}`,
+    );
   }
 
   if (dryRun) {
     console.log('dry-run        not written');
-    return;
+    return 0;
+  }
+
+  // A refresh that loses every source must not replace a good document with an
+  // empty one — every client would lose the radar until the next run.
+  if (updates.length === 0 && (previous?.updates?.length ?? 0) > 0) {
+    console.error('refusing to publish an empty feed over a populated one');
+    return 2;
   }
 
   writeFileSync(out, JSON.stringify(doc, null, 2));
   console.log(`wrote          ${out}`);
+  return 0;
 }
 
-function slug(s) {
-  return s.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '').slice(0, 48);
-}
-
-main().catch((e) => {
-  console.error('FAILED:', e.message);
-  process.exit(1);
-});
+main()
+  .then((code) => process.exit(code ?? 0))
+  .catch((e) => {
+    console.error('FAILED:', e.message);
+    process.exit(1);
+  });

@@ -34,6 +34,20 @@ class ShareCardData {
   final Map<String, String>? cutoffs;
 
   final String? pdfSizeLabel;
+
+  /// Used when the user turns off "Show my roll number": the card keeps the
+  /// result, the subline and the link, and drops the personal number.
+  ShareCardData copyWith({String? rollNumber, bool? selected}) => ShareCardData(
+    examName: examName,
+    headline: headline,
+    subline: subline,
+    dateLine: dateLine,
+    rollNumber: rollNumber ?? this.rollNumber,
+    selected: selected ?? this.selected,
+    shareUrl: shareUrl,
+    cutoffs: cutoffs,
+    pdfSizeLabel: pdfSizeLabel,
+  );
 }
 
 /// The shareable infographic.
@@ -292,6 +306,10 @@ class _Headline extends StatelessWidget {
         Text(lead, maxLines: 2, style: base),
         if (accent.isNotEmpty)
           Stack(
+            // A tight line height (`height: 0.96`) paints glyph bottoms just
+            // outside the text's line box. `Stack` clips by default, which sliced
+            // the bottom off the accent word — visible on the exported PNG.
+            clipBehavior: Clip.none,
             children: [
               Positioned(
                 left: 0,
@@ -305,7 +323,11 @@ class _Headline extends StatelessWidget {
                   ),
                 ),
               ),
-              Text(accent, maxLines: 1, style: base),
+              // `maxLines: 1` with a tight `height` clips glyph descenders — the
+              // exported PNG showed "LIVE" with its bottom sliced off. The card
+              // is a fixed-width capture, so letting the line size itself is
+              // both simpler and correct.
+              Text(accent, style: base),
             ],
           ),
       ],
@@ -405,7 +427,11 @@ class _RollBlock extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  data.selected ? 'YOUR ROLL · SELECTED' : 'YOUR ROLL',
+                  // "SELECTED" is only true of a final merit list. Most of what
+                  // this app indexes is a shortlist for the next stage (UPSC's
+                  // "qualified for the Personality Test"), so the card says what
+                  // is actually established: the roll is in the published list.
+                  data.selected ? 'YOUR ROLL · IN THE LIST' : 'YOUR ROLL',
                   style: const TextStyle(
                     fontFamily: EvFont.mono,
                     fontFamilyFallback: EvFont.fallbackMono,

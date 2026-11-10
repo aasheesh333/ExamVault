@@ -32,6 +32,8 @@ would tell every candidate they were not selected.
 from __future__ import annotations
 
 import argparse
+
+import hashed_index as hashed
 import gzip
 import io
 import json
@@ -95,15 +97,32 @@ def extract_rolls(text: str, pattern: re.Pattern[str]) -> list[str]:
     return sorted(found)
 
 
-def build_index(rolls: list[str], with_ranks: bool) -> bytes:
-    payload: Iterable
-    if with_ranks:
-        payload = [{"r": r, "rank": i + 1} for i, r in enumerate(rolls)]
-    else:
-        payload = rolls
+def build_index(
+    rolls: list[str],
+    with_ranks: bool,
+    salt: str | None = None,
+) -> tuple[bytes, str]:
+    """Returns (gzip bytes, mode).
 
-    raw = json.dumps(payload, separators=(",", ":")).encode()
-    return gzip.compress(raw, compresslevel=9)
+    Default output is the **hashed** v2 object: it contains no roll numbers, only
+    salted SHA-256 digests, so publishing it does not reproduce the official
+    candidate list. `--plaintext` exists solely for local fixtures and tests.
+    """
+    if with_ranks:
+        # Plaintext with ranks — never published. Kept for offline fixtures so the
+        # merit-rank UI path stays exercised.
+        payload = [{"r": r, "rank": i + 1} for i, r in enumerate(rolls)]
+        return (
+            gzip.compress(
+                json.dumps(payload, separators=(",", ":")).encode(),
+                9,
+                mtime=0,
+            ),
+            "plaintext",
+        )
+
+    body, _meta = hashed.build(rolls, salt=salt)
+    return body, hashed.MODE
 
 
 def main() -> int:
@@ -115,6 +134,14 @@ def main() -> int:
         "--pattern",
         default=r"\b\d{9,14}\b",
         help="regex a roll number must fully match",
+    )
+    ap.add_argument(
+        "--plaintext",
+        action="store_true",
+        help=(
+            "emit the raw roll list instead of one-way hashes. Only for local "
+            "fixtures — a plaintext index reproduces the official candidate list."
+        ),
     )
     ap.add_argument("--no-ranks", action="store_true", help="omit merit ranks")
     ap.add_argument(
@@ -172,7 +199,13 @@ def main() -> int:
 
     print(f"sample    {', '.join(rolls[:4])} …")
 
-    body = build_index(rolls, with_ranks=not args.no_ranks)
+    # Privacy-preserving by default: hashed unless explicitly asked otherwise.
+    body, mode = build_index(
+        rolls,
+        with_ranks=args.plaintext and not args.no_ranks,
+        salt=hashed.exam_salt(args.exam),
+    )
+    print(f"mode      {mode}")
     print(f"gzip      {len(body) / 1024:.1f} KB")
 
     if args.dry_run:

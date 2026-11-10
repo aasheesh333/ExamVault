@@ -37,12 +37,23 @@ abstract final class AppConfig {
   /// The single edge document the radar renders. One object, one cache key.
   static const liveFeedPath = '/v1/live_feed_v1.json';
 
-  /// gzip-compressed, lexicographically sorted JSON array of roll numbers.
-  /// ~150 KB on the wire for a 1M-row result set.
-  static String rollIndexPath(String examId) =>
-      '/v1/rolls/${examId}_rolls.json.gz';
+  /// Path to an exam's roll index.
+  ///
+  /// The name carries a content hash supplied by the publisher (`index_version`
+  /// on the feed row). That is what makes the edge's `immutable` cache directive
+  /// correct: new content arrives at a new URL, so a stale object can never be
+  /// served for 24 hours after a corrected list is published.
+  ///
+  /// Omitting [version] falls back to the unversioned path, which is only used
+  /// for locally generated fixtures.
+  static String rollIndexPath(String examId, {String? version}) =>
+      version == null
+      ? '/v1/rolls/${examId}_rolls.json.gz'
+      : '/v1/rolls/${examId}_${version}_rolls.json.gz';
 
-  /// Human-facing official PDF (mirrored, so the source site never gets hit).
+  /// Legacy mirror path. The app now links to the official PDF on the
+  /// commission's own site (see `LiveUpdate.officialPdf`), so this is only used
+  /// by fixtures.
   static String resultPdfPath(String examId) => '/v1/pdf/${examId}_result.pdf';
 
   /// The R2 object is stored as `application/gzip` with **no** `Content-Encoding`

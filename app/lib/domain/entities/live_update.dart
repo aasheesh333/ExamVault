@@ -36,6 +36,10 @@ class LiveUpdate {
     this.pdfSizeLabel,
     this.mirrorLatencyMs,
     this.expiresAt,
+    this.officialPdf,
+    this.officialPage,
+    this.indexVersion,
+    this.rollCount,
   });
 
   final String examId;
@@ -58,6 +62,34 @@ class LiveUpdate {
   /// empty one: the student taps through, finds nothing new, and stops trusting
   /// the app. Rows past this instant are dropped client-side.
   final DateTime? expiresAt;
+
+  /// Direct link to the PDF on the commission's own server.
+  ///
+  /// The app never re-hosts this document — it opens the official URL. That keeps
+  /// the app out of the business of redistributing government publications, and
+  /// means a corrected PDF upstream is immediately the one users see.
+  final String? officialPdf;
+
+  /// The commission's own notice page, for rows whose announcement is HTML
+  /// rather than a document (UPSC publishes both).
+  ///
+  /// Only ever a link. Nothing behind this URL is copied into the app.
+  final String? officialPage;
+
+  /// The best link to open for this update: the official document when one
+  /// exists, otherwise the official notice page. `null` when the row carries
+  /// neither — which the feed validator rejects, so in practice it is never null.
+  String? get officialUrl => officialPdf ?? officialPage;
+
+  /// Content hash of the published roll index, when one exists. Part of the CDN
+  /// path, which is what lets the edge cache it as `immutable` safely.
+  final String? indexVersion;
+
+  /// Number of candidates in that index (already public information).
+  final int? rollCount;
+
+  /// True when this row has a searchable roll index behind it.
+  bool get hasIndex => indexVersion != null;
 
   bool isNewerThan(DateTime when) => publishedAt.isAfter(when);
 

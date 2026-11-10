@@ -6,6 +6,7 @@ import '../../core/theme/theme_tokens.dart';
 import '../../core/utils/clipboard_service.dart';
 import '../../domain/entities/admit_card.dart';
 import '../../domain/entities/live_update.dart';
+import '../result_checker/engine/roll_index_engine.dart';
 import '../../providers/app_providers.dart';
 import '../../features/shell/root_shell.dart';
 import '../../features/vault/vault_form_sheet.dart';
@@ -31,7 +32,13 @@ class _WhatsappShareCardScreenState
   final _boundaryKey = GlobalKey();
   final _captionController = TextEditingController();
 
-  bool _attachPdf = true;
+  /// Whether the exported card carries the student's roll number.
+  ///
+  /// This replaced an "Attach PDF to message" switch that (a) was never read and
+  /// (b) claimed to send a PDF the app does not host. Sharing a screenshot into a
+  /// 200-person study group with your roll number on it is the default people
+  /// expect, but they deserve a switch — so this one actually does something.
+  bool _showRoll = true;
   bool _sharing = false;
 
   /// True once the user edits the caption; auto-sync stops from then on.
@@ -46,7 +53,11 @@ class _WhatsappShareCardScreenState
   /// Null when there is genuinely nothing to share — no radar row and no saved
   /// card. The screen then shows an explainer instead of a card built on
   /// placeholders like "SSC CGL Tier-1 2026" + "Roll —".
-  ShareCardData? _buildCard(LiveUpdate? update, AdmitCard? card) {
+  ShareCardData? _buildCard(
+    LiveUpdate? update,
+    AdmitCard? card,
+    RollLookupResult? lookup,
+  ) {
     final examName = update?.examName ?? card?.examName;
     final examId = update?.examId ?? card?.examId;
     if (examName == null || examId == null) return null;
@@ -54,16 +65,25 @@ class _WhatsappShareCardScreenState
     final isResult =
         (update?.status ?? UpdateStatus.resultOut) == UpdateStatus.resultOut;
 
+    // A student who checked straight from the radar has no saved card, but they
+    // do have a verified roll number and a reason to celebrate. Before this,
+    // "Share the news" led to a card with no roll on it.
+    final lookedUp = lookup != null && lookup.isFound ? lookup : null;
+    final roll = card?.rollNumber ?? lookedUp?.rollNumber ?? '';
+    final verified = card?.rollNumberVerified ?? lookedUp != null;
+
     return ShareCardData(
       examName: examName,
       headline: isResult ? 'RESULT IS LIVE' : 'ADMIT CARD IS LIVE',
+      // Never promise content the card does not carry: there are no cut-offs in
+      // this feed, and the official document is a link, not an attachment.
       subline: isResult
-          ? 'Cut-off, PDF & official link inside'
-          : 'Download your admit card before the server queue',
+          ? 'Official link & instant roll-number check'
+          : 'Admit card link & exam-day details',
       dateLine: _shortDate(DateTime.now()),
       // Empty when we do not have the user's roll — never a "—" placeholder.
-      rollNumber: card?.rollNumber ?? '',
-      selected: card?.rollNumberVerified ?? false,
+      rollNumber: roll,
+      selected: verified,
       shareUrl: ref.read(resultIndexRepositoryProvider).shareUrl(examId),
       // Cut-offs are only shown when a publisher actually released them.
       cutoffs: null,
@@ -92,10 +112,10 @@ class _WhatsappShareCardScreenState
 
   String _defaultCaption(ShareCardData data) {
     final lines = <String>[
-      '🚨 ${data.examName.toUpperCase()} ${data.headline} — cut-off & direct '
-          'check inside.',
+      '🚨 ${data.examName.toUpperCase()} ${data.headline} — official link & '
+          'instant roll-number check.',
       if (data.rollNumber.isNotEmpty)
-        'Roll ${data.rollNumber}${data.selected ? ' · found in the merit list' : ''}',
+        'Roll ${data.rollNumber}${data.selected ? ' · in the published list' : ''}',
       if (data.shareUrl != null) data.shareUrl!,
     ];
     return lines.join('\n');
@@ -165,7 +185,12 @@ class _WhatsappShareCardScreenState
     final update = ref.watch(resultExamIdProvider);
     final cards = ref.watch(admitCardsProvider).value ?? const <AdmitCard>[];
     final card = cards.isEmpty ? null : cards.first;
-    final data = _buildCard(update, card);
+    final lookup = ref.watch(resultCheckerProvider).result;
+    final built = _buildCard(update, card, lookup);
+    // Withholding the roll must also stop the caption from repeating it.
+    final data = (built == null || _showRoll)
+        ? built
+        : built.copyWith(rollNumber: '', selected: false);
 
     // Keep the caption in sync with the data, unless the user edited it.
     _syncCaption(data);
@@ -232,10 +257,12 @@ class _WhatsappShareCardScreenState
                     },
                   ),
                   const SizedBox(height: 10),
-                  _AttachRow(
-                    value: _attachPdf,
-                    onChanged: (v) => setState(() => _attachPdf = v),
-                    data: data,
+                  _RollVisibilityRow(
+                    value: _showRoll,
+                    onChanged: (v) => setState(() => _showRoll = v),
+                    hasRoll: built?.rollNumber.isNotEmpty ?? false,
+                    hidden:
+                        !_showRoll && (built?.rollNumber.isNotEmpty ?? false),
                   ),
                   const SizedBox(height: 14),
                   EvPrimaryButton(
@@ -502,16 +529,24 @@ class _CaptionEditorState extends State<_CaptionEditor> {
   }
 }
 
-class _AttachRow extends StatelessWidget {
-  const _AttachRow({
+class _RollVisibilityRow extends StatelessWidget {
+  const _RollVisibilityRow({
     required this.value,
     required this.onChanged,
-    required this.data,
+    required this.hasRoll,
+    required this.hidden,
   });
 
   final bool value;
   final ValueChanged<bool> onChanged;
-  final ShareCardData data;
+
+  /// False when there is no roll to show, so the switch is not offered as if it
+  /// controlled something.
+  final bool hasRoll;
+
+  /// True when a roll exists but the user turned it off. Distinct from "no roll
+  /// checked yet", which is what the old copy implied for both cases.
+  final bool hidden;
 
   @override
   Widget build(BuildContext context) {
@@ -526,22 +561,24 @@ class _AttachRow extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Attach PDF to message',
+                  'Show my roll number',
                   style: context.type.tileTitle.copyWith(fontSize: 11.5),
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  value
-                      ? 'PDF + card image sent together'
-                      : 'Card image and link only',
+                  !hasRoll
+                      ? 'No roll number checked yet'
+                      : hidden
+                      ? 'Hidden — the card still shows the result'
+                      : 'Visible on the card you share',
                   style: context.type.bodyMuted.copyWith(fontSize: 9.5),
                 ),
               ],
             ),
           ),
           Switch.adaptive(
-            value: value,
-            onChanged: onChanged,
+            value: hasRoll && value,
+            onChanged: hasRoll ? onChanged : null,
             activeTrackColor: p.success,
           ),
         ],

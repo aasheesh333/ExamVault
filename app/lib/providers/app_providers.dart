@@ -259,12 +259,13 @@ class ResultCheckerNotifier extends Notifier<ResultCheckState> {
   Future<RollLookupResult?> check({
     required String examId,
     required String rollNumber,
+    String? indexVersion,
   }) async {
     state = const ResultCheckState(phase: ResultPhase.downloading);
 
     try {
       final repo = ref.read(resultIndexRepositoryProvider);
-      final bundle = await repo.load(examId: examId);
+      final bundle = await repo.load(examId: examId, version: indexVersion);
 
       // No index means no answer. Never synthesise one — a wrong "selected"
       // is worse than an honest "not published yet".

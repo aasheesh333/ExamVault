@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:meta/meta.dart';
 
 import 'gunzip.dart';
+import 'hashed_index.dart';
 
 /// Outcome of one roll-number lookup.
 enum RollLookupState {
@@ -34,6 +35,7 @@ class RollLookupResult {
     required this.elapsedMicros,
     this.meritRank,
     this.errorMessage,
+    this.privacyPreserving = false,
   });
 
   const RollLookupResult.invalid(String roll)
@@ -42,6 +44,7 @@ class RollLookupResult {
       totalRolls = 0,
       elapsedMicros = 0,
       meritRank = null,
+      privacyPreserving = false,
       errorMessage = 'Enter a roll number with at least 4 characters.';
 
   const RollLookupResult.unavailable(String roll, String reason)
@@ -50,6 +53,7 @@ class RollLookupResult {
       totalRolls = 0,
       elapsedMicros = 0,
       meritRank = null,
+      privacyPreserving = false,
       errorMessage = reason;
 
   final RollLookupState state;
@@ -61,6 +65,11 @@ class RollLookupResult {
   final int? meritRank;
 
   final String? errorMessage;
+
+  /// True when the answer came from a one-way hashed index — i.e. the device
+  /// never held the candidate list. Surfaced in the UI so the guarantee is
+  /// visible rather than a claim in a README.
+  final bool privacyPreserving;
 
   bool get isFound => state == RollLookupState.found;
   bool get hasRank => meritRank != null && meritRank! > 0;
@@ -79,6 +88,7 @@ class RollIndex {
     required this.ranks,
     required this.total,
     required this.sorted,
+    this.hashed,
   });
 
   /// Lexicographically sorted roll numbers.
@@ -92,6 +102,13 @@ class RollIndex {
   /// False when upstream shipped an unsorted array — we then fall back to a
   /// hash set so correctness never depends on a producer's sort contract.
   final bool sorted;
+
+  /// Set when the published object is the v2 hashed format. In that mode [rolls]
+  /// is empty by design: the device never receives the candidate list at all.
+  final HashedRollIndex? hashed;
+
+  /// True when no roll number reached this device in recoverable form.
+  bool get isPrivacyPreserving => hashed != null;
 
   static const empty = RollIndex._(
     rolls: [],
@@ -111,8 +128,24 @@ class RollIndex {
     final raw = transportEncoded ? bytes : gunzipBytes(bytes);
     final decoded = jsonDecode(utf8.decode(raw, allowMalformed: true));
 
+    // v2: one-way hashed index. This is the format that is actually published —
+    // it carries no roll numbers, only salted SHA-256 digests, so the object
+    // cannot be used to reconstruct the official candidate list.
+    if (decoded is Map && decoded['v'] == 2) {
+      final hashed = HashedRollIndex.decode(decoded);
+      return RollIndex._(
+        rolls: const [],
+        ranks: const [],
+        total: hashed.total,
+        sorted: hashed.sorted,
+        hashed: hashed,
+      );
+    }
+
     if (decoded is! List) {
-      throw const FormatException('Roll index must be a JSON array.');
+      throw const FormatException(
+        'Roll index must be a JSON array (v1) or a v2 hashed object.',
+      );
     }
 
     final rolls = <String>[];
@@ -168,6 +201,13 @@ class RollIndex {
 
   int? rankAt(int index) =>
       (index >= 0 && index < ranks.length) ? ranks[index] : null;
+
+  /// Whether [rollNumber] is in this index. Works for both formats.
+  bool contains(String rollNumber) {
+    final h = hashed;
+    if (h != null) return h.contains(rollNumber);
+    return indexOf(rollNumber) >= 0;
+  }
 }
 
 /// Classic half-open binary search over a lexicographically sorted list.
@@ -305,22 +345,28 @@ abstract final class RollIndexEngine {
     String normalised,
     Stopwatch watch,
   ) {
-    final at = index.indexOf(normalised);
+    final found = index.contains(normalised);
     final elapsed = watch.elapsedMicroseconds;
-    if (at < 0) {
+    if (!found) {
       return RollLookupResult(
         state: RollLookupState.notFound,
         rollNumber: normalised,
         totalRolls: index.total,
         elapsedMicros: elapsed,
+        privacyPreserving: index.isPrivacyPreserving,
       );
     }
+    // Ranks are only exposed by the plaintext format. Publishing a rank would leak
+    // position information from the official list, which defeats the point of the
+    // hashed index, so the published format omits them.
+    final at = index.isPrivacyPreserving ? -1 : index.indexOf(normalised);
     return RollLookupResult(
       state: RollLookupState.found,
       rollNumber: normalised,
       totalRolls: index.total,
       elapsedMicros: elapsed,
-      meritRank: index.rankAt(at),
+      meritRank: at >= 0 ? index.rankAt(at) : null,
+      privacyPreserving: index.isPrivacyPreserving,
     );
   }
 }

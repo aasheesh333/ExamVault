@@ -119,7 +119,13 @@ class AdmitCardRepository {
   Future<AdmitCard?> markVerified(String id) {
     return _enqueue(() async {
       final at = _cache.indexWhere((c) => c.id == id);
-      if (at < 0 || _cache[at].rollNumberVerified) return _cache[at];
+      // Not found is normal, not an error: a student checking a result straight
+      // from the radar has no saved card, and the caller passes an empty id.
+      // This used to fall through to `_cache[-1]`, throwing a RangeError that
+      // aborted the caller before it could show the result — so on a fresh
+      // install a correct "you are selected" produced no dialog at all.
+      if (at < 0) return null;
+      if (_cache[at].rollNumberVerified) return _cache[at];
 
       final updated = _cache[at].copyWith(
         rollNumberVerified: true,

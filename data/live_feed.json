@@ -1,8 +1,85 @@
 {
-  "revision": 1,
-  "source": "ssc.gov.in (official JSON API)",
-  "fetched_at": "2026-11-10T05:26:33.430Z",
+  "revision": 3,
+  "source": "official commission websites",
+  "fetched_at": "2026-11-10T06:48:33.715Z",
+  "sources": [
+    {
+      "id": "ssc",
+      "label": "SSC",
+      "category": "ssc",
+      "homepage": "https://ssc.gov.in/",
+      "status": "ok",
+      "rows": 17,
+      "checked_at": "2026-11-10T06:48:32.319Z",
+      "elapsed_ms": 235
+    },
+    {
+      "id": "upsc",
+      "label": "UPSC",
+      "category": "upsc",
+      "homepage": "https://www.upsc.gov.in",
+      "status": "ok",
+      "rows": 12,
+      "checked_at": "2026-11-10T06:48:32.670Z",
+      "elapsed_ms": 351
+    },
+    {
+      "id": "ibps",
+      "label": "IBPS",
+      "category": "banking",
+      "homepage": "https://www.ibps.in",
+      "status": "ok",
+      "rows": 5,
+      "checked_at": "2026-11-10T06:48:33.115Z",
+      "elapsed_ms": 445,
+      "note": "TLS chain completed with a pinned GlobalSign intermediate"
+    },
+    {
+      "id": "tnpsc",
+      "label": "TNPSC",
+      "category": "state_psc",
+      "homepage": "https://www.tnpsc.gov.in",
+      "status": "ok",
+      "rows": 10,
+      "checked_at": "2026-11-10T06:48:33.346Z",
+      "elapsed_ms": 231
+    },
+    {
+      "id": "railways",
+      "label": "Railways (RRB)",
+      "category": "railways",
+      "homepage": "https://rrbchennai.gov.in",
+      "status": "ok",
+      "rows": 25,
+      "checked_at": "2026-11-10T06:48:33.713Z",
+      "elapsed_ms": 367
+    }
+  ],
   "updates": [
+    {
+      "exam_id": "rrb_cen_09_2026_notification_2026_11_09",
+      "category": "railways",
+      "exam_name": "RRB CEN 09/2026 \u00b7 Notification",
+      "context": "Railway Recruitment Board \u00b7 9 Nov 2026",
+      "status": "awaited",
+      "published_at": "2026-11-09T12:00:00.000Z",
+      "source": "rrbchennai.gov.in",
+      "source_id": "railways",
+      "official_pdf": null,
+      "official_page": "https://rrbchennai.gov.in/getdata?loc=chennai&cenum=09/2026&category=Notification"
+    },
+    {
+      "exam_id": "rrb_cen_01_2025_e_call_letters_2026_11_08",
+      "category": "railways",
+      "exam_name": "RRB CEN 01/2025 \u00b7 E-Call Letters",
+      "context": "Railway Recruitment Board \u00b7 8 Nov 2026",
+      "status": "admit_card_live",
+      "published_at": "2026-11-08T12:00:00.000Z",
+      "source": "rrbchennai.gov.in",
+      "source_id": "railways",
+      "official_pdf": null,
+      "official_page": "https://rrbchennai.gov.in/getdata?loc=chennai&cenum=01/2025&category=E-Call%20Letters"
+    },
     {
       "exam_id": "nri55c0igljht26_1997jbnok58mxwixyntdm",
       "category": "ssc",
@@ -11,8 +88,139 @@
       "status": "result_out",
       "published_at": "2026-11-07T15:35:11.515Z",
       "source": "ssc.gov.in",
+      "source_id": "ssc",
       "official_pdf": "https://ssc.gov.in/api/attachment/uploads/masterData/NoticeBoards/CHT%202025%20FRTA%20notice%2007112026.pdf",
-      "pdf_size": "0.3 MB"
+      "pdf_size": "0.3 MB",
+      "index_attempted_at": "2026-11-10T06:50:27.243154+00:00",
+      "index_skipped": "too few rolls"
+    },
+    {
+      "exam_id": "upsc_whats_new_combined_section_officers_grade_b_ldce_20",
+      "category": "upsc",
+      "exam_name": "Final Result: Combined Section Officers' (Grade 'B') LDCE-2025 and Combined Stenographers' (G\u2026",
+      "context": "Official PDF \u00b7 upsc.gov.in",
+      "status": "result_out",
+      "published_at": "2026-11-06T12:00:00.000Z",
+      "source": "upsc.gov.in",
+      "source_id": "upsc",
+      "official_pdf": "https://www.upsc.gov.in/sites/default/files/FR-CombStenoGrB-I-LDCE-2020-Engl-06112026.pdf",
+      "official_page": null,
+      "index_available": true,
+      "index_version": "e1da0b22d115",
+      "roll_count": 30
+    },
+    {
+      "exam_id": "upsc_whats_new_civil_services_main_examination_2026_writ",
+      "category": "upsc",
+      "exam_name": "Written Result (with name): Civil Services (Main) Examination, 2026",
+      "context": "Official PDF \u00b7 upsc.gov.in",
+      "status": "result_out",
+      "published_at": "2026-11-06T12:00:00.000Z",
+      "source": "upsc.gov.in",
+      "source_id": "upsc",
+      "official_pdf": "https://www.upsc.gov.in/sites/default/files/WR-CSM-2026-Engl-NameList-05112026.pdf",
+      "official_page": null,
+      "index_available": true,
+      "index_version": "496699f59fa7",
+      "roll_count": 2526
+    },
+    {
+      "exam_id": "upsc_whats_new_national_defence_academy_and_naval_academ",
+      "category": "upsc",
+      "exam_name": "Final Result: National Defence Academy and Naval Academy Examination (I), 2026",
+      "context": "Official PDF \u00b7 upsc.gov.in",
+      "status": "result_out",
+      "published_at": "2026-11-06T12:00:00.000Z",
+      "source": "upsc.gov.in",
+      "source_id": "upsc",
+      "official_pdf": "https://www.upsc.gov.in/sites/default/files/FR-NDANA-I-2026-Engl-05112026.pdf",
+      "official_page": null,
+      "index_available": true,
+      "index_version": "2519ef9780b0",
+      "roll_count": 617
+    },
+    {
+      "exam_id": "upsc_whats_new_combined_geo_scientist_main_examination_2",
+      "category": "upsc",
+      "exam_name": "Marks of Recommended Candidates: Combined Geo-Scientist (Main) Examination, 2026",
+      "context": "Official PDF \u00b7 upsc.gov.in",
+      "status": "result_out",
+      "published_at": "2026-11-06T12:00:00.000Z",
+      "source": "upsc.gov.in",
+      "source_id": "upsc",
+      "official_pdf": "https://www.upsc.gov.in/sites/default/files/MksRcdCndtsCGeoSnstM-2026-Engl-30102026.pdf",
+      "official_page": null,
+      "index_available": true,
+      "index_version": "9fc461201151",
+      "roll_count": 66
+    },
+    {
+      "exam_id": "upsc_whats_new_combined_defence_services_examination_ii_",
+      "category": "upsc",
+      "exam_name": "Written Result (with name): Combined Defence Services Examination (II), 2026",
+      "context": "Official PDF \u00b7 upsc.gov.in",
+      "status": "result_out",
+      "published_at": "2026-11-06T12:00:00.000Z",
+      "source": "upsc.gov.in",
+      "source_id": "upsc",
+      "official_pdf": "https://www.upsc.gov.in/sites/default/files/WR-NameList-CDSE-II-2026-Engl-261026.pdf",
+      "official_page": null,
+      "index_available": true,
+      "index_version": "ec7dd2aa1ba9",
+      "roll_count": 8956
+    },
+    {
+      "exam_id": "upsc_whats_new_combined_defence_services_examination_i_2",
+      "category": "upsc",
+      "exam_name": "Final Result: Combined Defence Services Examination (I), 2026",
+      "context": "Official PDF \u00b7 upsc.gov.in",
+      "status": "result_out",
+      "published_at": "2026-11-06T12:00:00.000Z",
+      "source": "upsc.gov.in",
+      "source_id": "upsc",
+      "official_pdf": "https://www.upsc.gov.in/sites/default/files/FR-CDSE-I-2026-Engl-021126.pdf",
+      "official_page": null,
+      "index_available": true,
+      "index_version": "ebf0b48ddd52",
+      "roll_count": 181
+    },
+    {
+      "exam_id": "upsc_whats_new_central_armed_police_forces_acs_examinati",
+      "category": "upsc",
+      "exam_name": "Marks of Recommended Candidates: Central Armed Police Forces (ACs) Examination, 2024",
+      "context": "Official PDF \u00b7 upsc.gov.in",
+      "status": "result_out",
+      "published_at": "2026-11-06T12:00:00.000Z",
+      "source": "upsc.gov.in",
+      "source_id": "upsc",
+      "official_pdf": "https://www.upsc.gov.in/sites/default/files/MksRcdCndt-CAPF-2024-Engl-131026.pdf",
+      "official_page": null,
+      "index_attempted_at": "2026-11-10T06:48:56.131358+00:00",
+      "index_skipped": "too few rolls"
+    },
+    {
+      "exam_id": "upsc_whats_new_combined_medical_services_examination_202",
+      "category": "upsc",
+      "exam_name": "Interview Schedule: Combined Medical Services Examination, 2026",
+      "context": "Official PDF \u00b7 upsc.gov.in",
+      "status": "awaited",
+      "published_at": "2026-11-06T12:00:00.000Z",
+      "source": "upsc.gov.in",
+      "source_id": "upsc",
+      "official_pdf": "https://www.upsc.gov.in/sites/default/files/Intv-CMSE-2026-Engl-250926.pdf",
+      "official_page": null
+    },
+    {
+      "exam_id": "rrb_cen_06_2026_application_special_notice_2026_11_06",
+      "category": "railways",
+      "exam_name": "RRB CEN 06/2026 \u00b7 Application (Special Notice)",
+      "context": "Railway Recruitment Board \u00b7 6 Nov 2026",
+      "status": "form_closing",
+      "published_at": "2026-11-06T12:00:00.000Z",
+      "source": "rrbchennai.gov.in",
+      "source_id": "railways",
+      "official_pdf": null,
+      "official_page": "https://rrbchennai.gov.in/getdata?loc=chennai&cenum=06/2026&category=Application%20(Special%20Notice)"
     },
     {
       "exam_id": "ssc_46l1ioei1wmu889jygtld",
@@ -22,8 +230,33 @@
       "status": "admit_card_live",
       "published_at": "2026-11-06T11:26:21.544Z",
       "source": "ssc.gov.in",
+      "source_id": "ssc",
       "official_pdf": "https://ssc.gov.in/api/attachment/uploads/masterData/NoticeBoards/Englishnotice_06112026.pdf",
       "pdf_size": "0.2 MB"
+    },
+    {
+      "exam_id": "rrb_cen_09_2026_notification_2026_11_05",
+      "category": "railways",
+      "exam_name": "RRB CEN 09/2026 \u00b7 Notification",
+      "context": "Railway Recruitment Board \u00b7 5 Nov 2026",
+      "status": "awaited",
+      "published_at": "2026-11-05T12:00:00.000Z",
+      "source": "rrbchennai.gov.in",
+      "source_id": "railways",
+      "official_pdf": null,
+      "official_page": "https://rrbchennai.gov.in/getdata?loc=chennai&cenum=09/2026&category=Notification"
+    },
+    {
+      "exam_id": "rrb_cen_09_2026_application_special_notice_2026_11_05",
+      "category": "railways",
+      "exam_name": "RRB CEN 09/2026 \u00b7 Application (Special Notice)",
+      "context": "Railway Recruitment Board \u00b7 5 Nov 2026",
+      "status": "form_closing",
+      "published_at": "2026-11-05T12:00:00.000Z",
+      "source": "rrbchennai.gov.in",
+      "source_id": "railways",
+      "official_pdf": null,
+      "official_page": "https://rrbchennai.gov.in/getdata?loc=chennai&cenum=09/2026&category=Application%20(Special%20Notice)"
     },
     {
       "exam_id": "nri55c0igl5cs45_l5cx3fnox6070s52jhzmz",
@@ -33,8 +266,11 @@
       "status": "result_out",
       "published_at": "2026-11-05T09:30:15.085Z",
       "source": "ssc.gov.in",
+      "source_id": "ssc",
       "official_pdf": "https://ssc.gov.in/api/attachment/uploads/masterData/NoticeBoards/writeup_05112026.pdf",
-      "pdf_size": "0.2 MB"
+      "pdf_size": "0.2 MB",
+      "index_attempted_at": "2026-11-10T06:48:56.948551+00:00",
+      "index_skipped": "writeup"
     },
     {
       "exam_id": "nri55c0igl5cs45_9ic3s53m5w74dn2tzb385",
@@ -44,8 +280,11 @@
       "status": "result_out",
       "published_at": "2026-11-05T09:29:44.016Z",
       "source": "ssc.gov.in",
+      "source_id": "ssc",
       "official_pdf": "https://ssc.gov.in/api/attachment/uploads/masterData/Results/writeup_05112026.pdf",
-      "pdf_size": "0.2 MB"
+      "pdf_size": "0.2 MB",
+      "index_attempted_at": "2026-11-10T06:48:57.892030+00:00",
+      "index_skipped": "writeup"
     },
     {
       "exam_id": "w2sxxhjkshdcgl26_jbr9mitm6dn46ef7h073c",
@@ -55,8 +294,69 @@
       "status": "answer_key",
       "published_at": "2026-11-04T12:15:37.704Z",
       "source": "ssc.gov.in",
+      "source_id": "ssc",
       "official_pdf": "https://ssc.gov.in/api/attachment/uploads/masterData/NoticeBoards/writeup_04112026.pdf",
       "pdf_size": "0.3 MB"
+    },
+    {
+      "exam_id": "ibps_sbi_recruitment_of_specialist_cadre_officers_manager_sec",
+      "category": "banking",
+      "exam_name": "SBI \u2014 Recruitment of Specialist Cadre Officers (Manager (Security) / Deputy Manager (Security))",
+      "context": "Registration closes 25 Nov 2026",
+      "status": "form_closing",
+      "published_at": "2026-11-04T12:00:00.000Z",
+      "source": "ibps.in",
+      "source_id": "ibps",
+      "official_pdf": null,
+      "official_page": "https://ibpsreg.ibps.in/sbirscooct26/"
+    },
+    {
+      "exam_id": "ibps_sbi_recruitment_of_specialist_cadre_officer_assistant_ma",
+      "category": "banking",
+      "exam_name": "SBI \u2014 Recruitment of Specialist Cadre Officer (Assistant Manager -Engineer (Fire))",
+      "context": "Registration closes 25 Nov 2026",
+      "status": "form_closing",
+      "published_at": "2026-11-04T12:00:00.000Z",
+      "source": "ibps.in",
+      "source_id": "ibps",
+      "official_pdf": null,
+      "official_page": "https://ibpsreg.ibps.in/sbiameoct26/"
+    },
+    {
+      "exam_id": "rrb_cen_04_2026_notification_2026_11_04",
+      "category": "railways",
+      "exam_name": "RRB CEN 04/2026 \u00b7 Notification",
+      "context": "Railway Recruitment Board \u00b7 4 Nov 2026",
+      "status": "awaited",
+      "published_at": "2026-11-04T12:00:00.000Z",
+      "source": "rrbchennai.gov.in",
+      "source_id": "railways",
+      "official_pdf": null,
+      "official_page": "https://rrbchennai.gov.in/getdata?loc=chennai&cenum=04/2026&category=Notification"
+    },
+    {
+      "exam_id": "rrb_cen_09_2025_application_special_notice_2026_11_04",
+      "category": "railways",
+      "exam_name": "RRB CEN 09/2025 \u00b7 Application (Special Notice)",
+      "context": "Railway Recruitment Board \u00b7 4 Nov 2026",
+      "status": "form_closing",
+      "published_at": "2026-11-04T12:00:00.000Z",
+      "source": "rrbchennai.gov.in",
+      "source_id": "railways",
+      "official_pdf": null,
+      "official_page": "https://rrbchennai.gov.in/getdata?loc=chennai&cenum=09/2025&category=Application%20(Special%20Notice)"
+    },
+    {
+      "exam_id": "rrb_cen_01_2025_city_intimation_exam_2026_11_04",
+      "category": "railways",
+      "exam_name": "RRB CEN 01/2025 \u00b7 City Intimation (Exam)",
+      "context": "Railway Recruitment Board \u00b7 4 Nov 2026",
+      "status": "admit_card_live",
+      "published_at": "2026-11-04T12:00:00.000Z",
+      "source": "rrbchennai.gov.in",
+      "source_id": "railways",
+      "official_pdf": null,
+      "official_page": "https://rrbchennai.gov.in/getdata?loc=chennai&cenum=01/2025&category=City%20Intimation%20(Exam)"
     },
     {
       "exam_id": "ctgd1yln49o2026_q5qc0zgw8hg6itzr5jwzv",
@@ -66,8 +366,11 @@
       "status": "result_out",
       "published_at": "2026-11-03T11:37:46.120Z",
       "source": "ssc.gov.in",
+      "source_id": "ssc",
       "official_pdf": "https://ssc.gov.in/api/attachment/uploads/masterData/NoticeBoards/writeup_03112026.pdf",
-      "pdf_size": "0.2 MB"
+      "pdf_size": "0.2 MB",
+      "index_attempted_at": "2026-11-10T06:48:58.305084+00:00",
+      "index_skipped": "writeup"
     },
     {
       "exam_id": "ssc_n8tz5b1qsch7uibcchn7u",
@@ -77,8 +380,57 @@
       "status": "awaited",
       "published_at": "2026-11-02T13:35:03.540Z",
       "source": "ssc.gov.in",
+      "source_id": "ssc",
       "official_pdf": "https://ssc.gov.in/api/attachment/uploads/masterData/NoticeBoards/Exams_notice_02112026.pdf",
       "pdf_size": "0.5 MB"
+    },
+    {
+      "exam_id": "rrb_cen_07_2025_exam_results_2026_10_31",
+      "category": "railways",
+      "exam_name": "RRB CEN 07/2025 \u00b7 Exam Results",
+      "context": "Railway Recruitment Board \u00b7 31 Oct 2026",
+      "status": "result_out",
+      "published_at": "2026-10-31T12:00:00.000Z",
+      "source": "rrbchennai.gov.in",
+      "source_id": "railways",
+      "official_pdf": null,
+      "official_page": "https://rrbchennai.gov.in/getdata?loc=chennai&cenum=07/2025&category=Exam%20Results"
+    },
+    {
+      "exam_id": "ibps_rsbl_recruitment_of_clerk_junior_officer_assistant_branc",
+      "category": "banking",
+      "exam_name": "RSBL \u2014 Recruitment of Clerk (Junior Officer), Assistant Branch Manager & Assistant Manager-IT",
+      "context": "Registration closes 15 Nov 2026",
+      "status": "form_closing",
+      "published_at": "2026-10-30T12:00:00.000Z",
+      "source": "ibps.in",
+      "source_id": "ibps",
+      "official_pdf": null,
+      "official_page": "https://ibpsreg.ibps.in/rsblrsep26/"
+    },
+    {
+      "exam_id": "rrb_cen_01_2026_e_call_letters_2026_10_30",
+      "category": "railways",
+      "exam_name": "RRB CEN 01/2026 \u00b7 E-Call Letters",
+      "context": "Railway Recruitment Board \u00b7 30 Oct 2026",
+      "status": "admit_card_live",
+      "published_at": "2026-10-30T12:00:00.000Z",
+      "source": "rrbchennai.gov.in",
+      "source_id": "railways",
+      "official_pdf": null,
+      "official_page": "https://rrbchennai.gov.in/getdata?loc=chennai&cenum=01/2026&category=E-Call%20Letters"
+    },
+    {
+      "exam_id": "rrb_cen_07_2025_exam_results_2026_10_30",
+      "category": "railways",
+      "exam_name": "RRB CEN 07/2025 \u00b7 Exam Results",
+      "context": "Railway Recruitment Board \u00b7 30 Oct 2026",
+      "status": "result_out",
+      "published_at": "2026-10-30T12:00:00.000Z",
+      "source": "rrbchennai.gov.in",
+      "source_id": "railways",
+      "official_pdf": null,
+      "official_page": "https://rrbchennai.gov.in/getdata?loc=chennai&cenum=07/2025&category=Exam%20Results"
     },
     {
       "exam_id": "j2k7sgab6eu9sh6c_5ufxf0ts6671mcxh451qs",
@@ -88,8 +440,23 @@
       "status": "result_out",
       "published_at": "2026-10-29T09:24:58.805Z",
       "source": "ssc.gov.in",
+      "source_id": "ssc",
       "official_pdf": "https://ssc.gov.in/api/attachment/uploads/masterData/NoticeBoards/writeup_29102026.pdf",
-      "pdf_size": "0.7 MB"
+      "pdf_size": "0.7 MB",
+      "index_attempted_at": "2026-11-10T06:48:58.980209+00:00",
+      "index_skipped": "writeup"
+    },
+    {
+      "exam_id": "rrb_cen_08_2026_notification_2026_10_27",
+      "category": "railways",
+      "exam_name": "RRB CEN 08/2026 \u00b7 Notification",
+      "context": "Railway Recruitment Board \u00b7 27 Oct 2026",
+      "status": "awaited",
+      "published_at": "2026-10-27T12:00:00.000Z",
+      "source": "rrbchennai.gov.in",
+      "source_id": "railways",
+      "official_pdf": null,
+      "official_page": "https://rrbchennai.gov.in/getdata?loc=chennai&cenum=08/2026&category=Notification"
     },
     {
       "exam_id": "ssc_5jfpb0tey9le4bsgd207x",
@@ -99,19 +466,81 @@
       "status": "awaited",
       "published_at": "2026-10-26T13:07:31.342Z",
       "source": "ssc.gov.in",
+      "source_id": "ssc",
       "official_pdf": "https://ssc.gov.in/api/attachment/uploads/masterData/NoticeBoards/Important%20notice_revised_dated_26_10_2026.pdf",
       "pdf_size": "0.4 MB"
     },
     {
-      "exam_id": "bxtirqg6pmwje26_p6htr8jumvefqk0l4h2dg",
-      "category": "ssc",
-      "exam_name": "Information regarding the city of examination and Admission Certificate for the candidates of\u2026",
-      "context": "Notice board \u00b7 ssc.gov.in",
+      "exam_id": "rrb_cen_08_2026_notification_2026_10_26",
+      "category": "railways",
+      "exam_name": "RRB CEN 08/2026 \u00b7 Notification",
+      "context": "Railway Recruitment Board \u00b7 26 Oct 2026",
+      "status": "awaited",
+      "published_at": "2026-10-26T12:00:00.000Z",
+      "source": "rrbchennai.gov.in",
+      "source_id": "railways",
+      "official_pdf": null,
+      "official_page": "https://rrbchennai.gov.in/getdata?loc=chennai&cenum=08/2026&category=Notification"
+    },
+    {
+      "exam_id": "rrb_cen_08_2025_e_call_letters_2026_10_26",
+      "category": "railways",
+      "exam_name": "RRB CEN 08/2025 \u00b7 E-Call Letters",
+      "context": "Railway Recruitment Board \u00b7 26 Oct 2026",
       "status": "admit_card_live",
-      "published_at": "2026-10-23T16:59:45.637Z",
-      "source": "ssc.gov.in",
-      "official_pdf": "https://ssc.gov.in/api/attachment/uploads/masterData/NoticeBoards/JE_2026_City_Live_Notice_23102026.pdf",
-      "pdf_size": "0.2 MB"
+      "published_at": "2026-10-26T12:00:00.000Z",
+      "source": "rrbchennai.gov.in",
+      "source_id": "railways",
+      "official_pdf": null,
+      "official_page": "https://rrbchennai.gov.in/getdata?loc=chennai&cenum=08/2025&category=E-Call%20Letters"
+    },
+    {
+      "exam_id": "rrb_cen_01_2025_e_call_letters_2026_10_26",
+      "category": "railways",
+      "exam_name": "RRB CEN 01/2025 \u00b7 E-Call Letters",
+      "context": "Railway Recruitment Board \u00b7 26 Oct 2026",
+      "status": "admit_card_live",
+      "published_at": "2026-10-26T12:00:00.000Z",
+      "source": "rrbchennai.gov.in",
+      "source_id": "railways",
+      "official_pdf": null,
+      "official_page": "https://rrbchennai.gov.in/getdata?loc=chennai&cenum=01/2025&category=E-Call%20Letters"
+    },
+    {
+      "exam_id": "rrb_cen_03_2026_objection_tracker_2026_10_26",
+      "category": "railways",
+      "exam_name": "RRB CEN 03/2026 \u00b7 Objection Tracker",
+      "context": "Railway Recruitment Board \u00b7 26 Oct 2026",
+      "status": "answer_key",
+      "published_at": "2026-10-26T12:00:00.000Z",
+      "source": "rrbchennai.gov.in",
+      "source_id": "railways",
+      "official_pdf": null,
+      "official_page": "https://rrbchennai.gov.in/getdata?loc=chennai&cenum=03/2026&category=Objection%20Tracker"
+    },
+    {
+      "exam_id": "rrb_cen_04_2026_e_call_letters_2026_10_23",
+      "category": "railways",
+      "exam_name": "RRB CEN 04/2026 \u00b7 E-Call Letters",
+      "context": "Railway Recruitment Board \u00b7 23 Oct 2026",
+      "status": "admit_card_live",
+      "published_at": "2026-10-23T12:00:00.000Z",
+      "source": "rrbchennai.gov.in",
+      "source_id": "railways",
+      "official_pdf": null,
+      "official_page": "https://rrbchennai.gov.in/getdata?loc=chennai&cenum=04/2026&category=E-Call%20Letters"
+    },
+    {
+      "exam_id": "rrb_cen_01_2026_city_intimation_exam_2026_10_23",
+      "category": "railways",
+      "exam_name": "RRB CEN 01/2026 \u00b7 City Intimation (Exam)",
+      "context": "Railway Recruitment Board \u00b7 23 Oct 2026",
+      "status": "admit_card_live",
+      "published_at": "2026-10-23T12:00:00.000Z",
+      "source": "rrbchennai.gov.in",
+      "source_id": "railways",
+      "official_pdf": null,
+      "official_page": "https://rrbchennai.gov.in/getdata?loc=chennai&cenum=01/2026&category=City%20Intimation%20(Exam)"
     },
     {
       "exam_id": "ctgd1yln49o2026_x3legiaohf967untxcvwd",
@@ -121,8 +550,47 @@
       "status": "result_out",
       "published_at": "2026-10-23T07:56:32.818Z",
       "source": "ssc.gov.in",
+      "source_id": "ssc",
       "official_pdf": "https://ssc.gov.in/api/attachment/uploads/masterData/Results/writeup_23102026.pdf",
-      "pdf_size": "0.2 MB"
+      "pdf_size": "0.2 MB",
+      "index_attempted_at": "2026-11-10T06:48:59.502830+00:00",
+      "index_skipped": "writeup"
+    },
+    {
+      "exam_id": "rrb_cen_09_2025_notification_2026_10_21",
+      "category": "railways",
+      "exam_name": "RRB CEN 09/2025 \u00b7 Notification",
+      "context": "Railway Recruitment Board \u00b7 21 Oct 2026",
+      "status": "awaited",
+      "published_at": "2026-10-21T12:00:00.000Z",
+      "source": "rrbchennai.gov.in",
+      "source_id": "railways",
+      "official_pdf": null,
+      "official_page": "https://rrbchennai.gov.in/getdata?loc=chennai&cenum=09/2025&category=Notification"
+    },
+    {
+      "exam_id": "rrb_cen_01_2025_city_intimation_exam_2026_10_20",
+      "category": "railways",
+      "exam_name": "RRB CEN 01/2025 \u00b7 City Intimation (Exam)",
+      "context": "Railway Recruitment Board \u00b7 20 Oct 2026",
+      "status": "admit_card_live",
+      "published_at": "2026-10-20T12:00:00.000Z",
+      "source": "rrbchennai.gov.in",
+      "source_id": "railways",
+      "official_pdf": null,
+      "official_page": "https://rrbchennai.gov.in/getdata?loc=chennai&cenum=01/2025&category=City%20Intimation%20(Exam)"
+    },
+    {
+      "exam_id": "ibps_cwc_recruitment_of_various_posts_2026_11_15",
+      "category": "banking",
+      "exam_name": "CWC \u2014 Recruitment of Various Posts",
+      "context": "Registration closes 15 Nov 2026",
+      "status": "form_closing",
+      "published_at": "2026-10-17T12:00:00.000Z",
+      "source": "ibps.in",
+      "source_id": "ibps",
+      "official_pdf": null,
+      "official_page": "https://ibpsreg.ibps.in/cwcaug26/"
     },
     {
       "exam_id": "ctgd1yln49o2026_79emomlpem47k0rh757ut",
@@ -132,8 +600,11 @@
       "status": "result_out",
       "published_at": "2026-10-12T13:16:30.573Z",
       "source": "ssc.gov.in",
+      "source_id": "ssc",
       "official_pdf": "https://ssc.gov.in/api/attachment/uploads/masterData/Results/writeup_12102026.pdf",
-      "pdf_size": "1.2 MB"
+      "pdf_size": "1.2 MB",
+      "index_attempted_at": "2026-11-10T06:49:01.999287+00:00",
+      "index_skipped": "writeup"
     },
     {
       "exam_id": "s40d16naqchsl25_u24bddx3swn9avs9ibz0t",
@@ -143,8 +614,23 @@
       "status": "result_out",
       "published_at": "2026-10-07T13:40:15.224Z",
       "source": "ssc.gov.in",
+      "source_id": "ssc",
       "official_pdf": "https://ssc.gov.in/api/attachment/uploads/masterData/Results/writeup_final_chsl_2025_07102026.pdf",
-      "pdf_size": "0.6 MB"
+      "pdf_size": "0.6 MB",
+      "index_attempted_at": "2026-11-10T06:49:03.809920+00:00",
+      "index_skipped": "writeup"
+    },
+    {
+      "exam_id": "ibps_nit_recruitment_of_non_faculty_position_2026_11_15",
+      "category": "banking",
+      "exam_name": "NIT \u2014 Recruitment of Non-Faculty Position",
+      "context": "Registration closes 15 Nov 2026",
+      "status": "form_closing",
+      "published_at": "2026-10-01T12:00:00.000Z",
+      "source": "ibps.in",
+      "source_id": "ibps",
+      "official_pdf": null,
+      "official_page": "https://ibpsreg.ibps.in/nitrjul26/"
     },
     {
       "exam_id": "q5zvwlkwna3s17u_oek19fmpzuiwlk8cwua5g",
@@ -154,8 +640,12 @@
       "status": "result_out",
       "published_at": "2026-09-09T14:44:21.770Z",
       "source": "ssc.gov.in",
+      "source_id": "ssc",
       "official_pdf": "https://ssc.gov.in/api/attachment/uploads/masterData/Results/Typing_qualified_candidates_List1_09092026.pdf",
-      "pdf_size": "0.1 MB"
+      "pdf_size": "0.1 MB",
+      "index_available": true,
+      "roll_count": 151,
+      "index_version": "974777a1a2c5"
     },
     {
       "exam_id": "q5zvwlkwna3s17u_bbanvl2awoad13b09a21o",
@@ -165,8 +655,11 @@
       "status": "result_out",
       "published_at": "2026-09-09T14:36:39.599Z",
       "source": "ssc.gov.in",
+      "source_id": "ssc",
       "official_pdf": "https://ssc.gov.in/api/attachment/uploads/masterData/Results/Steno_qualified_candidates_09092026.pdf",
-      "pdf_size": "0.0 MB"
+      "pdf_size": "0.0 MB",
+      "index_attempted_at": "2026-11-10T06:49:08.085197+00:00",
+      "index_skipped": "too few rolls"
     },
     {
       "exam_id": "59g9y0svsteno25_cgyu40w7q3axom3t0lklh",
@@ -176,8 +669,11 @@
       "status": "result_out",
       "published_at": "2026-08-25T12:17:37.209Z",
       "source": "ssc.gov.in",
+      "source_id": "ssc",
       "official_pdf": "https://ssc.gov.in/api/attachment/uploads/masterData/Results/Final_Result_Write_up_25082026.pdf",
-      "pdf_size": "0.9 MB"
+      "pdf_size": "0.9 MB",
+      "index_attempted_at": "2026-11-10T06:49:09.791893+00:00",
+      "index_skipped": "writeup"
     },
     {
       "exam_id": "s40d16nackd16h0_gsnhl7k5fqtrfr3zzmtfj",
@@ -187,10 +683,12 @@
       "status": "result_out",
       "published_at": "2026-08-17T13:12:01.499Z",
       "source": "ssc.gov.in",
+      "source_id": "ssc",
       "official_pdf": "https://ssc.gov.in/api/attachment/uploads/masterData/Results/ROLL_17082026.pdf",
       "pdf_size": "0.6 MB",
       "index_available": true,
-      "roll_count": 3507
+      "roll_count": 3507,
+      "index_version": "7e2d4ef7be08"
     },
     {
       "exam_id": "wzeujzxj8ts5z9n_kacgiw0ipnr0ug55z7vov",
@@ -200,8 +698,160 @@
       "status": "result_out",
       "published_at": "2026-08-03T12:57:35.369Z",
       "source": "ssc.gov.in",
+      "source_id": "ssc",
       "official_pdf": "https://ssc.gov.in/api/attachment/uploads/masterData/Results/writeup_mts_03082026.pdf",
-      "pdf_size": "0.9 MB"
+      "pdf_size": "0.9 MB",
+      "index_attempted_at": "2026-11-10T06:49:26.168996+00:00",
+      "index_skipped": "writeup"
+    },
+    {
+      "exam_id": "tnpsc_13_2024_assistant_public_prosecutor_in_grade_ii",
+      "category": "state_psc",
+      "exam_name": "TNPSC 13/2024 \u00b7 ASSISTANT PUBLIC PROSECUTOR IN GRADE II",
+      "context": "Final result list \u00b7 13/2024",
+      "status": "result_out",
+      "published_at": "2026-01-20T12:00:00.000Z",
+      "source": "tnpsc.gov.in",
+      "source_id": "tnpsc",
+      "official_pdf": "https://www.tnpsc.gov.in/document/finalresult/PUB_LIST_APP_13_2024%20updated.pdf",
+      "official_page": null,
+      "index_available": true,
+      "index_version": "04c8689c01e3",
+      "roll_count": 81
+    },
+    {
+      "exam_id": "tnpsc_01_2024_combined_civil_services_examination_iv_in_",
+      "category": "state_psc",
+      "exam_name": "TNPSC 01/2024 \u00b7 COMBINED CIVIL SERVICES EXAMINATION-IV IN GROUP-IV SERVICES",
+      "context": "Final result list \u00b7 01/2024",
+      "status": "result_out",
+      "published_at": "2025-12-18T12:00:00.000Z",
+      "source": "tnpsc.gov.in",
+      "source_id": "tnpsc",
+      "official_pdf": "https://www.tnpsc.gov.in/document/finalresult/01_2024_GRP_IV_JA_TYPIST_STENO_TYPIST_PUB_LIST.pdf",
+      "official_page": null,
+      "index_available": true,
+      "index_version": "8ebf9585bc0b",
+      "roll_count": 7664
+    },
+    {
+      "exam_id": "tnpsc_08_2024_combined_civil_services_examination_ii_in_",
+      "category": "state_psc",
+      "exam_name": "TNPSC 08/2024 \u00b7 COMBINED CIVIL SERVICES EXAMINATION- II IN GROUP II AND IIA SERVICES",
+      "context": "Final result list \u00b7 08/2024",
+      "status": "result_out",
+      "published_at": "2025-12-11T12:00:00.000Z",
+      "source": "tnpsc.gov.in",
+      "source_id": "tnpsc",
+      "official_pdf": "https://www.tnpsc.gov.in/document/finalresult/08_2024_GR_II_IIA_PUB_LIST.pdf",
+      "official_page": null,
+      "index_available": true,
+      "index_version": "5647a7f6f8bb",
+      "roll_count": 2628
+    },
+    {
+      "exam_id": "tnpsc_09_2024_combined_technical_services_examination_in",
+      "category": "state_psc",
+      "exam_name": "TNPSC 09/2024 \u00b7 COMBINED TECHNICAL SERVICES EXAMINATION IN NON-INTERVIEW POSTS",
+      "context": "Final result list \u00b7 09/2024",
+      "status": "result_out",
+      "published_at": "2025-11-21T12:00:00.000Z",
+      "source": "tnpsc.gov.in",
+      "source_id": "tnpsc",
+      "official_pdf": "https://www.tnpsc.gov.in/document/finalresult/09_2024_CTS_DEGREE_PUB_LIST_2_21112025.pdf",
+      "official_page": null,
+      "index_available": true,
+      "roll_count": 136,
+      "index_version": "9107ff277416"
+    },
+    {
+      "exam_id": "tnpsc_11_2024_combined_technical_services_examination_in",
+      "category": "state_psc",
+      "exam_name": "TNPSC 11/2024 \u00b7 COMBINED TECHNICAL SERVICES EXAMINATION IN DIPLOMA/ITI LEVEL",
+      "context": "Final result list \u00b7 11/2024",
+      "status": "result_out",
+      "published_at": "2025-11-20T12:00:00.000Z",
+      "source": "tnpsc.gov.in",
+      "source_id": "tnpsc",
+      "official_pdf": "https://www.tnpsc.gov.in/document/finalresult/11_2024_CTS_DIP_ITI_PUB_LIST_3_20112025.pdf",
+      "official_page": null,
+      "index_available": true,
+      "roll_count": 240,
+      "index_version": "ed72256aa6bf"
+    },
+    {
+      "exam_id": "tnpsc_16_2024_combined_civil_services_examination_in_gro",
+      "category": "state_psc",
+      "exam_name": "TNPSC 16/2024 \u00b7 COMBINED CIVIL SERVICES EXAMINATION IN GROUP VA SERVICES",
+      "context": "Final result list \u00b7 16/2024",
+      "status": "result_out",
+      "published_at": "2025-10-09T12:00:00.000Z",
+      "source": "tnpsc.gov.in",
+      "source_id": "tnpsc",
+      "official_pdf": "https://www.tnpsc.gov.in/document/finalresult/16_2024_GROUP_VA_PUBLICATION%20_LIST.pdf",
+      "official_page": null,
+      "index_available": true,
+      "roll_count": 35,
+      "index_version": "9f9babf37b55"
+    },
+    {
+      "exam_id": "tnpsc_12_2024_combined_technical_services_examination_in",
+      "category": "state_psc",
+      "exam_name": "TNPSC 12/2024 \u00b7 COMBINED TECHNICAL SERVICES EXAMINATION IN INTERVIEW POSTS - II",
+      "context": "Final result list \u00b7 12/2024",
+      "status": "result_out",
+      "published_at": "2025-09-10T12:00:00.000Z",
+      "source": "tnpsc.gov.in",
+      "source_id": "tnpsc",
+      "official_pdf": "https://www.tnpsc.gov.in/document/finalresult/CTS-II_Phase_II-PUB_LIST.pdf",
+      "official_page": null,
+      "index_attempted_at": "2026-11-10T06:49:41.291636+00:00",
+      "index_skipped": "too few rolls"
+    },
+    {
+      "exam_id": "tnpsc_04_2024_combined_civil_services_examination_i_in_g",
+      "category": "state_psc",
+      "exam_name": "TNPSC 04/2024 \u00b7 COMBINED CIVIL SERVICES EXAMINATION-I IN GROUP-I SERVICES",
+      "context": "Final result list \u00b7 04/2024",
+      "status": "result_out",
+      "published_at": "2025-05-15T12:00:00.000Z",
+      "source": "tnpsc.gov.in",
+      "source_id": "tnpsc",
+      "official_pdf": "https://www.tnpsc.gov.in/document/finalresult/PUB_LIST_04_2024.pdf",
+      "official_page": null,
+      "index_available": true,
+      "roll_count": 89,
+      "index_version": "96dc6cea8bdf"
+    },
+    {
+      "exam_id": "tnpsc_05_2024_combined_civil_services_examination_in_gro",
+      "category": "state_psc",
+      "exam_name": "TNPSC 05/2024 \u00b7 COMBINED CIVIL SERVICES EXAMINATION- IN Group I-B and I-C Services",
+      "context": "Final result list \u00b7 05/2024",
+      "status": "result_out",
+      "published_at": "2025-05-08T12:00:00.000Z",
+      "source": "tnpsc.gov.in",
+      "source_id": "tnpsc",
+      "official_pdf": "https://www.tnpsc.gov.in/document/finalresult/AC_HRCE_Publication_Revised_List.pdf",
+      "official_page": null,
+      "index_available": true,
+      "roll_count": 31,
+      "index_version": "1953aa4c7731"
+    },
+    {
+      "exam_id": "tnpsc_07_2024_combined_technical_services_examination_in",
+      "category": "state_psc",
+      "exam_name": "TNPSC 07/2024 \u00b7 Combined Technical Services Examination IN Interview Posts",
+      "context": "Final result list \u00b7 07/2024",
+      "status": "result_out",
+      "published_at": "2025-02-27T12:00:00.000Z",
+      "source": "tnpsc.gov.in",
+      "source_id": "tnpsc",
+      "official_pdf": "https://www.tnpsc.gov.in/document/finalresult/PUB_ACC_LEGAL.pdf",
+      "official_page": null,
+      "index_available": true,
+      "roll_count": 44,
+      "index_version": "c0da75a89cac"
     }
   ]
 }

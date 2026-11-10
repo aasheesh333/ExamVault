@@ -64,6 +64,15 @@ abstract final class LiveFeedDto {
       mirrorLatencyMs: _tryInt(row['mirror_latency_ms']),
       expiresAt:
           _tryDate(row['expires_at']) ?? _defaultExpiry(status, publishedAt),
+      // Link-only: the official document/page stays on the commission's server.
+      officialPdf: _tryUrl(row['official_pdf']),
+      officialPage: _tryUrl(row['official_page']),
+      // The content hash of the published index, if there is one. Part of the
+      // CDN path, so dropping it silently would make every lookup 404.
+      indexVersion: row['index_available'] == true
+          ? row['index_version'] as String?
+          : null,
+      rollCount: _tryInt(row['roll_count']),
     );
   }
 
@@ -88,6 +97,16 @@ abstract final class LiveFeedDto {
   static DateTime? _tryDate(Object? value) {
     if (value is! String || value.isEmpty) return null;
     return DateTime.tryParse(value)?.toLocal();
+  }
+
+  /// Only absolute http(s) links are accepted: a relative or `javascript:` href
+  /// would be opened by the OS with no way back.
+  static String? _tryUrl(Object? value) {
+    if (value is! String) return null;
+    final uri = Uri.tryParse(value);
+    if (uri == null || !uri.isAbsolute) return null;
+    if (uri.scheme != 'https' && uri.scheme != 'http') return null;
+    return value;
   }
 
   static int? _tryInt(Object? value) {
@@ -118,6 +137,13 @@ abstract final class LiveFeedStore {
           'published_at': u.publishedAt.toIso8601String(),
           if (u.pdfSizeLabel != null) 'pdf_size': u.pdfSizeLabel,
           if (u.mirrorLatencyMs != null) 'mirror_latency_ms': u.mirrorLatencyMs,
+          if (u.officialPdf != null) 'official_pdf': u.officialPdf,
+          if (u.officialPage != null) 'official_page': u.officialPage,
+          if (u.indexVersion != null) ...{
+            'index_available': true,
+            'index_version': u.indexVersion,
+          },
+          if (u.rollCount != null) 'roll_count': u.rollCount,
         },
     ],
   };
@@ -145,5 +171,6 @@ extension LiveUpdateFormatting on LiveUpdate {
   }
 
   String get cdnPdfPath => AppConfig.resultPdfPath(examId);
-  String get cdnRollIndexPath => AppConfig.rollIndexPath(examId);
+  String get cdnRollIndexPath =>
+      AppConfig.rollIndexPath(examId, version: indexVersion);
 }

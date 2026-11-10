@@ -74,9 +74,16 @@ class ResultIndexRepository {
   /// examId -> bundle, so re-tapping "Check" never re-downloads.
   final Map<String, IndexBundle> _memo = {};
 
-  Future<IndexBundle> load({required String examId, bool force = false}) async {
+  Future<IndexBundle> load({
+    required String examId,
+    String? version,
+    bool force = false,
+  }) async {
+    // The memo key includes the version: a republished list must not be served
+    // from a cache keyed only by exam id.
+    final memoKey = version == null ? examId : '$examId@$version';
     if (!force) {
-      final memo = _memo[examId];
+      final memo = _memo[memoKey];
       // A previously-failed attempt is cached too — at 09:11 the object is
       // missing for everyone, and hammering the edge every tap helps nobody.
       if (memo != null) return memo;
@@ -84,7 +91,7 @@ class ResultIndexRepository {
 
     try {
       final payload = await _cdn.get(
-        AppConfig.rollIndexPath(examId),
+        AppConfig.rollIndexPath(examId, version: version),
         freshWindow: AppConfig.rollIndexFreshWindow,
         bypassCache: force,
       );
@@ -95,20 +102,20 @@ class ResultIndexRepository {
         fetchedAt: payload.fetchedAt,
         etag: payload.etag,
       );
-      _memo[examId] = bundle;
+      _memo[memoKey] = bundle;
       return bundle;
     } on CdnException catch (e) {
       final reason = e.statusCode == 404
           ? 'The result for this exam has not been published yet.'
           : 'Could not reach the result index. Check your connection.';
       final bundle = IndexBundle.unavailable(reason);
-      _memo[examId] = bundle;
+      _memo[memoKey] = bundle;
       return bundle;
     } catch (_) {
       final bundle = IndexBundle.unavailable(
         'Could not read the result index. Check your connection.',
       );
-      _memo[examId] = bundle;
+      _memo[memoKey] = bundle;
       return bundle;
     }
   }

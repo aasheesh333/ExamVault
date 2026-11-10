@@ -1,126 +1,193 @@
 # Where the data comes from
 
-ExamVault ships **no** invented content. This document describes exactly how the
-radar document reaches the edge, and what happens when nobody publishes.
+ExamVault ships **no** invented content. Every row, date and link in the app is
+copied from a commission's own website by a script in `tools/`. This document
+describes that path end to end, including the parts that are still gaps.
 
 ```
-official notification (operator)  →  data/live_feed.json  →  tools/publish_feed.mjs
-                                             ↓ validates, stamps generated_at + expires_at
-                                       R2 object  v1/live_feed_v1.json
-                                             ↓ served uncached
-                                        Cloudflare Worker
-                                             ↓ polled every 60 s
-                                            the app
+official websites (SSC · UPSC · IBPS · TNPSC · RRB)
+        ↓  tools/fetch_official_feeds.mjs      (per-source adapters, HTML/JSON)
+  data/live_feed.json
+        ↓  tools/build_indexes.py              (PDF → roll numbers → salted hashes)
+  R2: v1/live_feed_v1.json                     (feed, published uncached)
+  R2: v1/rolls/<exam>_<version>_rolls.json.gz  (hashed index, immutable)
+        ↓  Cloudflare Worker
+      the app  (feed polled every 60 s; index downloaded once per exam version)
 ```
 
-## Publishing
+## Coverage, verified 2026-11-10
+
+Each adapter was pointed at the live site from a datacenter before being written.
+Where a source could not be reached, that is recorded here rather than papered
+over with sample data.
+
+| Category | Source | Method | Status |
+|---|---|---|---|
+| SSC | `ssc.gov.in` | public JSON API (`/portal/records`) | ✅ 17 rows, roll lists indexable |
+| UPSC | `upsc.gov.in` | “What’s New” HTML + detail page per row | ✅ 12 rows, roll lists indexable |
+| Banking | `ibps.in` | ongoing-recruitment grid (HTML) | ✅ 5 rows — registration windows |
+| Railways | `rrbchennai.gov.in` | CEN list (server-rendered HTML) | ✅ 25 rows |
+| State PSC | `tnpsc.gov.in` | results grid (HTML) | ✅ 10 rows, roll lists indexable |
+
+Sources that were tried and **rejected**, with the reason, so nobody re-tries them
+blindly:
+
+| Attempt | Result |
+|---|---|
+| `rrbapply.gov.in` | NXDOMAIN — the domain does not resolve |
+| `rrbcdg.gov.in`, `rrbsecunderabad`, `rrbahmedabad` | connection timeouts / cert failure |
+| `indianrailways.gov.in` | reachable, but the word “recruitment” appears nowhere on it |
+| `upsc.gov.in/jsonapi` | 404 — no API; the HTML has to be parsed |
+| `mpsc.gov.in` | React SPA with no public content endpoint |
+| `uppsc.up.nic.in` | Angular shell; rows are rendered client-side |
+| `ibps.in` without a CA fix | `unknown CA` — the server omits its intermediate (see below) |
+
+`ibps.in` serves only its leaf certificate, so every client that lacks the
+intermediate fails the handshake (curl and Node do; Chrome succeeds because it
+cached it earlier). Turning verification off would be the wrong fix for a
+pipeline that decides whether a student is told “RESULT OUT”. Instead the
+intermediate — public certificate data published by GlobalSign — is pinned in
+`tools/certs/` and passed as an extra CA **alongside the normal root store**, so
+the chain is still verified in full. If IBPS rotates to another CA the fetch fails
+closed, the source is reported `unavailable`, and nothing is published from it.
+
+## Health is published, not implied
+
+`data/live_feed.json` carries a `sources` block:
+
+```json
+"sources": [
+  { "id": "ssc", "status": "ok", "rows": 17, "checked_at": "…", "elapsed_ms": 232 },
+  { "id": "ibps", "status": "unavailable", "rows": 0, "reason": "HTTP 403" }
+]
+```
+
+An outage in one commission is therefore visible in the artefact, not only in CI
+logs. The orchestrator also refuses to overwrite a populated feed with an empty
+one, so a bad afternoon on the network cannot blank the radar for every client.
+
+## The feed
 
 ```sh
 cd tools
-node publish_feed.mjs --in ../data/live_feed.json           # publish
-node publish_feed.mjs --in ../data/live_feed.json --dry-run  # validate only
+node fetch_official_feeds.mjs --out ../data/live_feed.json           # build
+node fetch_official_feeds.mjs --out ../data/live_feed.json --dry-run # build, don't write
+node publish_feed.mjs --in ../data/live_feed.json                    # publish
+node publish_feed.mjs --in ../data/live_feed.json --dry-run          # validate only
 ```
 
-The script refuses to publish if:
-
-- a required field (`exam_id`, `category`, `exam_name`, `status`, `published_at`) is missing
-- `category` is not one of `ssc · upsc · banking · railways · state_psc`
-- `status` is not a known value
-- `published_at` is unparseable **or in the future**
-
-It also stamps every row with `expires_at` (48 h for `result_out`, 36 h for
-`admit_card_live`, 12 h for `form_closing`, 72 h for `answer_key`, 30 days for
-`awaited`). The app hides expired rows, so a forgotten row degrades to silence
-instead of turning into a lie.
-
-## What the app does with a missing or short feed
+`publish_feed.mjs` refuses a document with a missing field, an unknown
+category/status, an unparseable or future `published_at`, or a row with no
+official link. It stamps `expires_at` per status, so a forgotten row degrades to
+silence instead of turning into a lie.
 
 | Situation | Behaviour |
 |---|---|
-| Never fetched, no cache | Radar shows "Nothing live yet"; header reads `NO FEED` |
-| 404 on the index | Checker says "Result not published yet" and does not search |
+| Never fetched, no cache | Radar shows “Nothing live yet”; header reads `NO FEED` |
+| 404 on an index | Checker says “Result not published yet” and never searches |
 | Row past `expires_at` | Hidden from the list, the badge and the hero count |
 | Feed older than 2 min | Header reads `EDGE · 26m OLD` instead of `LIVE` |
 | Vault empty | Every screen shows an explicit empty state with one way forward |
 
-## Fully automated (this is now real)
+## Roll-number indexes — the copyright problem
 
-The feed is no longer hand-maintained. `tools/fetch_official_feeds.mjs` calls
-SSC's own public JSON API — the same one ssc.gov.in uses:
+The headline feature is “is my roll in the list?” without downloading a 60 MB
+PDF. The obvious implementation — publish the candidate list as text — reproduces
+a government document we do not own. So the published object contains **no roll
+numbers at all**.
 
-```
-GET /api/general-website/portal/records?contentType=results&…
-GET /api/general-website/portal/records?contentType=notice-boards&…
-```
+`tools/build_indexes.py` extracts the roll numbers from the official PDF, hashes
+each one, and publishes only the digests:
 
-That API needs no auth and is reachable from a datacenter. (An earlier version of
-this document claimed the commissions blocked datacenter IPs and that ingestion
-had to stay manual. That was wrong — it was never tested. It is tested now, and
-it works.)
-
-```
-tools/fetch_official_feeds.mjs  →  data/live_feed.json
-tools/publish_feed.mjs          →  R2  v1/live_feed_v1.json
-tools/build_indexes.py          →  R2  v1/rolls/<exam_id>_rolls.json.gz
+```json
+{ "v": 2, "mode": "sha256-8-salted", "salt": "7236…", "total": 8956,
+  "hashes": ["00a1b2c3d4e5f607", "…"] }
 ```
 
-`build_indexes.py` closes the loop between "a result was declared" and "the app can
-search it": for every `result_out` row that carries a PDF under `masterData/Results`
-and whose headline says *list of candidates* / *merit list*, it downloads the PDF,
-extracts the roll numbers, verifies the sort, and publishes a gzip index under the
-**same exam id** the feed row uses.
+- **Digest** — `sha256("<salt>:<NORMALISED_ROLL>")` truncated to 8 bytes, hex.
+- **Normalisation** — strip whitespace, NBSP, zero-width spaces and dashes, then
+  uppercase. Byte-identical in Dart (`HashedRollIndex.normalise`) and Python
+  (`tools/hashed_index.py`); `test/hashed_index_test.dart` pins both against the
+  same vectors, because a drift here would answer “not selected” for everybody.
+- **Salt** — derived per exam from the exam id
+  (`sha256("examvault/v2/<exam_id>")`), so one precomputed table cannot serve
+  every exam, and a rebuild of unchanged data produces byte-identical output.
+- **Lookup** — the device hashes the input and binary-searches. The typed roll
+  number never leaves the phone.
 
-### The two guards that matter
+What this means, stated plainly: the published object answers exactly one
+question per query and cannot be used to enumerate candidates without hashing the
+whole roll space per exam. It is a derived artefact, not a copy of the document,
+and the document itself is never mirrored — every “Official PDF” button opens the
+commission's own URL.
 
-1. **`--min-rolls` (default 100).** SSC publishes two kinds of PDF: a *candidate
-   list* (thousands of rolls) and a *writeup* (a handful of explanatory rows). Early
-   runs published an 11-roll index generated from a writeup — which would have told
-   every other candidate they were not selected. The floor, plus a headline filter,
-   rejects writeups outright.
-2. **Strictly-ascending verification** before writing, because the app binary
-   searches the array.
+### Content-addressed object names
+
+Objects are published as `<exam_id>_<sha256(body)[:12]>_rolls.json.gz`. The roll
+route is cached `immutable`, which is only true if the URL never changes. With a
+stable URL the edge served the *first* published index for 24 hours — including
+after a corrected list replaced it. Naming an object after its own content makes
+`immutable` correct and lets old URLs stay valid forever.
+
+`gzip.compress(..., mtime=0)` matters here: the default header stamps the wall
+clock, which would change the bytes — and therefore the version — on every run.
+
+### The guards that matter
+
+1. **`--min-rolls` (default 20).** A *writeup* PDF quotes a handful of
+   representative rolls; publishing it would tell every other candidate they were
+   not selected. Any PDF whose URL says `writeup` is rejected outright, and the
+   floor catches the rest. Twenty is low enough to keep a genuinely small final
+   list (a 30-post LDCE publishes 30 rolls).
+2. **Strictly-ascending check** before writing, because the app binary-searches
+   the array.
+3. **Per-source roll patterns.** SSC uses 12-digit rolls (`125160000498`), UPSC
+   uses zero-padded 7-digit rolls (`0100823`), TNPSC uses 9-digit registration
+   numbers. A single pattern silently drops real candidates, so `ROLL_PATTERNS`
+   in `build_indexes.py` declares one per source and the build prints the count it
+   found so a wrong guess is visible.
+4. **Failure memo.** A PDF that yields three rolls today yields three rolls in
+   half an hour. Failures are stamped with `index_attempted_at` and skipped for a
+   week, so a small `--limit` budget is not consumed by the same writeups every
+   run.
 
 ### Verified end to end
 
 ```
-$ flutter test test/live_edge_integration_test.dart
-verified 3507 real rolls · middle=325160290539 · lookup=27683µs
+$ EV_LIVE_ROLL=2100058 flutter test test/live_edge_integration_test.dart
+verified 8956 hashed rolls from upsc_…cdse_ii@ec7dd2aa1ba9 · lookup=93µs
 ```
 
-That test downloads the real object from the real edge and looks up a real roll
-number from the official PDF.
+The test reads the live feed, picks the largest published list, downloads that
+exact object from the edge, asserts the format carries no plaintext roll numbers,
+and (optionally) looks up a real roll. CI runs the structural half; the positive
+lookup is opt-in because committing a real candidate's roll number to the
+repository would be its own privacy problem.
 
 ## Running it on a schedule
 
 `.github/workflows/refresh-data.yml` runs every 30 minutes:
 
-1. fetch the official feed
+1. fetch all sources → `data/live_feed.json`
 2. validate it (`publish_feed.mjs --dry-run`)
-3. publish the feed
-4. build up to 3 roll indexes
-5. commit the snapshot to `data/live_feed.json` so history is reviewable
+3. build up to 8 roll indexes (unindexed rows first, failures retried weekly)
+4. publish the feed **after** the indexes, so `index_version` reaches the app
+5. commit the snapshot so the feed's history is reviewable
 
 **Caveat:** GitHub disables scheduled workflows after 60 days of repository
-inactivity. For a production service, run the same commands from a real cron —
-a small VPS, a Cloudflare Cron Trigger, or a scheduled Worker — and keep the
+inactivity. For a production service, run the same commands from a real cron — a
+small VPS, a Cloudflare Cron Trigger, or a scheduled Worker — and keep the
 workflow as the manual/fallback path.
 
-## What is still not automated
+## Known gaps
 
-- **UPSC, IBPS, RRB.** Only SSC is wired up. UPSC returns a 307 to
-  `www.upsc.gov.in` and does not expose the same JSON shape; IBPS refused the
-  connection from this host. Each needs its own verified adapter. Adding one
-  without verifying it would reintroduce exactly the class of bug this file
-  documents the removal of.
-- **Legal decision on mirroring.** The app links to the official PDF; it never
-  re-hosts one. Roll-number *sets* are derived and published, which is a
-  different thing from copying the document. If you decide to mirror PDFs for
-  speed, that is a licensing call to make deliberately, not by default.
-
-## Roll-number indexes
-
-Same rule: never generate one. `tools/build_roll_index.mjs` takes a text file of
-real roll numbers, deduplicates, normalises (BOM / NBSP / zero-width / en-dash),
-sorts with a plain comparator (**not** `localeCompare`, which would break the
-app's binary search), and verifies strict ascending order before writing. The app
-treats an unpublished index as `unavailable`, never as "not selected".
+- **Railways has no searchable index.** RRB boards publish CEN notices as HTML
+  pages, not roll-list PDFs, so there is nothing to hash. The radar row links to
+  the board; the checker honestly reports that no index exists.
+- **Only one RRB is read** (Chennai). It is the only board that answered with a
+  valid certificate from this network; the CEN vocabulary is national, but the
+  row count is one board's view, and the row text says so.
+- **State PSC coverage is one state** (Tamil Nadu). Other PSCs either render
+  client-side or sit behind broken TLS; each needs its own verified adapter.
+- **IBPS publishes registration windows, not result lists** on the page used here.
+  Banking results would need the CWE result pages, which are session-gated.

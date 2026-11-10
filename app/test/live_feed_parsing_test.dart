@@ -218,9 +218,100 @@ void main() {
     });
   });
 
+  group('link and index fields', () {
+    // These four fields decide whether the app can open the official document
+    // and whether the result checker can find a published index. They were once
+    // parsed by nothing: the entity had them, the UI read them, and every value
+    // was silently `null` — so the checker quietly requested the unversioned CDN
+    // path and 404'd. Hence a test per field.
+    test('official_pdf, official_page and roll metadata survive parsing', () {
+      final feed = LiveFeedDto.parse(
+        jsonEncode({
+          'updates': [
+            {
+              ...row(),
+              'status': 'result_out',
+              'official_pdf': 'https://ssc.gov.in/api/attachment/x.pdf',
+              'roll_count': 3507,
+              'index_available': true,
+              'index_version': '7e2d4ef7be08',
+            },
+            {
+              ...row(),
+              'exam_id': 'upsc_notice',
+              'official_page': 'https://www.upsc.gov.in/whats-new/x',
+            },
+          ],
+        }),
+      );
+
+      final pdf = feed.updates.firstWhere((u) => u.examId != 'upsc_notice');
+      expect(pdf.officialPdf, 'https://ssc.gov.in/api/attachment/x.pdf');
+      expect(pdf.hasIndex, isTrue);
+      expect(pdf.indexVersion, '7e2d4ef7be08');
+      expect(pdf.rollCount, 3507);
+      expect(
+        pdf.officialUrl,
+        pdf.officialPdf,
+        reason: 'the document is preferred over the notice page',
+      );
+
+      final page = feed.updates.firstWhere((u) => u.examId == 'upsc_notice');
+      expect(page.officialPage, 'https://www.upsc.gov.in/whats-new/x');
+      expect(page.hasIndex, isFalse);
+      expect(
+        page.officialUrl,
+        page.officialPage,
+        reason: 'an HTML notice has no PDF, but it still opens',
+      );
+    });
+
+    test('a non-http link is dropped rather than handed to the OS', () {
+      final feed = LiveFeedDto.parse(
+        jsonEncode({
+          'updates': [
+            {...row(), 'official_pdf': 'javascript:alert(1)'},
+          ],
+        }),
+      );
+
+      expect(feed.updates.single.officialUrl, isNull);
+    });
+
+    test('index_available=false wins over a stray index_version', () {
+      final feed = LiveFeedDto.parse(
+        jsonEncode({
+          'updates': [
+            {
+              ...row(),
+              'index_available': false,
+              'index_version': 'deadbeefcafe',
+            },
+          ],
+        }),
+      );
+
+      expect(
+        feed.updates.single.hasIndex,
+        isFalse,
+        reason: 'a stale version without an index must not be requested',
+      );
+    });
+  });
+
   group('round-trip', () {
     test('store json re-parses to the same content', () {
-      final original = LiveFeedDto.parse(doc([row()]));
+      final original = LiveFeedDto.parse(
+        doc([
+          {
+            ...row(),
+            'official_pdf': 'https://ssc.gov.in/a.pdf',
+            'index_available': true,
+            'index_version': 'abc123abc123',
+            'roll_count': 42,
+          },
+        ]),
+      );
       final restored = LiveFeedStore.fromDynamic(
         LiveFeedStore.toJson(original),
       );
@@ -234,6 +325,11 @@ void main() {
         restored.updates.single.contextLine,
         original.updates.single.contextLine,
       );
+      // The on-device copy must keep the index pointer, otherwise a cold boot
+      // loses the only way to reach an already-published index.
+      expect(restored.updates.single.indexVersion, 'abc123abc123');
+      expect(restored.updates.single.rollCount, 42);
+      expect(restored.updates.single.officialPdf, 'https://ssc.gov.in/a.pdf');
     });
   });
 }

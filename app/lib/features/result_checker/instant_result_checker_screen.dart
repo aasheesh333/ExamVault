@@ -3,14 +3,15 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../../core/config/app_config.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/theme_tokens.dart';
 import '../../core/utils/clipboard_service.dart';
 import '../../data/repositories/result_index_repository.dart';
+import '../../data/services/app_logger.dart';
 import '../../domain/entities/admit_card.dart';
 import '../../features/result_checker/engine/roll_index_engine.dart';
 import '../../providers/app_providers.dart';
+import '../shell/root_shell.dart';
 import '../../shared/widgets/ev_controls.dart';
 import '../../shared/widgets/ev_surfaces.dart';
 
@@ -64,17 +65,41 @@ class _InstantResultCheckerScreenState
 
     FocusScope.of(context).unfocus();
 
-    final examId = card?.examId ?? 'ssc_cgl_tier1_2026';
+    final update = ref.read(resultExamIdProvider);
+    final examId = update?.examId ?? card?.examId;
+    if (examId == null) {
+      _showToast('Pick an exam first — add an admit card or tap a result.');
+      return;
+    }
     final result = await ref
         .read(resultCheckerProvider.notifier)
-        .check(examId: examId, rollNumber: roll);
+        .check(
+          examId: examId,
+          rollNumber: roll,
+          // A republished list lives at a new content-addressed URL; without this
+          // the app would keep hitting the immutable-cached first version.
+          indexVersion: update?.examId == examId ? update?.indexVersion : null,
+        );
 
     if (!mounted || result == null) return;
 
     if (result.isFound) {
-      await ref.read(admitCardsProvider.notifier).markVerified(card?.id ?? '');
+      // A bookkeeping update must never swallow the answer. If marking the card
+      // verified fails, the student still needs to see that their roll is in the
+      // list — that is the entire product.
+      try {
+        await ref
+            .read(admitCardsProvider.notifier)
+            .markVerified(card?.id ?? '');
+      } catch (e, st) {
+        AppLogger.e('checker', 'could not mark card verified', e, st);
+      }
       if (!mounted) return;
-      await _showSelectedDialog(result, card);
+      await _showSelectedDialog(
+        result,
+        card,
+        examName: update?.examName ?? card?.examName,
+      );
     }
   }
 
@@ -134,9 +159,10 @@ class _InstantResultCheckerScreenState
                   _MirrorCard(
                     indexSource: state.indexSource,
                     observedLatencyMs: update?.mirrorLatencyMs,
+                    publishedForExam: update?.hasIndex ?? false,
                   ),
                   const SizedBox(height: 8),
-                  _RetryNote(state: state),
+                  _RetryNote(state: state, rollCount: update?.rollCount),
                   const SizedBox(height: 14),
                   _RollField(controller: _roll, busy: state.isBusy),
                   const SizedBox(height: 10),
@@ -157,19 +183,23 @@ class _InstantResultCheckerScreenState
                       style: context.type.bodyMuted.copyWith(fontSize: 10.5),
                     ),
                   ],
-                  // The PDF mirror only exists once the result is published, so
-                  // the buttons appear only after a successful index fetch.
-                  // Offering them earlier just walks the user into a 404.
-                  if (examId != null &&
-                      (state.indexSource?.isReal ?? false)) ...[
+                  // We open the commission's own PDF rather than a copy of it.
+                  // Re-hosting a government result document is exactly the kind
+                  // of redistribution this app must not do, and it also means a
+                  // corrected PDF upstream is immediately the one users see.
+                  if (update?.officialUrl != null) ...[
                     const SizedBox(height: 10),
                     Row(
                       children: [
                         Expanded(
                           child: EvSecondaryButton(
-                            label: 'Official PDF',
-                            icon: Icons.picture_as_pdf_outlined,
-                            onPressed: () => _openPdf(examId),
+                            label: update!.officialPdf != null
+                                ? 'Official PDF'
+                                : 'Official site',
+                            icon: update.officialPdf != null
+                                ? Icons.picture_as_pdf_outlined
+                                : Icons.account_balance_outlined,
+                            onPressed: () => _openUrl(update.officialUrl!),
                           ),
                         ),
                         const SizedBox(width: 8),
@@ -179,9 +209,28 @@ class _InstantResultCheckerScreenState
                             icon: Icons.link_rounded,
                             onPressed: () => ClipboardService.copy(
                               context,
-                              value:
-                                  '${AppConfig.cdnBase}${AppConfig.resultPdfPath(examId)}',
-                              label: 'Result link',
+                              value: update.officialUrl!,
+                              label: 'Official result link',
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.open_in_new_rounded,
+                          size: 11,
+                          color: p.textTertiary,
+                        ),
+                        const SizedBox(width: 5),
+                        Expanded(
+                          child: Text(
+                            'Opens the notice on the commission\'s own site — '
+                            'we never host a copy of it.',
+                            style: context.type.bodyMuted.copyWith(
+                              fontSize: 10,
                             ),
                           ),
                         ),
@@ -214,10 +263,8 @@ class _InstantResultCheckerScreenState
     );
   }
 
-  Future<void> _openPdf(String examId) async {
-    final uri = Uri.parse(
-      '${AppConfig.cdnBase}${AppConfig.resultPdfPath(examId)}',
-    );
+  Future<void> _openUrl(String url) async {
+    final uri = Uri.parse(url);
     final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
     if (!ok && mounted) {
       _showToast('Could not open the PDF. Check your connection.');
@@ -226,14 +273,27 @@ class _InstantResultCheckerScreenState
 
   Future<void> _showSelectedDialog(
     RollLookupResult result,
-    AdmitCard? card,
-  ) async {
+    AdmitCard? card, {
+    String? examName,
+  }) async {
     HapticFeedback.heavyImpact();
 
     await showDialog<void>(
       context: context,
       barrierColor: Colors.black.withValues(alpha: 0.72),
-      builder: (context) => _SelectedDialog(result: result, card: card),
+      builder: (context) => _SelectedDialog(
+        result: result,
+        card: card,
+        examName: examName,
+        onShare: () {
+          // "Share the news" used to only close the dialog, which is a dead
+          // primary CTA: the user taps the loudest button on the screen and
+          // nothing happens. It now closes the sheet and lands on Share, where
+          // the card is already built from this lookup.
+          Navigator.of(context).pop();
+          ref.read(tabIndexProvider.notifier).select(EvTab.share);
+        },
+      ),
     );
   }
 }
@@ -343,7 +403,11 @@ class _TitleWithAccent extends StatelessWidget {
           ),
         ],
       ),
+      // Without `ellipsis` a long official headline is clipped mid-word with no
+      // indication — "… LDCE-2025 and" reads like a broken layout rather than a
+      // truncated title.
       maxLines: 2,
+      overflow: TextOverflow.ellipsis,
     );
   }
 }
@@ -354,24 +418,36 @@ class _TitleWithAccent extends StatelessWidget {
 /// being checked, which is both wrong and misleading — it invented a latency
 /// number for a server the app never contacted.
 class _MirrorCard extends StatelessWidget {
-  const _MirrorCard({this.indexSource, this.observedLatencyMs});
+  const _MirrorCard({
+    this.indexSource,
+    this.observedLatencyMs,
+    this.publishedForExam = false,
+  });
 
   final IndexSource? indexSource;
 
   /// Measured round-trip for the index fetch, when we have one.
   final int? observedLatencyMs;
 
+  /// The feed says this exam has a published index.
+  ///
+  /// Without this the card read "not published / IDLE" for an exam whose index
+  /// was demonstrably on the CDN — it only reflected whether *this session* had
+  /// fetched one yet. What we know from the feed is a fact; showing it sooner is
+  /// not a guess.
+  final bool publishedForExam;
+
   @override
   Widget build(BuildContext context) {
     final p = context.ev;
 
-    final hasIndex = indexSource?.isReal ?? false;
+    final hasIndex = (indexSource?.isReal ?? false) || publishedForExam;
     final unavailable = indexSource == IndexSource.unavailable;
 
     final rows = <_MirrorRow>[
       _MirrorRow(
         name: 'Edge CDN index',
-        sub: hasIndex ? 'published' : 'not published',
+        sub: hasIndex ? 'published' : 'not published for this exam',
         state: hasIndex ? 'READY' : (unavailable ? 'MISSING' : 'IDLE'),
         color: hasIndex
             ? p.success
@@ -382,7 +458,7 @@ class _MirrorCard extends StatelessWidget {
         fill: hasIndex ? 0.28 : 0.06,
         value: observedLatencyMs != null
             ? '${observedLatencyMs}ms'
-            : (hasIndex ? 'cached' : '—'),
+            : (hasIndex ? 'on demand' : '—'),
       ),
       _MirrorRow(
         name: 'Binary search',
@@ -538,23 +614,37 @@ class _MirrorRowView extends StatelessWidget {
 }
 
 class _RetryNote extends StatelessWidget {
-  const _RetryNote({required this.state});
+  const _RetryNote({required this.state, this.rollCount});
 
   final ResultCheckState state;
+
+  /// Candidates in the published list, when the feed says. Used instead of a
+  /// hardcoded "12,000+" — that number was invented and was wrong for every
+  /// exam in the feed.
+  final int? rollCount;
 
   @override
   Widget build(BuildContext context) {
     final p = context.ev;
+    final count = rollCount == null ? null : _thousands(rollCount!);
+
     final label = switch (state.phase) {
-      ResultPhase.downloading => 'Downloading the edge index…',
-      ResultPhase.searching => 'Searching 12,000+ roll numbers…',
+      ResultPhase.downloading => 'Fetching the published index…',
+      ResultPhase.searching =>
+        count == null
+            ? 'Searching on this device…'
+            : 'Searching $count roll numbers on this device…',
       ResultPhase.done =>
         state.indexSource == IndexSource.unavailable
-            ? 'Demo index — the real result is not published yet.'
-            : 'Checked against the published merit list.',
+            ? 'No published index for this exam yet — the official PDF is the '
+                  'only source right now.'
+            : 'Checked against the published list. Your roll number was never '
+                  'sent anywhere.',
       ResultPhase.unavailable => state.error ?? 'Could not check.',
       ResultPhase.idle =>
-        'Index is 150 KB, not a 60 MB PDF. It fits in one tap.',
+        count == null
+            ? 'One small index instead of a multi-megabyte PDF.'
+            : '$count roll numbers, fetched once. Not the multi-megabyte PDF.',
     };
 
     return Row(
@@ -681,6 +771,14 @@ class _NotFoundCard extends StatelessWidget {
             'Searched in ${(result.elapsedMicros / 1000).toStringAsFixed(1)} ms on this device.',
             style: context.type.microLabel.copyWith(fontSize: 8.5),
           ),
+          if (result.privacyPreserving) ...[
+            const SizedBox(height: 8),
+            _HashedNote(
+              text:
+                  'Compared as a one-way hash — the candidate list itself never '
+                  'reaches your phone.',
+            ),
+          ],
         ],
       ),
     );
@@ -829,10 +927,22 @@ class _RecentChecks extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _SelectedDialog extends StatelessWidget {
-  const _SelectedDialog({required this.result, this.card});
+  const _SelectedDialog({
+    required this.result,
+    this.card,
+    this.examName,
+    this.onShare,
+  });
 
   final RollLookupResult result;
   final AdmitCard? card;
+
+  /// The exam this answer belongs to. Null only if the caller genuinely does not
+  /// know — the dialog then says so rather than inventing a name.
+  final String? examName;
+
+  /// Takes the user to the share sheet. Null only in previews/tests.
+  final VoidCallback? onShare;
 
   @override
   Widget build(BuildContext context) {
@@ -893,7 +1003,12 @@ class _SelectedDialog extends StatelessWidget {
               ),
               const SizedBox(height: 16),
               Text(
-                'SELECTED IN MERIT LIST',
+                // Accurate for both cases this screen actually sees: a final
+                // merit list and a shortlist for the next stage (UPSC's "Written
+                // Result … qualified for the Personality Test"). "SELECTED" was
+                // wrong for the second, and wrong here means a student believes
+                // they have the job.
+                'YOUR ROLL IS IN THE LIST',
                 textAlign: TextAlign.center,
                 style: context.type.sectionTitle.copyWith(
                   color: p.successText,
@@ -902,8 +1017,10 @@ class _SelectedDialog extends StatelessWidget {
               ),
               const SizedBox(height: 6),
               Text(
-                card?.examName ?? 'Your result',
+                examName ?? 'Your result',
                 textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
                 style: context.type.bodyMuted,
               ),
               const SizedBox(height: 16),
@@ -948,13 +1065,20 @@ class _SelectedDialog extends StatelessWidget {
                 textAlign: TextAlign.center,
                 style: context.type.microLabel.copyWith(fontSize: 8.5),
               ),
+              if (result.privacyPreserving) ...[
+                const SizedBox(height: 8),
+                _HashedNote(
+                  align: TextAlign.center,
+                  text:
+                      'Matched on your device. We never download the official '
+                      'candidate list — only one-way hashes of it.',
+                ),
+              ],
               const SizedBox(height: 18),
               EvPrimaryButton(
                 label: 'Share the news',
                 icon: Icons.ios_share_rounded,
-                onPressed: () {
-                  Navigator.of(context).pop();
-                },
+                onPressed: onShare ?? () => Navigator.of(context).pop(),
               ),
               const SizedBox(height: 4),
               TextButton(
@@ -970,4 +1094,51 @@ class _SelectedDialog extends StatelessWidget {
       ),
     );
   }
+}
+
+/// A one-line statement of the guarantee, shown next to every lookup result.
+///
+/// It is deliberately factual rather than reassuring: the app cannot prove what
+/// the publisher did upstream, but it *can* state what reached the device, and
+/// that is what a student worried about their roll number being shared wants to
+/// know.
+class _HashedNote extends StatelessWidget {
+  const _HashedNote({required this.text, this.align = TextAlign.start});
+
+  final String text;
+  final TextAlign align;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.ev;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisAlignment: align == TextAlign.center
+          ? MainAxisAlignment.center
+          : MainAxisAlignment.start,
+      children: [
+        Icon(Icons.lock_outline_rounded, size: 10, color: p.textTertiary),
+        const SizedBox(width: 4),
+        Flexible(
+          child: Text(
+            text,
+            textAlign: align,
+            style: context.type.microLabel.copyWith(fontSize: 8, height: 1.5),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// 3507 -> "3,507". Local to this screen; `intl` would be a dependency for one
+/// call site.
+String _thousands(int n) {
+  final digits = n.toString();
+  final buffer = StringBuffer();
+  for (var i = 0; i < digits.length; i++) {
+    if (i > 0 && (digits.length - i) % 3 == 0) buffer.write(',');
+    buffer.write(digits[i]);
+  }
+  return buffer.toString();
 }

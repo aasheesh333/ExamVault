@@ -1,6 +1,7 @@
 name: Refresh exam data
 
-# Pulls the official SSC feed and republishes it to the edge.
+# Pulls the official feeds (SSC, UPSC, IBPS, TNPSC, RRB) and republishes
+# them to the edge.
 #
 # Why a separate workflow: the app's CI must stay fast and secret-free for PRs.
 # This job needs the Cloudflare token, so it runs on a schedule and on demand,
@@ -46,7 +47,7 @@ jobs:
       - name: Install PDF reader
         run: pip install --quiet pypdf
 
-      - name: Fetch official SSC notices
+      - name: Fetch official notices
         working-directory: tools
         run: node fetch_official_feeds.mjs --out ../data/live_feed.json
 
@@ -66,7 +67,7 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: python3 build_indexes.py --feed ../data/live_feed.json --limit 3
+        run: python3 build_indexes.py --feed ../data/live_feed.json --limit 8
 
       - name: Publish feed
         if: ${{ github.event_name == 'schedule' || inputs.publish }}
@@ -87,5 +88,5 @@ jobs:
           git config user.name  "examvault-bot"
           git config user.email "bot@users.noreply.github.com"
           git add data/live_feed.json
-          git commit -m "data: refresh official SSC feed [skip ci]"
+          git commit -m "data: refresh official exam feed [skip ci]"
           git push

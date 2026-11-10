@@ -698,24 +698,31 @@ class _MirrorRowView extends StatelessWidget {
       child: Row(
         children: [
           Expanded(
-            child: RichText(
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              text: TextSpan(
-                children: [
-                  TextSpan(
-                    text: row.name,
-                    style: context.type.label.copyWith(
-                      color: p.textPrimary,
-                      fontSize: 11.5,
-                    ),
-                  ),
-                  if (row.sub.isNotEmpty)
+            // The subtitle is context ("published", "on device"), not a value —
+            // it used to be appended inline and truncated to "…" on a 320px
+            // screen, leaving a row that said nothing. It now drops entirely
+            // rather than dying mid-word, and the state badge already carries the
+            // information it was repeating.
+            child: LayoutBuilder(
+              builder: (context, box) => RichText(
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                text: TextSpan(
+                  children: [
                     TextSpan(
-                      text: '  ${row.sub}',
-                      style: context.type.bodyMuted.copyWith(fontSize: 9.5),
+                      text: row.name,
+                      style: context.type.label.copyWith(
+                        color: p.textPrimary,
+                        fontSize: 11.5,
+                      ),
                     ),
-                ],
+                    if (row.sub.isNotEmpty && box.maxWidth > 140)
+                      TextSpan(
+                        text: '  ${row.sub}',
+                        style: context.type.bodyMuted.copyWith(fontSize: 9.5),
+                      ),
+                  ],
+                ),
               ),
             ),
           ),

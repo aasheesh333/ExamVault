@@ -551,7 +551,10 @@ class _CtaBar extends StatelessWidget {
               ),
             ),
           ),
-          const Icon(Icons.qr_code_2_rounded, size: 15, color: Colors.white),
+          // A globe, not a QR glyph: there is no QR code on this card, and an
+          // icon that promises a scanner is worse than no icon. The caption
+          // carries the full tappable link.
+          const Icon(Icons.language_rounded, size: 15, color: Colors.white),
         ],
       ),
     );

@@ -110,7 +110,11 @@ class CommandCenterScreen extends ConsumerWidget {
                 filter: filter,
                 searching: searching,
               ),
-              const SliverToBoxAdapter(child: SizedBox(height: 120)),
+              SliverToBoxAdapter(
+                // Chrome inset, not a guess: the tab bar's height now follows
+                // the text scale, so a fixed 120 stops being correct.
+                child: SizedBox(height: EvChrome.bottomInset(context)),
+              ),
             ],
           ),
         ),
@@ -133,18 +137,28 @@ class _TopBar extends ConsumerWidget {
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(EvSpace.gutter, 6, EvSpace.gutter, 0),
+      // 44, not 34: the bar's fixed height was clipping the 44px icon buttons it
+      // contains, so the bell and the About button had 34px and 32px tap targets.
+      // A row of controls is only as tappable as the box it is given.
       child: SizedBox(
-        height: 34,
+        height: EvSize.minTapTarget,
         child: Row(
           children: [
             _VaultMark(size: 28),
             const SizedBox(width: 9),
-            Text(
-              'EXAMVAULT',
-              style: context.type.statusPill.copyWith(
-                color: p.textPrimary,
-                fontSize: 11.5,
-                letterSpacing: 2.6,
+            // Flexible, not a bare Text + Spacer: at 2.0x the wordmark grew while
+            // the two 44px buttons stayed fixed, so the row overflowed by 75px.
+            // The wordmark yields; the controls must not shrink.
+            Flexible(
+              child: Text(
+                'EXAMVAULT',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: context.type.statusPill.copyWith(
+                  color: p.textPrimary,
+                  fontSize: 11.5,
+                  letterSpacing: 2.6,
+                ),
               ),
             ),
             const Spacer(),
@@ -220,21 +234,29 @@ class _AboutButton extends StatelessWidget {
       button: true,
       label: 'About ExamVault, data sources and privacy',
       child: InkWell(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(22),
         onTap: () => showAboutSheet(context),
-        child: Container(
-          width: 32,
-          height: 32,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: p.surfaceElevated,
-            border: Border.all(color: p.accent.withValues(alpha: 0.4)),
-          ),
-          child: Icon(
-            Icons.info_outline_rounded,
-            size: 15,
-            color: p.accentText,
+        // 44x44 hit area around a 32px visual: the circle was both the drawing
+        // and the tap target, which is 12px under the minimum.
+        child: SizedBox(
+          width: EvSize.minTapTarget,
+          height: EvSize.minTapTarget,
+          child: Center(
+            child: Container(
+              width: 32,
+              height: 32,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: p.surfaceElevated,
+                border: Border.all(color: p.accent.withValues(alpha: 0.4)),
+              ),
+              child: Icon(
+                Icons.info_outline_rounded,
+                size: 15,
+                color: p.accentText,
+              ),
+            ),
           ),
         ),
       ),
@@ -394,24 +416,32 @@ class _SearchFieldState extends ConsumerState<_SearchField> {
             Icon(Icons.search_rounded, size: 18, color: p.textTertiary),
             const SizedBox(width: 8),
             Expanded(
-              child: TextField(
-                controller: _controller,
-                focusNode: _focus,
-                textInputAction: TextInputAction.search,
-                onChanged: ref.read(searchQueryProvider.notifier).set,
-                onSubmitted: (_) => _focus.unfocus(),
-                style: context.type.body.copyWith(color: p.textPrimary),
-                decoration: InputDecoration(
-                  isDense: true,
-                  // The theme fills inputs, which painted a second rounded box
-                  // inside the container's own border.
-                  filled: false,
-                  border: InputBorder.none,
-                  enabledBorder: InputBorder.none,
-                  focusedBorder: InputBorder.none,
-                  contentPadding: EdgeInsets.zero,
-                  hintText: 'Search exam, result or your card',
-                  hintStyle: context.type.body.copyWith(color: p.textTertiary),
+              // The field itself was 20px tall inside a 48px row, so only the
+              // text baseline was tappable and the rest of the visible box did
+              // not focus it. 44 makes the whole row live.
+              child: SizedBox(
+                height: EvSize.minTapTarget,
+                child: TextField(
+                  controller: _controller,
+                  focusNode: _focus,
+                  textInputAction: TextInputAction.search,
+                  onChanged: ref.read(searchQueryProvider.notifier).set,
+                  onSubmitted: (_) => _focus.unfocus(),
+                  style: context.type.body.copyWith(color: p.textPrimary),
+                  decoration: InputDecoration(
+                    isDense: true,
+                    // The theme fills inputs, which painted a second rounded box
+                    // inside the container's own border.
+                    filled: false,
+                    border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                    contentPadding: EdgeInsets.zero,
+                    hintText: 'Search exam, result or your card',
+                    hintStyle: context.type.body.copyWith(
+                      color: p.textTertiary,
+                    ),
+                  ),
                 ),
               ),
             ),

@@ -1164,30 +1164,27 @@ class _EmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = context.ev;
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.lock_outline_rounded, size: 40, color: p.textTertiary),
-            const SizedBox(height: 16),
-            Text('Your vault is empty', style: context.type.sectionTitle),
-            const SizedBox(height: 6),
-            Text(
-              'Roll numbers, registration IDs and centre details — encrypted on this device.',
-              textAlign: TextAlign.center,
-              style: context.type.bodyMuted,
-            ),
-            const SizedBox(height: 20),
-            EvPrimaryButton(
-              label: 'Add admit card',
-              icon: Icons.add_rounded,
-              expand: false,
-              onPressed: onAdd,
-            ),
-          ],
-        ),
+    return EvCenteredScroll(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.lock_outline_rounded, size: 40, color: p.textTertiary),
+          const SizedBox(height: 16),
+          Text('Your vault is empty', style: context.type.sectionTitle),
+          const SizedBox(height: 6),
+          Text(
+            'Roll numbers, registration IDs and centre details — encrypted on this device.',
+            textAlign: TextAlign.center,
+            style: context.type.bodyMuted,
+          ),
+          const SizedBox(height: 20),
+          EvPrimaryButton(
+            label: 'Add admit card',
+            icon: Icons.add_rounded,
+            expand: false,
+            onPressed: onAdd,
+          ),
+        ],
       ),
     );
   }

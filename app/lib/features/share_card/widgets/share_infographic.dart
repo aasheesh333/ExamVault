@@ -140,7 +140,8 @@ class ShareInfographic extends StatelessWidget {
                   const SizedBox(height: 9),
                   Text(
                     data.subline,
-                    maxLines: 2,
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       fontFamily: EvFont.ui,
                       fontFamilyFallback: EvFont.fallbackUi,

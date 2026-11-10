@@ -151,6 +151,21 @@ class EvTabBar extends ConsumerWidget {
   }
 }
 
+/// The floating chrome's total footprint, measured once.
+///
+/// Screens used to end their scroll views with a guessed `SizedBox(height: 120)`
+/// (or 130) to clear the tab bar. When the bar's height was made text-aware those
+/// constants became wrong, and content disappeared underneath it. Everything that
+/// needs to clear the bar now asks for this instead of guessing.
+abstract final class EvChrome {
+  /// Vertical space the floating tab bar occupies, including its margins and the
+  /// device's bottom safe-area inset.
+  static double bottomInset(BuildContext context) {
+    final media = MediaQuery.of(context);
+    return EvSize.tabBar + 12 + media.padding.bottom + 12;
+  }
+}
+
 /// Tab bar height for the current text scale.
 ///
 /// Deliberately a computed height rather than `minHeight`: a Column inside an
@@ -193,8 +208,20 @@ class _TabButton extends StatelessWidget {
                 : Colors.transparent,
             borderRadius: BorderRadius.circular(EvRadius.button),
           ),
+          // `clipBehavior` + a fixed-height box: a Column inside an Expanded
+          // receives a *loose* width, and the label was allowed to paint outside
+          // it ("HomeVaultRadarShare"). Clipping the pill means an oversized label
+          // is cut at its own edge instead of bleeding over its neighbour, and the
+          // FittedBox below shrinks it to fit before that ever happens.
+          padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
+            // `stretch` is the fix: a Column's default cross-axis alignment sizes
+            // children to their intrinsic width, so the label painted outside the
+            // pill and over its neighbour ("HomeVaultRadarShare"). Stretching makes
+            // every child exactly as wide as the tab.
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
             children: [
               Stack(
                 clipBehavior: Clip.none,
@@ -226,11 +253,28 @@ class _TabButton extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 3),
-              Text(
-                tab.label,
-                style: context.type.label.copyWith(
-                  letterSpacing: 0.2,
-                  color: selected ? p.accentText : p.textTertiary,
+              // At 2.0x on a 320px screen each column is ~80px wide and four
+              // full labels overlapped ("VaultRadaShar"). Scaling the label down
+              // to fit keeps the name visible and readable instead of either
+              // overlapping or silently disappearing.
+              // Bounded by the real remaining width via `LayoutBuilder`, then
+              // scaled down to fit. `double.infinity` was not enough: the parent
+              // hands down a loose constraint, so the FittedBox sized to its child
+              // and drew outside the pill.
+              LayoutBuilder(
+                builder: (context, box) => SizedBox(
+                  width: box.maxWidth,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      tab.label,
+                      maxLines: 1,
+                      style: context.type.label.copyWith(
+                        letterSpacing: 0.2,
+                        color: selected ? p.accentText : p.textTertiary,
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ],

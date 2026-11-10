@@ -432,7 +432,7 @@ class _InstantResultCheckerScreenState
                       indexSource: state.indexSource,
                     ),
                   ],
-                  const SizedBox(height: 130),
+                  SizedBox(height: EvChrome.bottomInset(context)),
                 ],
               ),
             ),
@@ -491,8 +491,10 @@ class _NavBar extends ConsumerWidget {
     final p = context.ev;
     final isLive = update != null;
 
-    return SizedBox(
-      height: EvSize.navBar,
+    return ConstrainedBox(
+      // A floor, not a fixed height. At a fixed 40px this bar squeezed its own
+      // 44px icon buttons down to 40, so back/close missed the 44px minimum.
+      constraints: const BoxConstraints(minHeight: EvSize.minTapTarget),
       child: Stack(
         alignment: Alignment.center,
         children: [
@@ -711,12 +713,20 @@ class _MirrorCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 5),
-              Text(
-                'AUTO-REFRESH 60s',
-                style: context.type.statusPill.copyWith(
-                  color: p.successText,
-                  fontSize: 11,
-                  letterSpacing: 0.9,
+              // Flexible + ellipsis: this label is fixed-size chrome beside a
+              // flexible title, so at large text it pushed the row 115px past
+              // the card.
+              Flexible(
+                child: Text(
+                  'AUTO-REFRESH 60s',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.end,
+                  style: context.type.statusPill.copyWith(
+                    color: p.successText,
+                    fontSize: 11,
+                    letterSpacing: 0.9,
+                  ),
                 ),
               ),
             ],
@@ -891,7 +901,10 @@ class _RetryNote extends StatelessWidget {
         Expanded(
           child: Text(
             label,
-            maxLines: 2,
+            // Three lines with an ellipsis: two lines cut the sentence mid-word
+            // ("...multi-megab") at 1.35x and above.
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
             style: context.type.bodyMuted.copyWith(),
           ),
         ),
@@ -934,39 +947,44 @@ class _RollField extends StatelessWidget {
               Icon(Icons.search_rounded, size: 17, color: p.textTertiary),
               const SizedBox(width: 9),
               Expanded(
-                child: TextField(
-                  // Named so tests (and future automation) can target the roll
-                  // field unambiguously — the Home screen now also has a search
-                  // TextField, and "the first TextField" is no longer this one.
-                  key: const ValueKey('roll-field'),
-                  controller: controller,
-                  enabled: !busy,
-                  autocorrect: false,
-                  enableSuggestions: false,
-                  textCapitalization: TextCapitalization.characters,
-                  keyboardType: TextInputType.visiblePassword,
-                  textInputAction: TextInputAction.search,
-                  onSubmitted: (_) {
-                    if (!busy) onSubmitted?.call();
-                  },
-                  inputFormatters: [
-                    FilteringTextInputFormatter.allow(
-                      RegExp(r'[A-Za-z0-9\-/]'),
+                // The field was 20px tall inside a 56px row: only the text line
+                // could be tapped to focus it, not the visible box.
+                child: SizedBox(
+                  height: EvSize.minTapTarget,
+                  child: TextField(
+                    // Named so tests (and future automation) can target the roll
+                    // field unambiguously — the Home screen now also has a search
+                    // TextField, and "the first TextField" is no longer this one.
+                    key: const ValueKey('roll-field'),
+                    controller: controller,
+                    enabled: !busy,
+                    autocorrect: false,
+                    enableSuggestions: false,
+                    textCapitalization: TextCapitalization.characters,
+                    keyboardType: TextInputType.visiblePassword,
+                    textInputAction: TextInputAction.search,
+                    onSubmitted: (_) {
+                      if (!busy) onSubmitted?.call();
+                    },
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(
+                        RegExp(r'[A-Za-z0-9\-/]'),
+                      ),
+                    ],
+                    style: context.type.fieldValue.copyWith(fontSize: 15),
+                    decoration: InputDecoration(
+                      isDense: true,
+                      filled: false,
+                      border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
+                      hintText: 'Roll number',
+                      hintStyle: context.type.bodyMuted.copyWith(
+                        fontSize: 13,
+                        letterSpacing: 0,
+                      ),
+                      contentPadding: EdgeInsets.zero,
                     ),
-                  ],
-                  style: context.type.fieldValue.copyWith(fontSize: 15),
-                  decoration: InputDecoration(
-                    isDense: true,
-                    filled: false,
-                    border: InputBorder.none,
-                    enabledBorder: InputBorder.none,
-                    focusedBorder: InputBorder.none,
-                    hintText: 'Roll number',
-                    hintStyle: context.type.bodyMuted.copyWith(
-                      fontSize: 13,
-                      letterSpacing: 0,
-                    ),
-                    contentPadding: EdgeInsets.zero,
                   ),
                 ),
               ),

@@ -185,8 +185,12 @@ class EvTextAction extends StatelessWidget {
       child: InkWell(
         onTap: onPressed,
         borderRadius: BorderRadius.circular(EvRadius.pill),
+        // Visual height stays 32 so headers keep their rhythm, but the hit area
+        // is 44. The InkWell was the tap surface and it inherited the 32px
+        // container, so these text actions were undersized by 12px.
         child: Container(
-          constraints: const BoxConstraints(minHeight: 32),
+          constraints: const BoxConstraints(minHeight: EvSize.minTapTarget),
+          alignment: Alignment.center,
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -211,6 +215,41 @@ class EvTextAction extends StatelessWidget {
               ],
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A vertically centred block that scrolls when it cannot fit.
+///
+/// Every empty/error state in the app was `Center(child: Column(...))`, which
+/// cannot scroll: on a 320x568 screen at 2.0x text the content is taller than the
+/// viewport and the Column overflows off both edges. This centres when there is
+/// room and scrolls when there is not, which is the behaviour those states always
+/// needed.
+class EvCenteredScroll extends StatelessWidget {
+  const EvCenteredScroll({
+    super.key,
+    required this.child,
+    this.padding = const EdgeInsets.all(32),
+  });
+
+  final Widget child;
+  final EdgeInsetsGeometry padding;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) => SingleChildScrollView(
+        padding: padding,
+        child: ConstrainedBox(
+          // Fill the viewport minus the padding, so `Center` still centres in the
+          // normal case and only starts scrolling once content exceeds it.
+          constraints: BoxConstraints(
+            minHeight: (constraints.maxHeight - 64).clamp(0.0, double.infinity),
+          ),
+          child: Center(child: child),
         ),
       ),
     );

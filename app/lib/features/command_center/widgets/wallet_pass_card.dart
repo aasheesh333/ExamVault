@@ -301,12 +301,21 @@ class _FullBody extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 3),
-                      FittedBox(
-                        fit: BoxFit.scaleDown,
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          card.rollNumber,
-                          style: context.type.rollCard,
+                      // `SizedBox(width: double.infinity)` first: a bare
+                      // FittedBox inside a Column receives *unbounded* width, so
+                      // `scaleDown` had nothing to scale against and a 20-digit
+                      // roll ran 217px off the card. Pinning the box to the
+                      // available width makes the fit real.
+                      SizedBox(
+                        width: double.infinity,
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            card.rollNumber,
+                            maxLines: 1,
+                            style: context.type.rollCard,
+                          ),
                         ),
                       ),
                     ],

@@ -407,7 +407,7 @@ class _WhatsappShareCardScreenState
                     busy: _sharing,
                     onPressed: () => _share(data),
                   ),
-                  const SizedBox(height: 130),
+                  SizedBox(height: EvChrome.bottomInset(context)),
                 ],
               ),
             ),
@@ -424,8 +424,10 @@ class _ShareNavBar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final p = context.ev;
-    return SizedBox(
-      height: EvSize.navBar,
+    return ConstrainedBox(
+      // A floor, not a fixed height. At a fixed 40px this bar squeezed its own
+      // 44px icon buttons down to 40, so back/close missed the 44px minimum.
+      constraints: const BoxConstraints(minHeight: EvSize.minTapTarget),
       child: Stack(
         alignment: Alignment.center,
         children: [
@@ -634,11 +636,14 @@ class _CaptionEditorState extends State<_CaptionEditor> {
               GestureDetector(
                 onTap: () => setState(() => _editing = !_editing),
                 behavior: HitTestBehavior.opaque,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 4,
-                    vertical: 2,
+                // A 17px-tall text label was the entire tap target. Padded to the
+                // 44px minimum; the label keeps its size.
+                child: Container(
+                  constraints: const BoxConstraints(
+                    minWidth: EvSize.minTapTarget,
+                    minHeight: EvSize.minTapTarget,
                   ),
+                  alignment: Alignment.centerRight,
                   child: Text(
                     _editing ? 'DONE' : 'EDIT',
                     style: context.type.statusPill.copyWith(
@@ -793,35 +798,33 @@ class _ShareError extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = context.ev;
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 32),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.error_outline_rounded, color: p.danger, size: 28),
-            const SizedBox(height: 16),
-            Text(
-              'Could not load your saved cards',
-              textAlign: TextAlign.center,
-              style: context.type.sectionTitle.copyWith(fontSize: 14),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              'Your vault is stored on this device. Nothing was lost — try '
-              'again in a moment.',
-              textAlign: TextAlign.center,
-              style: context.type.bodyMuted,
-            ),
-            const SizedBox(height: 20),
-            EvSecondaryButton(
-              label: 'Try again',
-              icon: Icons.refresh_rounded,
-              expand: false,
-              onPressed: onRetry,
-            ),
-          ],
-        ),
+    return EvCenteredScroll(
+      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.error_outline_rounded, color: p.danger, size: 28),
+          const SizedBox(height: 16),
+          Text(
+            'Could not load your saved cards',
+            textAlign: TextAlign.center,
+            style: context.type.sectionTitle.copyWith(fontSize: 14),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Your vault is stored on this device. Nothing was lost — try '
+            'again in a moment.',
+            textAlign: TextAlign.center,
+            style: context.type.bodyMuted,
+          ),
+          const SizedBox(height: 20),
+          EvSecondaryButton(
+            label: 'Try again',
+            icon: Icons.refresh_rounded,
+            expand: false,
+            onPressed: onRetry,
+          ),
+        ],
       ),
     );
   }
@@ -838,54 +841,48 @@ class _NothingToShare extends StatelessWidget {
   Widget build(BuildContext context) {
     final p = context.ev;
 
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 32),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 52,
-              height: 52,
-              decoration: BoxDecoration(
-                color: p.accent.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(EvRadius.inner),
-              ),
-              child: Icon(
-                Icons.ios_share_rounded,
-                color: p.accentText,
-                size: 24,
-              ),
+    return EvCenteredScroll(
+      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: p.accent.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(EvRadius.inner),
             ),
-            const SizedBox(height: 16),
-            Text(
-              'Nothing to share yet',
-              textAlign: TextAlign.center,
-              style: context.type.sectionTitle.copyWith(fontSize: 14),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              'A share card is built from a result on the Radar, or from your own '
-              'saved admit card. Add one and this screen fills itself in.',
-              textAlign: TextAlign.center,
-              style: context.type.bodyMuted,
-            ),
-            const SizedBox(height: 20),
-            EvPrimaryButton(
-              label: 'Add an admit card',
-              icon: Icons.add_rounded,
-              expand: false,
-              onPressed: onAddCard,
-            ),
-            const SizedBox(height: 8),
-            EvSecondaryButton(
-              label: 'Open Radar',
-              icon: Icons.radar_rounded,
-              expand: false,
-              onPressed: onOpenRadar,
-            ),
-          ],
-        ),
+            child: Icon(Icons.ios_share_rounded, color: p.accentText, size: 24),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Nothing to share yet',
+            textAlign: TextAlign.center,
+            style: context.type.sectionTitle.copyWith(fontSize: 14),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'A share card is built from a result on the Radar, or from your own '
+            'saved admit card. Add one and this screen fills itself in.',
+            textAlign: TextAlign.center,
+            style: context.type.bodyMuted,
+          ),
+          const SizedBox(height: 20),
+          EvPrimaryButton(
+            label: 'Add an admit card',
+            icon: Icons.add_rounded,
+            expand: false,
+            onPressed: onAddCard,
+          ),
+          const SizedBox(height: 8),
+          EvSecondaryButton(
+            label: 'Open Radar',
+            icon: Icons.radar_rounded,
+            expand: false,
+            onPressed: onOpenRadar,
+          ),
+        ],
       ),
     );
   }

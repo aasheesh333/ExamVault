@@ -491,17 +491,20 @@ class _RadarHeader extends StatelessWidget {
     final generated = snapshot?.feed.generatedAt;
     final age = generated == null ? null : DateTime.now().difference(generated);
 
+    // A cached document always states its age, even when fresh: "CACHED" alone
+    // gives no way to tell "saved four seconds ago" from "saved yesterday", and
+    // the age is the whole reason the label exists.
     final String status;
     if (snapshot == null) {
       status = 'CONNECTING…';
     } else if (source == FeedSource.none) {
       status = 'NO FEED';
+    } else if (source == FeedSource.cache) {
+      status = age == null ? 'CACHED' : 'CACHED · ${_shortAge(age)}';
     } else if (age != null && age.inMinutes >= 2) {
-      status =
-          '${source == FeedSource.network ? 'EDGE' : 'CACHED'} · '
-          '${_shortAge(age)} OLD';
+      status = 'EDGE · ${_shortAge(age)} OLD';
     } else {
-      status = source == FeedSource.network ? 'LIVE · EDGE' : 'CACHED';
+      status = 'LIVE · EDGE';
     }
 
     return EvSectionHeader(

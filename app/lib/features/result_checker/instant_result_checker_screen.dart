@@ -279,10 +279,24 @@ class _InstantResultCheckerScreenState
                   ),
                   if (examId == null) ...[
                     const SizedBox(height: 8),
+                    // "Tap a result on the Radar tab" was wrong twice over: this
+                    // *is* the Radar tab, and the live list is on Home. Advice
+                    // that points at the screen you are already on reads as a bug.
                     Text(
-                      'Add an admit card first, or tap a result on the Radar '
-                      'tab — we need to know which exam to check.',
+                      'Add an admit card, or open a result from Home. We will not '
+                      'guess which exam to search.',
                       style: context.type.bodyMuted.copyWith(fontSize: 10.5),
+                    ),
+                    const SizedBox(height: 8),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: EvTextAction(
+                        label: 'See live results',
+                        icon: Icons.arrow_forward_rounded,
+                        onPressed: () => ref
+                            .read(tabIndexProvider.notifier)
+                            .select(EvTab.home),
+                      ),
                     ),
                   ],
                   // We open the commission's own PDF rather than a copy of it.

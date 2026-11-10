@@ -143,9 +143,17 @@ void main() {
 
       expect(find.text('Which result?'), findsOneWidget);
       expect(
-        find.textContaining('Add an admit card first'),
+        find.textContaining('We will not guess which exam'),
         findsOneWidget,
         reason: 'the CTA must explain why it cannot run',
+      );
+      // It must also say where to go. "Tap a result on the Radar tab" was wrong:
+      // this is the Radar tab, and the live list is on Home.
+      expect(find.text('See live results'), findsOneWidget);
+      expect(
+        find.textContaining('on the Radar tab'),
+        findsNothing,
+        reason: 'never point at the screen the user is already on',
       );
       expect(tester.takeException(), isNull);
     });

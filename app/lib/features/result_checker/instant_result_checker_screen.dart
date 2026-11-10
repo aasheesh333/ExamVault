@@ -47,6 +47,19 @@ class _InstantResultCheckerScreenState
     return card?.rollNumber ?? '';
   }
 
+  /// Keeps the form pointing at the card the user chose elsewhere.
+  ///
+  /// The screen lives in an `IndexedStack`, so it is built once at launch — long
+  /// before any card exists. Vault's "Check my result" then sets
+  /// `selectedCardIdProvider` and switches tab, and without this the field stayed
+  /// empty and the header described the wrong exam.
+  void _syncWithSelectedCard(AdmitCard? card) {
+    if (card == null) return;
+    if (_cardId == card.id && _roll.text.isNotEmpty) return;
+    _cardId = card.id;
+    if (card.rollNumber.isNotEmpty) _roll.text = card.rollNumber;
+  }
+
   @override
   void dispose() {
     _roll.dispose();
@@ -74,7 +87,11 @@ class _InstantResultCheckerScreenState
     return null;
   }
 
-  AdmitCard? _targetCard(List<AdmitCard>? cards, AdmitCard? fallback) {
+  AdmitCard? _targetCard(
+    List<AdmitCard>? cards,
+    AdmitCard? fallback, {
+    String? chosenId,
+  }) {
     if (cards == null || cards.isEmpty) return fallback;
     final update = ref.read(resultExamIdProvider);
     if (update != null) {
@@ -82,9 +99,12 @@ class _InstantResultCheckerScreenState
         if (c.examId == update.examId) return c;
       }
     }
-    if (_cardId != null) {
+    // An explicit choice — from the picker here, or from Vault's "Check my
+    // result" — outranks "whichever card sorts first".
+    for (final id in [_cardId, chosenId]) {
+      if (id == null) continue;
       for (final c in cards) {
-        if (c.id == _cardId) return c;
+        if (c.id == id) return c;
       }
     }
     return cards.first;
@@ -170,7 +190,20 @@ class _InstantResultCheckerScreenState
     final cards = ref.watch(admitCardsProvider).value;
     final state = ref.watch(resultCheckerProvider);
     final tapped = ref.watch(resultExamIdProvider);
-    final card = _targetCard(cards, null);
+
+    // A card chosen from the vault takes precedence over "the first card".
+    final chosenId = ref.watch(selectedCardIdProvider);
+    final card = _targetCard(cards, null, chosenId: chosenId);
+    if (chosenId != null && chosenId != _cardId) {
+      final chosen = cards?.where((c) => c.id == chosenId).firstOrNull;
+      if (chosen != null) {
+        // Deferred: mutating controllers during build trips assertions in debug.
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          setState(() => _syncWithSelectedCard(chosen));
+        });
+      }
+    }
 
     // Resolve the exam from something real: the radar row the user tapped, or
     // their own saved card, or an explicit pick. Never a hardcoded default — the
@@ -201,8 +234,11 @@ class _InstantResultCheckerScreenState
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // No "SSC" fallback: with nothing selected the screen used to
+                  // label itself SSC, which is a claim about the exam the user has
+                  // not made. Blank is honest; the title below asks the question.
                   Text(
-                    (update?.category.label ?? card?.category.label ?? 'SSC')
+                    (update?.category.label ?? card?.category.label ?? '')
                         .toUpperCase(),
                     style: context.type.microLabel.copyWith(letterSpacing: 1.7),
                   ),
@@ -744,7 +780,9 @@ class _RetryNote extends StatelessWidget {
                   'only source right now.'
             : 'Checked against the published list. Your roll number was never '
                   'sent anywhere.',
-      ResultPhase.unavailable => state.error ?? 'Could not check.',
+      // The card below says why in full. Repeating it here as a one-liner made
+      // the screen state the same sentence twice, ten pixels apart.
+      ResultPhase.unavailable => 'No index to search yet.',
       ResultPhase.idle =>
         count == null
             ? 'One small index instead of a multi-megabyte PDF.'
@@ -904,6 +942,23 @@ class _UnavailableCard extends StatelessWidget {
 
   final String? message;
 
+  /// Publishes are weekly, not instant: the list for an exam that *has* a
+  /// published PDF appears within one refresh cycle. Saying "not published"
+  /// without that context reads as "you were not selected".
+  static String _explain(String? message) {
+    final reason = message ?? '';
+    if (reason.isEmpty) {
+      return 'The commission has not published a candidate list for this exam '
+          'yet. When it does, we will index it on the next refresh.';
+    }
+    if (reason.toLowerCase().contains('connection') ||
+        reason.toLowerCase().contains('reach')) {
+      return 'We could not reach the result index from this device. Check your '
+          'connection and tap check again — nothing was lost.';
+    }
+    return reason;
+  }
+
   @override
   Widget build(BuildContext context) {
     final p = context.ev;
@@ -931,9 +986,9 @@ class _UnavailableCard extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            message ??
-                'The official index for this exam is not on the edge yet. This '
-                    'is normal before a result drops — we will not guess.',
+            // A generic transport error is not the same as "not published", and
+            // saying the wrong one sends the student to the wrong place.
+            _explain(message),
             style: context.type.bodyMuted.copyWith(fontSize: 11),
           ),
           const SizedBox(height: 6),

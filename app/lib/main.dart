@@ -107,6 +107,10 @@ Future<void> _bootPush(ProviderContainer container) async {
   final provider = await push.initialise();
   if (provider == PushProvider.disabled) return;
 
-  // Default to the two categories a new aspirant is most likely tracking.
-  await push.syncTopics({ExamCategory.ssc, ExamCategory.upsc});
+  // Subscribe to every category the app covers.
+  //
+  // It used to be just SSC and UPSC, so a student who only follows Banking or
+  // Railways — both of which now publish real rows — would never receive a
+  // notification about them. The topics are cheap and empty topics cost nothing.
+  await push.syncTopics(ExamCategory.values.toSet());
 }

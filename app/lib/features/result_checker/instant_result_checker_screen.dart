@@ -471,7 +471,7 @@ class _NavBar extends StatelessWidget {
                       Text(
                         isLive ? 'LIVE' : 'READY',
                         style: context.type.statusPill.copyWith(
-                          fontSize: 8,
+                          fontSize: 9,
                           letterSpacing: 1.1,
                           color: isLive ? p.successText : p.textTertiary,
                         ),
@@ -647,7 +647,7 @@ class _MirrorCard extends StatelessWidget {
                 'AUTO-REFRESH 60s',
                 style: context.type.statusPill.copyWith(
                   color: p.successText,
-                  fontSize: 7.5,
+                  fontSize: 9,
                   letterSpacing: 0.9,
                 ),
               ),
@@ -752,7 +752,7 @@ class _MirrorRowView extends StatelessWidget {
               textAlign: TextAlign.right,
               style: context.type.statusPill.copyWith(
                 color: row.textColor,
-                fontSize: 7.5,
+                fontSize: 9,
               ),
             ),
           ),
@@ -763,7 +763,7 @@ class _MirrorRowView extends StatelessWidget {
               row.value,
               textAlign: TextAlign.right,
               style: context.type.monoMeta.copyWith(
-                fontSize: 8.5,
+                fontSize: 9,
                 color: p.textTertiary,
               ),
             ),
@@ -932,7 +932,7 @@ class _NotFoundCard extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             'Searched in ${(result.elapsedMicros / 1000).toStringAsFixed(1)} ms on this device.',
-            style: context.type.microLabel.copyWith(fontSize: 8.5),
+            style: context.type.microLabel.copyWith(fontSize: 9),
           ),
           if (result.privacyPreserving) ...[
             const SizedBox(height: 8),
@@ -1015,7 +1015,7 @@ class _UnavailableCard extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             'We never show a result we cannot verify.',
-            style: context.type.microLabel.copyWith(fontSize: 8.5),
+            style: context.type.microLabel.copyWith(fontSize: 9),
           ),
         ],
       ),
@@ -1045,7 +1045,7 @@ class _RecentChecks extends StatelessWidget {
           padding: EdgeInsets.zero,
           trailing: Text(
             indexSource?.label.toUpperCase() ?? 'NOT RUN',
-            style: context.type.microLabel.copyWith(fontSize: 8.5),
+            style: context.type.microLabel.copyWith(fontSize: 9),
           ),
         ),
         const SizedBox(height: 8),
@@ -1089,7 +1089,7 @@ class _RecentChecks extends StatelessWidget {
                 child: Text(
                   verified ? 'FOUND' : 'NOT CHECKED',
                   style: context.type.statusPill.copyWith(
-                    fontSize: 7.5,
+                    fontSize: 9,
                     color: verified ? p.successText : p.textTertiary,
                   ),
                 ),
@@ -1243,7 +1243,7 @@ class _SelectedDialog extends StatelessWidget {
                 'Found in ${(result.elapsedMicros / 1000).toStringAsFixed(1)} ms '
                 'among ${result.totalRolls} roll numbers.',
                 textAlign: TextAlign.center,
-                style: context.type.microLabel.copyWith(fontSize: 8.5),
+                style: context.type.microLabel.copyWith(fontSize: 9),
               ),
               if (result.privacyPreserving) ...[
                 const SizedBox(height: 8),
@@ -1303,7 +1303,7 @@ class _HashedNote extends StatelessWidget {
           child: Text(
             text,
             textAlign: align,
-            style: context.type.microLabel.copyWith(fontSize: 8, height: 1.5),
+            style: context.type.microLabel.copyWith(fontSize: 9, height: 1.5),
           ),
         ),
       ],

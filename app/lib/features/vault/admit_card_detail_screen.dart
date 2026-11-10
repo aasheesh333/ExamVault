@@ -346,7 +346,7 @@ class _BoardingPass extends ConsumerWidget {
                               card.rollNumberVerified ? 'VERIFIED' : 'SAVED',
                               style: context.type.statusPill.copyWith(
                                 color: p.successText,
-                                fontSize: 8,
+                                fontSize: 9,
                               ),
                             ),
                           ],
@@ -391,7 +391,7 @@ class _BoardingPass extends ConsumerWidget {
                         'SAVED ON DEVICE',
                         style: context.type.statusPill.copyWith(
                           color: p.onWalletFaint,
-                          fontSize: 7.5,
+                          fontSize: 9,
                           letterSpacing: 1,
                         ),
                       ),
@@ -750,7 +750,7 @@ class _DocumentChecklist extends ConsumerWidget {
                   color: done == ChecklistItem.values.length
                       ? p.successText
                       : p.textTertiary,
-                  fontSize: 8.5,
+                  fontSize: 9,
                 ),
               ),
             ],
@@ -840,7 +840,7 @@ class _CheckRow extends StatelessWidget {
                 checked ? 'DONE' : 'TAP',
                 style: context.type.statusPill.copyWith(
                   color: checked ? p.successText : p.textTertiary,
-                  fontSize: 8,
+                  fontSize: 9,
                   letterSpacing: 1,
                 ),
               ),
@@ -897,7 +897,7 @@ class _CenterCard extends StatelessWidget {
                   'EXAM CENTRE · ${card.centerCode}'.toUpperCase(),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: context.type.microLabel.copyWith(fontSize: 8),
+                  style: context.type.microLabel.copyWith(fontSize: 9),
                 ),
                 const SizedBox(height: 2),
                 Text(
@@ -924,7 +924,7 @@ class _CenterCard extends StatelessWidget {
             'MAP',
             style: context.type.statusPill.copyWith(
               color: p.accentText,
-              fontSize: 8,
+              fontSize: 9,
               letterSpacing: 0.9,
             ),
           ),
@@ -985,7 +985,7 @@ class _ActionDock extends ConsumerWidget {
         Text(
           'TAP ANY FIELD TO COPY · AES-256 · OFFLINE',
           style: context.type.microLabel.copyWith(
-            fontSize: 8,
+            fontSize: 9,
             letterSpacing: 0.7,
             color: context.ev.textTertiary,
           ),

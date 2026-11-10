@@ -257,7 +257,7 @@ class EvIconButton extends StatelessWidget {
                         badgeCount! > 9 ? '9+' : '$badgeCount',
                         style: context.type.statusPill.copyWith(
                           color: Colors.white,
-                          fontSize: 8,
+                          fontSize: 9,
                           letterSpacing: 0,
                         ),
                       ),

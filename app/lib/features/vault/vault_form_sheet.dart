@@ -353,7 +353,7 @@ class _VaultFormSheetState extends ConsumerState<_VaultFormSheet> {
                 Center(
                   child: Text(
                     'AES-256 · ANDROID KEYSTORE · OFFLINE',
-                    style: context.type.microLabel.copyWith(fontSize: 8),
+                    style: context.type.microLabel.copyWith(fontSize: 9),
                   ),
                 ),
               ],
@@ -589,7 +589,7 @@ class _LinkedResult extends StatelessWidget {
                   const SizedBox(height: 3),
                   Text(
                     'Your roll number can be checked in this list.',
-                    style: context.type.microLabel.copyWith(fontSize: 8.5),
+                    style: context.type.microLabel.copyWith(fontSize: 9),
                   ),
                 ],
               ],

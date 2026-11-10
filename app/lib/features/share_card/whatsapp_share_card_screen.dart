@@ -332,7 +332,7 @@ class _ShareNavBar extends StatelessWidget {
                   child: Text(
                     'PREVIEW',
                     style: context.type.statusPill.copyWith(
-                      fontSize: 8,
+                      fontSize: 9,
                       letterSpacing: 1.1,
                       color: p.textTertiary,
                     ),
@@ -514,7 +514,7 @@ class _CaptionEditorState extends State<_CaptionEditor> {
                     _editing ? 'DONE' : 'EDIT',
                     style: context.type.statusPill.copyWith(
                       color: p.accentText,
-                      fontSize: 8.5,
+                      fontSize: 9,
                       letterSpacing: 0.9,
                     ),
                   ),

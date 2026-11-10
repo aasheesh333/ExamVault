@@ -348,7 +348,7 @@ class _SourceRow extends StatelessWidget {
             // publisher's own refresh, so a quiet or broken source is visible.
             ok ? '${source.rows} items' : source.status,
             style: context.type.microLabel.copyWith(
-              fontSize: 8,
+              fontSize: 9,
               color: ok ? p.textTertiary : p.warningText,
             ),
           ),

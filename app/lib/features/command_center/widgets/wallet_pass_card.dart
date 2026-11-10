@@ -197,7 +197,7 @@ class _FullBody extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
                 style: context.type.microLabel.copyWith(
                   color: p.onWalletFaint,
-                  fontSize: 8.5,
+                  fontSize: 9,
                   letterSpacing: 1.4,
                 ),
               ),
@@ -290,7 +290,7 @@ class _FullBody extends StatelessWidget {
               'SAVED OFFLINE',
               style: context.type.statusPill.copyWith(
                 color: p.successText,
-                fontSize: 8,
+                fontSize: 9,
                 letterSpacing: 1.1,
               ),
             ),
@@ -412,7 +412,7 @@ class _CategoryBadge extends StatelessWidget {
         category.toUpperCase(),
         style: context.type.statusPill.copyWith(
           color: p.isDark ? const Color(0xFFBFDBFE) : const Color(0xFFDBEAFE),
-          fontSize: 8,
+          fontSize: 9,
           letterSpacing: 1.1,
         ),
       ),
@@ -452,7 +452,7 @@ class _CountdownBadge extends StatelessWidget {
             WalletPassCard._countdownLabel(days),
             style: context.type.statusPill.copyWith(
               color: urgent ? p.dangerText : p.warningText,
-              fontSize: 8.5,
+              fontSize: 9,
               letterSpacing: 0.9,
             ),
           ),

@@ -77,3 +77,7 @@ app/build/
 
 # generated roll indexes (built from official PDFs, published to R2)
 /build/
+
+# python bytecode
+__pycache__/
+*.pyc

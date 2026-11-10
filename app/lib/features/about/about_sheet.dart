@@ -156,7 +156,41 @@ class _AboutSheet extends ConsumerWidget {
               url: 'https://www.tnpsc.gov.in/',
             ),
 
-            const SizedBox(height: 22),
+            const SizedBox(height: 18),
+            const EvSectionHeader(
+              label: 'Privacy policy',
+              padding: EdgeInsets.zero,
+            ),
+            const SizedBox(height: 8),
+            _Paragraph(
+              'The full policy ships inside the app and states exactly what is '
+              'stored, what leaves the phone and what does not.',
+            ),
+            const SizedBox(height: 4),
+            InkWell(
+              borderRadius: BorderRadius.circular(EvRadius.inner),
+              onTap: () => _showPolicy(context),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 9),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Read the privacy policy',
+                        style: context.type.bodyMuted.copyWith(fontSize: 10.5),
+                      ),
+                    ),
+                    Icon(
+                      Icons.chevron_right_rounded,
+                      size: 14,
+                      color: p.textTertiary,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 18),
             Text(
               'ExamVault is not affiliated with, endorsed by, or acting on behalf '
               'of any of these commissions. Always verify against the official '
@@ -305,6 +339,123 @@ class _Link extends StatelessWidget {
               ),
             ),
             Icon(Icons.open_in_new_rounded, size: 12, color: p.textTertiary),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The policy, readable offline.
+///
+/// A store listing needs a hosted URL, but a student on exam morning does not have
+/// one: the text that matters must be in the app they already installed. The
+/// hosted copy at `docs/PRIVACY.md` is generated from the same statements.
+Future<void> _showPolicy(BuildContext context) {
+  return showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    useSafeArea: true,
+    backgroundColor: Colors.transparent,
+    builder: (_) => const _PolicySheet(),
+  );
+}
+
+class _PolicySheet extends StatelessWidget {
+  const _PolicySheet();
+
+  static const _sections = <(String, String)>[
+    (
+      'No account, no profile',
+      'The app never asks for an email, phone number or password. Nothing you '
+          'enter is uploaded.',
+    ),
+    (
+      'Your vault stays on the phone',
+      'Admit cards, roll numbers and portal passwords are encrypted with the '
+          'Android Keystore. They are excluded from backup, so even a device '
+          'migration does not move them.',
+    ),
+    (
+      'Roll checks happen on your device',
+      'The published index contains only one-way hashes of the official roll '
+          'numbers. Your phone hashes what you type and compares locally, so the '
+          'number never leaves the device and we cannot tell what you searched.',
+    ),
+    (
+      'What the app downloads',
+      'A public JSON feed and, when you check a result, one small index. The '
+          'request carries no personal data — the same request a browser makes '
+          'for the same public file.',
+    ),
+    (
+      'Notifications',
+      'If you allow them, a push token is used only to send result alerts for '
+          'the categories you follow. It is not linked to your vault or your roll '
+          'number, and denying the permission changes nothing else.',
+    ),
+    (
+      'No analytics, no adverts',
+      'There is no analytics SDK, no advertising identifier and no location '
+          'permission in this app.',
+    ),
+    (
+      'Deleting your data',
+      'Delete a card in the app, or uninstall. Both remove everything — we hold '
+          'no copy, so there is nothing to request from us.',
+    ),
+    (
+      'Official documents',
+      'Result PDFs belong to the commissions. The app links to them on the '
+          "commission's own site and never hosts or redistributes a copy.",
+    ),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.ev;
+    return Container(
+      decoration: BoxDecoration(
+        color: p.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        border: Border.all(color: p.border),
+      ),
+      child: DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.92,
+        minChildSize: 0.5,
+        maxChildSize: 0.95,
+        builder: (context, controller) => ListView(
+          controller: controller,
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
+          children: [
+            Center(
+              child: Container(
+                width: 36,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: p.border,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            Text('Privacy policy', style: context.type.sectionTitle),
+            const SizedBox(height: 4),
+            Text(
+              'What is stored, what leaves the phone, and what does not.',
+              style: context.type.bodyMuted.copyWith(fontSize: 10.5),
+            ),
+            const SizedBox(height: 18),
+            for (final (title, body) in _sections) ...[
+              Text(
+                title,
+                style: context.type.tileTitle.copyWith(fontSize: 11.5),
+              ),
+              const SizedBox(height: 4),
+              _Paragraph(body),
+              const SizedBox(height: 14),
+            ],
           ],
         ),
       ),

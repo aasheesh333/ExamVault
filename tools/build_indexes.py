@@ -263,7 +263,14 @@ def main() -> int:
         Path(args.feed).write_text(json.dumps(feed, indent=2))
         print(f"updated       {args.feed} (index_available flags)")
 
-    return 0 if built or args.dry_run else 1
+    # "Built nothing" is not a failure.
+    #
+    # This returned 1 whenever no index was published, so the scheduled refresh
+    # failed every time the only new PDFs were writeups (which are deliberately
+    # rejected) — a green pipeline turned red for doing exactly the right thing.
+    # A real error still surfaces as an exception, which propagates as a non-zero
+    # exit anyway.
+    return 0
 
 
 if __name__ == "__main__":

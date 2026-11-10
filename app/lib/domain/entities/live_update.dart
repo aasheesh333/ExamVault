@@ -96,6 +96,39 @@ class LiveUpdate {
   bool isExpired(DateTime now) => expiresAt != null && now.isAfter(expiresAt!);
 }
 
+/// One commission the pipeline reads, and whether it answered.
+///
+/// Published by the producer in the feed's `sources` block. The app surfaces it
+/// so a student can see *which* bodies are covered and which were unreachable —
+/// an empty Railways section should not look like "no railway results exist".
+@immutable
+class SourceHealth {
+  const SourceHealth({
+    required this.id,
+    required this.label,
+    required this.status,
+    required this.rows,
+    this.homepage,
+    this.note,
+    this.checkedAt,
+  });
+
+  final String id;
+  final String label;
+
+  /// `ok`, `empty`, or `unavailable` — verbatim from the publisher.
+  final String status;
+
+  /// Rows this source contributed to the current document.
+  final int rows;
+
+  final String? homepage;
+  final String? note;
+  final DateTime? checkedAt;
+
+  bool get isAvailable => status == 'ok' || status == 'empty';
+}
+
 /// The whole edge document.
 @immutable
 class LiveFeed {
@@ -103,6 +136,7 @@ class LiveFeed {
     required this.generatedAt,
     required this.updates,
     required this.revision,
+    this.sources = const [],
   });
 
   static const empty = LiveFeed(generatedAt: null, updates: [], revision: 0);
@@ -111,6 +145,10 @@ class LiveFeed {
   final DateTime? generatedAt;
   final List<LiveUpdate> updates;
   final int revision;
+
+  /// Per-commission health, as published. Empty for older documents and for the
+  /// on-device copy of a feed that predates the field.
+  final List<SourceHealth> sources;
 
   bool get isEmpty => updates.isEmpty;
 

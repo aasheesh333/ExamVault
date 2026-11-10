@@ -6,6 +6,8 @@ import '../../core/theme/app_theme.dart';
 import '../../core/theme/theme_tokens.dart';
 import '../../domain/entities/admit_card.dart';
 import '../../domain/entities/exam_category.dart';
+import '../../domain/entities/live_update.dart';
+import '../../domain/services/exam_matcher.dart';
 import '../../providers/app_providers.dart';
 import '../../shared/widgets/ev_controls.dart';
 
@@ -67,6 +69,36 @@ class _VaultFormSheetState extends ConsumerState<_VaultFormSheet> {
   bool _saving = false;
   String? _error;
 
+  /// True once the user taps a category chip, so inference never overrides a
+  /// deliberate choice.
+  bool _categoryPicked = false;
+
+  /// Mirrors the typed name into the category chip so a "UPSC CSE" card is not
+  /// filed under SSC.
+  void _onExamNameChanged(String value) {
+    final inferred = ExamMatcher.categoryFor(value);
+    if (_categoryPicked || inferred == null) {
+      // Still rebuild: the match banner is derived from the same text.
+      setState(() {});
+      return;
+    }
+    setState(() => _category = inferred);
+  }
+
+  /// The published result this card belongs to, if one is close enough.
+  ///
+  /// `watch` for the banner (the feed can arrive while the form is open, and
+  /// `build` then rebuilds), `read` for the save path — reading a provider during
+  /// a callback is fine, watching it is not.
+  LiveUpdate? _match({required bool watch}) {
+    final feed =
+        (watch ? ref.watch(liveFeedProvider) : ref.read(liveFeedProvider))
+            .value
+            ?.feed;
+    if (feed == null) return null;
+    return ExamMatcher.best(_examName.text, feed.updates);
+  }
+
   @override
   void dispose() {
     for (final c in [
@@ -98,8 +130,12 @@ class _VaultFormSheetState extends ConsumerState<_VaultFormSheet> {
       id:
           base?.id ??
           '${_category.id}_${now.millisecondsSinceEpoch.toRadixString(36)}',
+      // Reuse the published row's id when we matched one. The checker looks up
+      // the roll index by this id, so a hand-derived id could never resolve —
+      // which made a saved card useless on result day.
       examId:
           base?.examId ??
+          _match(watch: false)?.examId ??
           _examName.text.trim().toLowerCase().replaceAll(
             RegExp(r'[^a-z0-9]+'),
             '_',
@@ -176,8 +212,22 @@ class _VaultFormSheetState extends ConsumerState<_VaultFormSheet> {
             key: _formKey,
             child: ListView(
               controller: controller,
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 28),
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
               children: [
+                // A sheet with no handle and no close button reads as a page you
+                // are stuck on. The handle is the only visible affordance that
+                // says "swipe me down".
+                Center(
+                  child: Container(
+                    width: 36,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 14),
+                    decoration: BoxDecoration(
+                      color: p.border,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
                 Text(
                   widget.existing == null
                       ? 'Add admit card'
@@ -186,38 +236,58 @@ class _VaultFormSheetState extends ConsumerState<_VaultFormSheet> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Everything below is encrypted on this device with the Android Keystore. '
-                  'Nothing is uploaded.',
+                  'Everything below is encrypted on this device with the Android '
+                  'Keystore. Nothing is uploaded.',
                   style: context.type.bodyMuted,
+                ),
+                const SizedBox(height: 6),
+                // Hints used to be plausible *values* ("2201049821"), which reads
+                // as a pre-filled answer rather than an example — and a student
+                // who saved one would carry a stranger's roll number. They now
+                // describe the field instead.
+                Text(
+                  'Copy the details exactly as they appear on your admit card.',
+                  style: context.type.microLabel.copyWith(fontSize: 9),
                 ),
                 const SizedBox(height: 20),
                 _Field(
                   controller: _examName,
                   label: 'Exam name',
-                  hint: 'SSC CGL Tier-1 2026',
+                  hint: 'As printed on your admit card',
+                  onChanged: _onExamNameChanged,
                   validator: (v) => (v == null || v.trim().length < 3)
                       ? 'Enter the exam name'
                       : null,
                 ),
                 _CategoryPicker(
                   value: _category,
-                  onChanged: (c) => setState(() => _category = c),
+                  onChanged: (c) => setState(() {
+                    _category = c;
+                    _categoryPicked = true;
+                  }),
                 ),
+                if (_match(watch: true) case final match?)
+                  _LinkedResult(match: match)
+                else if (_examName.text.trim().length > 3)
+                  // Say plainly that no published result is linked, so a student
+                  // does not read "no index" later as "I was not selected".
+                  _NoLinkedResult(),
+                const SizedBox(height: 4),
                 _Field(
                   controller: _body,
                   label: 'Conducting body',
-                  hint: 'Staff Selection Commission',
+                  hint: 'e.g. Staff Selection Commission',
                 ),
                 _Field(
                   controller: _examCode,
                   label: 'Exam code',
-                  hint: 'CGL · TIER-1',
+                  hint: 'Short code from the card',
                   caps: TextCapitalization.characters,
                 ),
                 _Field(
                   controller: _roll,
                   label: 'Roll number',
-                  hint: '2201049821',
+                  hint: 'Digits only, as printed',
                   mono: true,
                   caps: TextCapitalization.characters,
                   digitsOnly: true,
@@ -230,14 +300,14 @@ class _VaultFormSheetState extends ConsumerState<_VaultFormSheet> {
                 _Field(
                   controller: _regId,
                   label: 'Registration ID',
-                  hint: 'SSC-CGL-26-884213',
+                  hint: 'Application / registration ID',
                   mono: true,
                   caps: TextCapitalization.characters,
                 ),
                 _Field(
                   controller: _secret,
                   label: 'DOB / portal password',
-                  hint: '14/03/1999',
+                  hint: 'DD/MM/YYYY or portal password',
                   mono: true,
                   obscure: _obscureSecret,
                   suffix: IconButton(
@@ -255,14 +325,14 @@ class _VaultFormSheetState extends ConsumerState<_VaultFormSheet> {
                 _Field(
                   controller: _centreCode,
                   label: 'Centre code',
-                  hint: 'DL-04-1187',
+                  hint: 'Centre code from the card',
                   mono: true,
                   caps: TextCapitalization.characters,
                 ),
                 _Field(
                   controller: _centreAddress,
                   label: 'Centre address',
-                  hint: 'Sector 12, Dwarka, New Delhi',
+                  hint: 'Street, area, city',
                 ),
                 _DateField(date: _examDate, onTap: _pickDate),
                 if (_error != null) ...[
@@ -306,6 +376,7 @@ class _Field extends StatelessWidget {
     this.validator,
     this.caps = TextCapitalization.sentences,
     this.digitsOnly = false,
+    this.onChanged,
   });
 
   final TextEditingController controller;
@@ -317,6 +388,7 @@ class _Field extends StatelessWidget {
   final String? Function(String?)? validator;
   final TextCapitalization caps;
   final bool digitsOnly;
+  final ValueChanged<String>? onChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -334,6 +406,7 @@ class _Field extends StatelessWidget {
           TextFormField(
             controller: controller,
             validator: validator,
+            onChanged: onChanged,
             obscureText: obscure,
             autocorrect: false,
             enableSuggestions: false,
@@ -461,6 +534,94 @@ class _CategoryPicker extends StatelessWidget {
                   onTap: () => onChanged(c),
                 ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Shown when the typed exam name matches a published result.
+///
+/// It states the link and what it buys ("your roll can be checked"), because a
+/// silent match would be invisible — and an invisible feature is one nobody
+/// trusts.
+class _LinkedResult extends StatelessWidget {
+  const _LinkedResult({required this.match});
+
+  final LiveUpdate match;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.ev;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 11),
+      decoration: BoxDecoration(
+        color: p.success.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(EvRadius.inner),
+        border: Border.all(color: p.success.withValues(alpha: 0.26)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.link_rounded, size: 13, color: p.successText),
+          const SizedBox(width: 7),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Linked to a published result',
+                  style: context.type.tileTitle.copyWith(
+                    fontSize: 10.5,
+                    color: p.successText,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  match.examName,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: context.type.bodyMuted.copyWith(fontSize: 9.5),
+                ),
+                if (match.hasIndex) ...[
+                  const SizedBox(height: 3),
+                  Text(
+                    'Your roll number can be checked in this list.',
+                    style: context.type.microLabel.copyWith(fontSize: 8.5),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Shown when the name matches nothing published yet.
+class _NoLinkedResult extends StatelessWidget {
+  const _NoLinkedResult();
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.ev;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12, left: 2),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.info_outline_rounded, size: 12, color: p.textTertiary),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              'No published result matches this name yet. The card still works '
+              'for exam-day details; result checking starts when the commission '
+              'publishes a list.',
+              style: context.type.bodyMuted.copyWith(fontSize: 9.5),
+            ),
           ),
         ],
       ),

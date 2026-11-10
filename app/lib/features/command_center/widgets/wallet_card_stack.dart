@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../../core/theme/theme_tokens.dart';
 import '../../../domain/entities/admit_card.dart';
 import 'wallet_pass_card.dart';
 
@@ -25,7 +24,9 @@ class WalletCardStack extends StatelessWidget {
   final void Function(AdmitCard card) onOpen;
   final int maxLayers;
 
-  static const _frontTop = 88.0;
+  /// Vertical offset between stacked cards, and the card's own height.
+  static const _layer = 44.0;
+  static const _cardHeight = 180.0;
   static const _insets = [20.0, 10.0, 0.0];
 
   @override
@@ -34,15 +35,21 @@ class WalletCardStack extends StatelessWidget {
 
     final visible = cards.take(maxLayers).toList();
 
+    // The "wallet" look only exists with two or more cards: the front card sits
+    // lower so the cards behind it peek out at the top. With a single card that
+    // offset was still applied, leaving a 220px hole between the section header
+    // and the one card the user owns.
+    final layers = visible.length - 1;
+
     return SizedBox(
-      height: EvSize.walletStack,
+      height: _cardHeight + layers * _layer,
       child: Stack(
         clipBehavior: Clip.none,
         children: [
           // Painted back-to-front so the front card sits on top.
           for (var i = visible.length - 1; i >= 0; i--)
             Positioned(
-              top: _frontTop - (i * 44),
+              top: (layers - i) * _layer,
               left: _insets[i],
               right: _insets[i],
               child: i == 0

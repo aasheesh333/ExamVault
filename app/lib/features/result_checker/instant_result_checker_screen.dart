@@ -9,6 +9,7 @@ import '../../core/utils/clipboard_service.dart';
 import '../../data/repositories/result_index_repository.dart';
 import '../../data/services/app_logger.dart';
 import '../../domain/entities/admit_card.dart';
+import '../../domain/entities/live_update.dart';
 import '../../features/result_checker/engine/roll_index_engine.dart';
 import '../../providers/app_providers.dart';
 import '../shell/root_shell.dart';
@@ -34,6 +35,13 @@ class _InstantResultCheckerScreenState
     text: _initialRoll(),
   );
 
+  /// Which saved card this screen is checking.
+  ///
+  /// Previously the screen always used `cards.first`, so a student with two
+  /// admit cards could only ever check the one with the earliest exam date, with
+  /// no way to switch. Null means "not chosen yet" and falls back to the first.
+  String? _cardId;
+
   String _initialRoll() {
     final card = _targetCard(ref.read(admitCardsProvider).value, null);
     return card?.rollNumber ?? '';
@@ -45,6 +53,27 @@ class _InstantResultCheckerScreenState
     super.dispose();
   }
 
+  /// The published index version for [examId], from whatever the feed knows.
+  String? _indexVersionFor(String examId) {
+    final feed = ref.read(liveFeedProvider).value?.feed;
+    if (feed == null) return null;
+    for (final u in feed.updates) {
+      if (u.examId == examId) return u.indexVersion;
+    }
+    return null;
+  }
+
+  /// The feed row for the card being checked, so the header and mirror panel can
+  /// show "published" instead of "no list yet" when a list does exist.
+  LiveUpdate? _updateForCard(AdmitCard? card) {
+    final feed = ref.watch(liveFeedProvider).value?.feed;
+    if (feed == null || card == null) return null;
+    for (final u in feed.updates) {
+      if (u.examId == card.examId) return u;
+    }
+    return null;
+  }
+
   AdmitCard? _targetCard(List<AdmitCard>? cards, AdmitCard? fallback) {
     if (cards == null || cards.isEmpty) return fallback;
     final update = ref.read(resultExamIdProvider);
@@ -53,7 +82,22 @@ class _InstantResultCheckerScreenState
         if (c.examId == update.examId) return c;
       }
     }
+    if (_cardId != null) {
+      for (final c in cards) {
+        if (c.id == _cardId) return c;
+      }
+    }
     return cards.first;
+  }
+
+  void _selectCard(AdmitCard card) {
+    setState(() => _cardId = card.id);
+    // The roll field belongs to the chosen card; leaving another card's roll in
+    // place would search the wrong number against the wrong list.
+    if (card.rollNumber.isNotEmpty) {
+      _roll.text = card.rollNumber;
+    }
+    ref.read(resultCheckerProvider.notifier).reset();
   }
 
   Future<void> _check(AdmitCard? card) async {
@@ -71,15 +115,19 @@ class _InstantResultCheckerScreenState
       _showToast('Pick an exam first — add an admit card or tap a result.');
       return;
     }
+
+    // The index lives at a content-addressed URL, so the version must be sent.
+    // It normally comes from the tapped radar row — but a saved card only knows
+    // the exam id, so the version is resolved from the feed by id. Without this
+    // the lookup would request the unversioned path and 404 for a list that is
+    // published.
+    final indexVersion =
+        (update?.examId == examId ? update?.indexVersion : null) ??
+        _indexVersionFor(examId);
+
     final result = await ref
         .read(resultCheckerProvider.notifier)
-        .check(
-          examId: examId,
-          rollNumber: roll,
-          // A republished list lives at a new content-addressed URL; without this
-          // the app would keep hitting the immutable-cached first version.
-          indexVersion: update?.examId == examId ? update?.indexVersion : null,
-        );
+        .check(examId: examId, rollNumber: roll, indexVersion: indexVersion);
 
     if (!mounted || result == null) return;
 
@@ -121,14 +169,19 @@ class _InstantResultCheckerScreenState
     final p = context.ev;
     final cards = ref.watch(admitCardsProvider).value;
     final state = ref.watch(resultCheckerProvider);
-    final update = ref.watch(resultExamIdProvider);
+    final tapped = ref.watch(resultExamIdProvider);
     final card = _targetCard(cards, null);
 
     // Resolve the exam from something real: the radar row the user tapped, or
     // their own saved card, or an explicit pick. Never a hardcoded default — the
     // screen used to search the SSC CGL index for anybody with an empty vault.
-    final examName = update?.examName ?? card?.examName;
-    final examId = update?.examId ?? card?.examId;
+    //
+    // A saved card also has a matching feed row when the commission has published
+    // something for it; using that row means the header, the mirror panel and the
+    // official link all describe the published result rather than the typed name.
+    final update = tapped ?? _updateForCard(card);
+    final examName = tapped?.examName ?? card?.examName;
+    final examId = tapped?.examId ?? card?.examId;
 
     return Scaffold(
       backgroundColor: p.bg,
@@ -156,6 +209,19 @@ class _InstantResultCheckerScreenState
                   const SizedBox(height: 6),
                   _TitleWithAccent(examName: examName),
                   const SizedBox(height: 8),
+                  if (update == null && cards != null && cards.length > 1) ...[
+                    const SizedBox(height: 10),
+                    const EvSectionHeader(
+                      label: 'Which card?',
+                      padding: EdgeInsets.zero,
+                    ),
+                    const SizedBox(height: 6),
+                    _CardPicker(
+                      cards: cards,
+                      selectedId: card?.id,
+                      onSelect: _selectCard,
+                    ),
+                  ],
                   _MirrorCard(
                     indexSource: state.indexSource,
                     observedLatencyMs: update?.mirrorLatencyMs,
@@ -412,6 +478,42 @@ class _TitleWithAccent extends StatelessWidget {
   }
 }
 
+/// Horizontal chooser for the saved card being checked.
+///
+/// Only shown once there is more than one card — a picker with a single option is
+/// noise, and the empty state already explains how to get here.
+class _CardPicker extends StatelessWidget {
+  const _CardPicker({
+    required this.cards,
+    required this.selectedId,
+    required this.onSelect,
+  });
+
+  final List<AdmitCard> cards;
+  final String? selectedId;
+  final ValueChanged<AdmitCard> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: EvSize.minTapTarget,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: cards.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 7),
+        itemBuilder: (context, i) {
+          final card = cards[i];
+          return EvChip(
+            label: card.examCode.isNotEmpty ? card.examCode : card.examName,
+            selected: card.id == selectedId,
+            onTap: () => onSelect(card),
+          );
+        },
+      ),
+    );
+  }
+}
+
 /// Shows where the answer comes from, using only values we actually observed.
 ///
 /// Earlier this widget hardcoded `upsc.gov.in` / `1,204ms` regardless of the exam
@@ -447,7 +549,9 @@ class _MirrorCard extends StatelessWidget {
     final rows = <_MirrorRow>[
       _MirrorRow(
         name: 'Edge CDN index',
-        sub: hasIndex ? 'published' : 'not published for this exam',
+        // Kept short on purpose: this cell is ~120px wide beside a state badge,
+        // and a longer sentence is silently truncated to "not published for …".
+        sub: hasIndex ? 'published' : 'no list yet',
         state: hasIndex ? 'READY' : (unavailable ? 'MISSING' : 'IDLE'),
         color: hasIndex
             ? p.success

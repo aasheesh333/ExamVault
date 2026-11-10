@@ -85,6 +85,7 @@ class _WhatsappShareCardScreenState
       rollNumber: roll,
       selected: verified,
       shareUrl: ref.read(resultIndexRepositoryProvider).shareUrl(examId),
+      officialUrl: update?.officialUrl,
       // Cut-offs are only shown when a publisher actually released them.
       cutoffs: null,
       pdfSizeLabel: update?.pdfSizeLabel,
@@ -116,7 +117,7 @@ class _WhatsappShareCardScreenState
           'instant roll-number check.',
       if (data.rollNumber.isNotEmpty)
         'Roll ${data.rollNumber}${data.selected ? ' · in the published list' : ''}',
-      if (data.shareUrl != null) data.shareUrl!,
+      if (data.link != null) data.link!,
     ];
     return lines.join('\n');
   }
@@ -136,7 +137,7 @@ class _WhatsappShareCardScreenState
   }
 
   String _withUrl(String caption, ShareCardData data) {
-    final url = data.shareUrl;
+    final url = data.link;
     if (url == null || url.isEmpty) return caption;
     if (caption.contains(url)) return caption;
     return '$caption\n\n$url';
@@ -241,12 +242,18 @@ class _WhatsappShareCardScreenState
                   const SizedBox(height: EvSpace.x5),
                   _ShareTargets(
                     onShare: () => _share(data),
-                    onCopyLink: data.shareUrl == null
+                    linkIsOfficial: data.linkIsOfficial,
+                    // Never a dead button: with no app URL we copy the
+                    // commission's own link, which is what a study group
+                    // actually needs.
+                    onCopyLink: data.link == null
                         ? null
                         : () => ClipboardService.copy(
                             context,
-                            value: data.shareUrl!,
-                            label: 'Share link',
+                            value: data.link!,
+                            label: data.linkIsOfficial
+                                ? 'Official result link'
+                                : 'Share link',
                           ),
                   ),
                   const SizedBox(height: EvSpace.x4),
@@ -332,13 +339,20 @@ class _ShareNavBar extends StatelessWidget {
 }
 
 class _ShareTargets extends StatelessWidget {
-  const _ShareTargets({required this.onShare, required this.onCopyLink});
+  const _ShareTargets({
+    required this.onShare,
+    required this.onCopyLink,
+    required this.linkIsOfficial,
+  });
 
   final VoidCallback onShare;
 
-  /// Null when no share URL is configured — the tile is then disabled rather
-  /// than copying an empty string.
+  /// Null when we have no link at all — the tile is then disabled rather than
+  /// copying an empty string.
   final VoidCallback? onCopyLink;
+
+  /// True when the copied link is the commission's own, so the tile says so.
+  final bool linkIsOfficial;
 
   @override
   Widget build(BuildContext context) {
@@ -361,7 +375,7 @@ class _ShareTargets extends StatelessWidget {
           onTap: onShare,
         ),
         _Target(
-          label: 'Copy link',
+          label: linkIsOfficial ? 'Official link' : 'Copy link',
           icon: Icons.link_rounded,
           color: onCopyLink == null ? p.textTertiary : p.accentText,
           onTap: onCopyLink ?? () {},

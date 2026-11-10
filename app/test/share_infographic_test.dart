@@ -22,6 +22,7 @@ void main() {
     rollNumber: roll,
     selected: selected,
     shareUrl: 'https://examvault.example/v1/feed',
+    officialUrl: 'https://www.upsc.gov.in/sites/default/files/example.pdf',
     cutoffs: cutoffs,
   );
 
@@ -79,16 +80,51 @@ void main() {
     expect(find.textContaining('Check your roll number'), findsOneWidget);
   });
 
-  testWidgets('the headline accent word is not clipped', (tester) async {
+  test('a card with no app URL still offers the official link', () {
+    // A disabled "Copy link" was the previous behaviour whenever no public web
+    // base was configured — which is the default. The commission's own link is
+    // real, openable, and strictly more useful than a dead tile.
+    final officialOnly = data().copyWith(shareUrl: null);
+
+    expect(
+      officialOnly.link,
+      'https://www.upsc.gov.in/sites/default/files/example.pdf',
+    );
+    expect(officialOnly.linkIsOfficial, isTrue);
+
+    final appLink = data();
+    expect(appLink.link, appLink.shareUrl);
+    expect(
+      appLink.linkIsOfficial,
+      isFalse,
+      reason: 'an app URL must not be labelled as the official one',
+    );
+  });
+
+  testWidgets('the headline glyphs are not clipped by a short line box', (
+    tester,
+  ) async {
     await pumpCard(tester, data());
 
-    // The accent ("LIVE") used to be laid out inside a clipping `Stack` with a
-    // tight line height, which sliced its descenders off the exported PNG.
-    final stacks = tester.widgetList<Stack>(find.byType(Stack));
-    expect(
-      stacks.any((s) => s.clipBehavior == Clip.none),
-      isTrue,
-      reason: 'the accent word must be allowed to paint outside its line box',
-    );
+    // `height: 0.96` makes the line box shorter than the glyphs. `Text` defaults
+    // to `TextOverflow.clip`, so the exported PNG showed "LIVE" with a flat,
+    // sliced-off bottom. Every headline run must opt out of that clip.
+    final headlineRuns = tester
+        .widgetList<Text>(find.byType(Text))
+        .where(
+          (t) =>
+              t.style?.fontSize == 38 &&
+              (t.data == 'RESULT IS' || t.data == 'LIVE'),
+        )
+        .toList();
+
+    expect(headlineRuns, isNotEmpty, reason: 'sanity: headline must be found');
+    for (final run in headlineRuns) {
+      expect(
+        run.overflow,
+        TextOverflow.visible,
+        reason: '"${run.data}" would be cut off without this',
+      );
+    }
   });
 }

@@ -9,6 +9,7 @@ import 'package:examvault/domain/entities/exam_category.dart';
 import 'package:examvault/domain/entities/live_update.dart';
 import 'package:examvault/features/command_center/widgets/live_radar_tile.dart';
 import 'package:examvault/features/command_center/widgets/wallet_card_stack.dart';
+import 'package:examvault/features/about/about_sheet.dart';
 import 'package:examvault/features/shell/root_shell.dart';
 import 'package:examvault/features/vault/vault_form_sheet.dart';
 import 'package:examvault/providers/app_providers.dart';
@@ -139,7 +140,7 @@ class _TopBar extends ConsumerWidget {
               },
             ),
             const SizedBox(width: 8),
-            const _Avatar(),
+            _AboutButton(),
           ],
         ),
       ),
@@ -182,27 +183,38 @@ class _VaultMark extends StatelessWidget {
   }
 }
 
-class _Avatar extends StatelessWidget {
-  const _Avatar();
+/// Opens About / sources / privacy.
+///
+/// This slot used to hold a circle with a hardcoded "A" in it: an avatar for an
+/// app with no accounts, implying a signed-in user who did not exist and doing
+/// nothing when tapped. It now leads somewhere real — provenance, the copyright
+/// stance and what the app stores.
+class _AboutButton extends StatelessWidget {
+  const _AboutButton();
 
   @override
   Widget build(BuildContext context) {
     final p = context.ev;
-    return Container(
-      width: 32,
-      height: 32,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: p.surfaceElevated,
-        border: Border.all(color: p.accent.withValues(alpha: 0.4)),
-      ),
-      child: Text(
-        'A',
-        style: context.type.label.copyWith(
-          color: p.accentText,
-          fontWeight: FontWeight.w700,
-          fontSize: 12,
+    return Semantics(
+      button: true,
+      label: 'About ExamVault, data sources and privacy',
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () => showAboutSheet(context),
+        child: Container(
+          width: 32,
+          height: 32,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: p.surfaceElevated,
+            border: Border.all(color: p.accent.withValues(alpha: 0.4)),
+          ),
+          child: Icon(
+            Icons.info_outline_rounded,
+            size: 15,
+            color: p.accentText,
+          ),
         ),
       ),
     );

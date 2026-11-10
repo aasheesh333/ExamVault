@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../../../core/theme/theme_tokens.dart';
 
+/// Sentinel for `copyWith` — see [ShareCardData.copyWith].
+const Object _clear = Object();
+
 /// Everything the viral card renders.
 @immutable
 class ShareCardData {
@@ -13,6 +16,7 @@ class ShareCardData {
     required this.rollNumber,
     required this.selected,
     required this.shareUrl,
+    this.officialUrl,
     this.cutoffs,
     this.pdfSizeLabel,
   });
@@ -28,6 +32,20 @@ class ShareCardData {
   /// rather than a dead link to a domain we do not own.
   final String? shareUrl;
 
+  /// The commission's own document/page for this result.
+  ///
+  /// Used when there is no app-owned share URL: copying *this* is strictly
+  /// better than a disabled button, because the recipient can open it and the
+  /// link is to the authority that published the result.
+  final String? officialUrl;
+
+  /// Whichever link we can honestly offer, if any.
+  String? get link => shareUrl ?? officialUrl;
+
+  /// True when the only link is the commission's, so the UI can label it
+  /// correctly instead of implying an app page.
+  bool get linkIsOfficial => shareUrl == null && officialUrl != null;
+
   /// Only rendered when the publisher actually released cut-offs. Showing a
   /// made-up cut-off on a card that gets forwarded 10 000 times is exactly the
   /// kind of misinformation this product cannot afford.
@@ -37,14 +55,21 @@ class ShareCardData {
 
   /// Used when the user turns off "Show my roll number": the card keeps the
   /// result, the subline and the link, and drops the personal number.
-  ShareCardData copyWith({String? rollNumber, bool? selected}) => ShareCardData(
+  ShareCardData copyWith({
+    String? rollNumber,
+    bool? selected,
+    // `_clear` rather than `null`, so "no app URL" is expressible: a plain
+    // nullable parameter cannot distinguish "leave alone" from "set to null".
+    Object? shareUrl = _clear,
+  }) => ShareCardData(
     examName: examName,
     headline: headline,
     subline: subline,
     dateLine: dateLine,
     rollNumber: rollNumber ?? this.rollNumber,
     selected: selected ?? this.selected,
-    shareUrl: shareUrl,
+    shareUrl: identical(shareUrl, _clear) ? this.shareUrl : shareUrl as String?,
+    officialUrl: officialUrl,
     cutoffs: cutoffs,
     pdfSizeLabel: pdfSizeLabel,
   );
@@ -290,6 +315,11 @@ class _Headline extends StatelessWidget {
         ? parts.sublist(0, parts.length - 1).join(' ')
         : headline;
 
+    // `height: 0.96` is a deliberate typographic choice — the lines should sit
+    // tight. But it makes the line box shorter than the glyphs, and `Text`
+    // defaults to `TextOverflow.clip`, which then slices the bottom off every
+    // letter. `visible` is the fix; the surrounding padding still controls
+    // spacing.
     const base = TextStyle(
       fontFamily: EvFont.ui,
       fontFamilyFallback: EvFont.fallbackUi,
@@ -303,12 +333,11 @@ class _Headline extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(lead, maxLines: 2, style: base),
+        Text(lead, maxLines: 2, overflow: TextOverflow.visible, style: base),
         if (accent.isNotEmpty)
           Stack(
-            // A tight line height (`height: 0.96`) paints glyph bottoms just
-            // outside the text's line box. `Stack` clips by default, which sliced
-            // the bottom off the accent word — visible on the exported PNG.
+            // The highlight bar is painted behind the word and the glyphs are
+            // allowed outside their line box, so nothing here may clip.
             clipBehavior: Clip.none,
             children: [
               Positioned(
@@ -323,11 +352,7 @@ class _Headline extends StatelessWidget {
                   ),
                 ),
               ),
-              // `maxLines: 1` with a tight `height` clips glyph descenders — the
-              // exported PNG showed "LIVE" with its bottom sliced off. The card
-              // is a fixed-width capture, so letting the line size itself is
-              // both simpler and correct.
-              Text(accent, style: base),
+              Text(accent, overflow: TextOverflow.visible, style: base),
             ],
           ),
       ],

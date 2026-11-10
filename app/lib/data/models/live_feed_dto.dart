@@ -35,7 +35,34 @@ abstract final class LiveFeedDto {
       generatedAt: generatedAt,
       updates: List.unmodifiable(updates),
       revision: revision,
+      sources: _parseSources(decoded['sources']),
     );
+  }
+
+  /// Per-commission health. Total by design: a malformed entry is skipped, so a
+  /// producer bug degrades the provenance panel instead of blanking the feed.
+  static List<SourceHealth> _parseSources(Object? raw) {
+    if (raw is! List) return const [];
+    final out = <SourceHealth>[];
+    for (final entry in raw) {
+      if (entry is! Map) continue;
+      final id = entry['id'];
+      final label = entry['label'];
+      final status = entry['status'];
+      if (id is! String || label is! String || status is! String) continue;
+      out.add(
+        SourceHealth(
+          id: id,
+          label: label,
+          status: status,
+          rows: _tryInt(entry['rows']) ?? 0,
+          homepage: _tryUrl(entry['homepage']),
+          note: entry['note'] as String?,
+          checkedAt: _tryDate(entry['checked_at']),
+        ),
+      );
+    }
+    return List.unmodifiable(out);
   }
 
   static LiveUpdate? _parseRow(Map<String, dynamic> row) {
@@ -126,6 +153,20 @@ abstract final class LiveFeedStore {
   static Map<String, dynamic> toJson(LiveFeed feed) => {
     'generated_at': feed.generatedAt?.toIso8601String(),
     'revision': feed.revision,
+    if (feed.sources.isNotEmpty)
+      'sources': [
+        for (final s in feed.sources)
+          {
+            'id': s.id,
+            'label': s.label,
+            'status': s.status,
+            'rows': s.rows,
+            if (s.homepage != null) 'homepage': s.homepage,
+            if (s.note != null) 'note': s.note,
+            if (s.checkedAt != null)
+              'checked_at': s.checkedAt!.toIso8601String(),
+          },
+      ],
     'updates': [
       for (final u in feed.updates)
         {

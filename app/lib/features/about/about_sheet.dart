@@ -1,0 +1,316 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
+
+import '../../core/theme/app_theme.dart';
+import '../../core/theme/theme_tokens.dart';
+import '../../domain/entities/live_update.dart';
+import '../../providers/app_providers.dart';
+import '../../shared/widgets/ev_surfaces.dart';
+
+/// About, data provenance and privacy.
+///
+/// ## Why this is a screen and not a footnote
+///
+/// Every fact this app shows comes from a government website, and the app reduces
+/// those documents to hashes rather than redistributing them. That is a claim
+/// users are entitled to check, and a store reviewer is entitled to see. So the
+/// sources are listed with the exact URLs and the time each was last checked,
+/// taken from the feed's own health block rather than written by hand.
+///
+/// It also replaces the fake "A" avatar that used to sit in the top bar of an app
+/// with no accounts: a letter in a circle reads as "you are signed in", which was
+/// never true.
+Future<void> showAboutSheet(BuildContext context) {
+  return showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    useSafeArea: true,
+    backgroundColor: Colors.transparent,
+    builder: (_) => const _AboutSheet(),
+  );
+}
+
+class _AboutSheet extends ConsumerWidget {
+  const _AboutSheet();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final p = context.ev;
+    final snapshot = ref.watch(liveFeedProvider).value;
+    final sources = snapshot?.feed.sources ?? const <SourceHealth>[];
+
+    return Container(
+      decoration: BoxDecoration(
+        color: p.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        border: Border.all(color: p.border),
+      ),
+      child: DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.9,
+        minChildSize: 0.5,
+        maxChildSize: 0.95,
+        builder: (context, controller) => ListView(
+          controller: controller,
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
+          children: [
+            Center(
+              child: Container(
+                width: 36,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: p.border,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            Text('About ExamVault', style: context.type.sectionTitle),
+            const SizedBox(height: 4),
+            Text(
+              'Version 1.0.0 · free · no account required',
+              style: context.type.microLabel.copyWith(fontSize: 9),
+            ),
+            const SizedBox(height: 18),
+
+            // --- Where the data comes from -----------------------------------
+            const EvSectionHeader(
+              label: 'Where the data comes from',
+              padding: EdgeInsets.zero,
+            ),
+            const SizedBox(height: 8),
+            _Paragraph(
+              'Every result, notice and date in this app is copied from the '
+              'commission that published it. Nothing is written by hand and '
+              'nothing is invented. If a source does not answer, the app shows '
+              'nothing rather than a guess.',
+            ),
+            const SizedBox(height: 10),
+            if (sources.isEmpty)
+              _Paragraph('Source status is unavailable until the feed loads.')
+            else
+              for (final source in sources) _SourceRow(source: source),
+
+            const SizedBox(height: 20),
+
+            // --- The copyright stance ----------------------------------------
+            const EvSectionHeader(
+              label: 'Why we never host the PDF',
+              padding: EdgeInsets.zero,
+            ),
+            const SizedBox(height: 8),
+            _Paragraph(
+              'The official result documents belong to the commissions, so this '
+              'app links to them on the commission\u2019s own website. It does '
+              'not keep a copy of any government document.',
+            ),
+            const SizedBox(height: 8),
+            _Paragraph(
+              'To answer \u201cis my roll number in the list?\u201d quickly, the '
+              'list is reduced to one-way hashes. Your phone hashes the number '
+              'you type and looks for a match, so the actual candidate list never '
+              'reaches your device \u2014 and nobody can use what we publish to '
+              'rebuild it.',
+            ),
+
+            const SizedBox(height: 20),
+
+            // --- Privacy ------------------------------------------------------
+            const EvSectionHeader(
+              label: 'What we store',
+              padding: EdgeInsets.zero,
+            ),
+            const SizedBox(height: 8),
+            _Bullet(
+              'Admit cards, roll numbers and passwords are encrypted with '
+              'your device\u2019s Keystore. They never leave the phone.',
+            ),
+            _Bullet(
+              'There is no account, so there is nothing to sign in to and '
+              'nothing to leak from a server.',
+            ),
+            _Bullet(
+              'Roll numbers you type are checked on your device and are not '
+              'sent to us.',
+            ),
+
+            const SizedBox(height: 20),
+            const EvSectionHeader(
+              label: 'Official sources',
+              padding: EdgeInsets.zero,
+            ),
+            const SizedBox(height: 8),
+            _Link(
+              label: 'SSC \u2014 Staff Selection Commission',
+              url: 'https://ssc.gov.in/',
+            ),
+            _Link(
+              label: 'UPSC \u2014 Union Public Service Commission',
+              url: 'https://www.upsc.gov.in/',
+            ),
+            _Link(label: 'IBPS', url: 'https://www.ibps.in/'),
+            _Link(label: 'RRB Chennai', url: 'https://rrbchennai.gov.in/'),
+            _Link(
+              label: 'TNPSC \u2014 Tamil Nadu Public Service Commission',
+              url: 'https://www.tnpsc.gov.in/',
+            ),
+
+            const SizedBox(height: 22),
+            Text(
+              'ExamVault is not affiliated with, endorsed by, or acting on behalf '
+              'of any of these commissions. Always verify against the official '
+              'notice before acting on a result.',
+              style: context.type.bodyMuted.copyWith(
+                fontSize: 9.5,
+                height: 1.5,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _Paragraph extends StatelessWidget {
+  const _Paragraph(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text,
+      style: context.type.bodyMuted.copyWith(fontSize: 11, height: 1.55),
+    );
+  }
+}
+
+class _Bullet extends StatelessWidget {
+  const _Bullet(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.ev;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 7),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 5, right: 7),
+            child: Container(
+              width: 3,
+              height: 3,
+              decoration: BoxDecoration(
+                color: p.accent,
+                shape: BoxShape.circle,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              text,
+              style: context.type.bodyMuted.copyWith(
+                fontSize: 10.5,
+                height: 1.5,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// One commission, with the state the pipeline actually observed.
+class _SourceRow extends StatelessWidget {
+  const _SourceRow({required this.source});
+
+  final SourceHealth source;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.ev;
+    final ok = source.isAvailable;
+    final colour = ok ? p.success : p.warning;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 7),
+      child: Row(
+        children: [
+          Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(color: colour, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              source.label,
+              style: context.type.tileTitle.copyWith(fontSize: 11),
+            ),
+          ),
+          Text(
+            // Never "OK" when it is not: the count and the status come from the
+            // publisher's own refresh, so a quiet or broken source is visible.
+            ok ? '${source.rows} items' : source.status,
+            style: context.type.microLabel.copyWith(
+              fontSize: 8,
+              color: ok ? p.textTertiary : p.warningText,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Link extends StatelessWidget {
+  const _Link({required this.label, required this.url});
+
+  final String label;
+  final String url;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.ev;
+    return InkWell(
+      borderRadius: BorderRadius.circular(EvRadius.inner),
+      onTap: () async {
+        final uri = Uri.parse(url);
+        final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+        if (!ok && context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Could not open the link. $url',
+                style: context.type.label.copyWith(color: Colors.white),
+              ),
+            ),
+          );
+        }
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 9),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                label,
+                style: context.type.bodyMuted.copyWith(fontSize: 10.5),
+              ),
+            ),
+            Icon(Icons.open_in_new_rounded, size: 12, color: p.textTertiary),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Small shortcut used by the top bar.
+void openAbout(BuildContext context) => showAboutSheet(context);

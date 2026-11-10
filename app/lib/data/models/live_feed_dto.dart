@@ -72,16 +72,15 @@ abstract final class LiveFeedDto {
   /// These are deliberately short. A "RESULT OUT" banner that never expires is
   /// misinformation; the publisher can override any of them per row.
   static DateTime _defaultExpiry(UpdateStatus status, DateTime publishedAt) {
+    // Must match `TTL_HOURS` in tools/publish_feed.mjs. These were originally
+    // 48h/36h/12h, which expired almost every real SSC notice the moment it was
+    // published — a declared result is the current state of that exam for weeks.
     final ttl = switch (status) {
-      // A result stays relevant for a couple of days (cut-offs, next stage).
-      UpdateStatus.resultOut => const Duration(days: 2),
-      // An admit-card download window is short.
-      UpdateStatus.admitCardLive => const Duration(hours: 36),
-      // A closing form is same-day news.
-      UpdateStatus.formClosing => const Duration(hours: 12),
-      UpdateStatus.answerKey => const Duration(days: 3),
-      // "Awaited" is durable — it is a placeholder for something not yet out.
-      UpdateStatus.awaited => const Duration(days: 30),
+      UpdateStatus.resultOut => const Duration(days: 30),
+      UpdateStatus.admitCardLive => const Duration(days: 21),
+      UpdateStatus.formClosing => const Duration(days: 7),
+      UpdateStatus.answerKey => const Duration(days: 30),
+      UpdateStatus.awaited => const Duration(days: 90),
     };
     return publishedAt.add(ttl);
   }

@@ -155,23 +155,30 @@ void main() {
       final feed = LiveFeedDto.parse(doc([row()])); // result_out, 09:58Z
       final u = feed.updates.single;
 
-      // result_out defaults to 48h from publication.
+      // result_out now defaults to 30 days — long enough that a real SSC notice
+      // stays visible, short enough that a stale banner eventually clears.
       expect(
         u.expiresAt!.isAtSameMomentAs(
-          DateTime.parse('2026-11-11T09:58:00Z').toLocal(),
+          DateTime.parse('2026-12-09T09:58:00Z').toLocal(),
         ),
         isTrue,
       );
     });
 
-    test('a form-closing row goes stale the same day, not next week', () {
+    test('a form-closing row survives the day it was posted', () {
       final feed = LiveFeedDto.parse(
         doc([row(status: 'form_closing', publishedAt: '2026-11-09T09:00:00Z')]),
       );
       final u = feed.updates.single;
 
+      // Still relevant on the last day to apply…
       expect(
         u.isExpired(DateTime.parse('2026-11-10T09:00:00Z').toLocal()),
+        isFalse,
+      );
+      // …and gone a week later.
+      expect(
+        u.isExpired(DateTime.parse('2026-11-17T09:00:00Z').toLocal()),
         isTrue,
       );
     });

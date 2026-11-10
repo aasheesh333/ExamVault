@@ -53,11 +53,18 @@ const STATUSES = new Set([
  * waiting for someone to remember to edit the file.
  */
 const TTL_HOURS = {
-  result_out: 48,
-  admit_card_live: 36,
-  form_closing: 12,
-  answer_key: 72,
-  awaited: 24 * 30,
+  // A declared result remains the current state of that exam until the next
+  // stage is announced — weeks, not days. The first version used 48h and
+  // immediately expired 16 of SSC's 18 live notices, which would have shown an
+  // almost-empty radar on top of entirely real data.
+  result_out: 24 * 30,
+  // Admit-card windows run from release to exam day.
+  admit_card_live: 24 * 21,
+  // A closing form is urgent but short-lived.
+  form_closing: 24 * 7,
+  answer_key: 24 * 30,
+  // "Awaited" is a standing placeholder.
+  awaited: 24 * 90,
 };
 
 /** Refuses to publish a document whose own rows are already stale. */
@@ -128,7 +135,7 @@ console.log(`feed      ${input}`);
 console.log(`updates   ${doc.updates.length}`);
 if (stale > 0) {
   console.log(
-    `WARNING   ${stale}/${total} rows are already expired — the app will hide them.`,
+    `note      ${stale}/${total} rows are already past their TTL — hidden by the app.`,
   );
 }
 console.log(`revision  ${doc.revision}`);

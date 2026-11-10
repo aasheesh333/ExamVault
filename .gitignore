@@ -74,3 +74,6 @@ secrets.json
 # web build output (created for smoke testing only)
 app/web/
 app/build/
+
+# generated roll indexes (built from official PDFs, published to R2)
+/build/

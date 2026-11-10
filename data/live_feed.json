@@ -1,32 +1,207 @@
 {
   "revision": 1,
+  "source": "ssc.gov.in (official JSON API)",
+  "fetched_at": "2026-11-10T05:26:33.430Z",
   "updates": [
     {
-      "exam_id": "ssc_cgl_tier1_2026",
+      "exam_id": "nri55c0igljht26_1997jbnok58mxwixyntdm",
       "category": "ssc",
-      "exam_name": "SSC CGL Tier-1 2026",
-      "context": "Direct PDF \u00b7 18.4 MB",
+      "exam_name": "Identity Verification (IV) for the candidates shortlisted in FRTA of Combined Hindi Translato\u2026",
+      "context": "Notice board \u00b7 ssc.gov.in",
       "status": "result_out",
-      "published_at": "2026-11-09T19:45:05.017357Z",
-      "pdf_size": "18.4 MB",
-      "mirror_latency_ms": 82
+      "published_at": "2026-11-07T15:35:11.515Z",
+      "source": "ssc.gov.in",
+      "official_pdf": "https://ssc.gov.in/api/attachment/uploads/masterData/NoticeBoards/CHT%202025%20FRTA%20notice%2007112026.pdf",
+      "pdf_size": "0.3 MB"
     },
     {
-      "exam_id": "ibps_po_prelims_2026",
-      "category": "banking",
-      "exam_name": "IBPS PO Prelims 2026",
-      "context": "Admit card live \u00b7 4 mirrors",
+      "exam_id": "ssc_46l1ioei1wmu889jygtld",
+      "category": "ssc",
+      "exam_name": "Information regarding city of examination and Admit Card for the candidates of CGEPT-01/27 an\u2026",
+      "context": "Admit card available on ssc.gov.in",
       "status": "admit_card_live",
-      "published_at": "2026-11-09T18:28:05.017357Z",
-      "mirror_latency_ms": 120
+      "published_at": "2026-11-06T11:26:21.544Z",
+      "source": "ssc.gov.in",
+      "official_pdf": "https://ssc.gov.in/api/attachment/uploads/masterData/NoticeBoards/Englishnotice_06112026.pdf",
+      "pdf_size": "0.2 MB"
     },
     {
-      "exam_id": "rrb_ntpc_2026",
-      "category": "railways",
-      "exam_name": "RRB NTPC 2026",
-      "context": "Application closes 11:59 PM",
-      "status": "form_closing",
-      "published_at": "2026-11-09T16:03:05.017357Z"
+      "exam_id": "nri55c0igl5cs45_l5cx3fnox6070s52jhzmz",
+      "category": "ssc",
+      "exam_name": "Combined Hindi Translators Examination, 2025 - Declaration of First Round of Tentative Alloca\u2026",
+      "context": "Notice board \u00b7 ssc.gov.in",
+      "status": "result_out",
+      "published_at": "2026-11-05T09:30:15.085Z",
+      "source": "ssc.gov.in",
+      "official_pdf": "https://ssc.gov.in/api/attachment/uploads/masterData/NoticeBoards/writeup_05112026.pdf",
+      "pdf_size": "0.2 MB"
+    },
+    {
+      "exam_id": "nri55c0igl5cs45_9ic3s53m5w74dn2tzb385",
+      "category": "ssc",
+      "exam_name": "Combined Hindi Translators Examination, 2025: List of Candidates in Roll Number Order provisi\u2026",
+      "context": "Notice board \u00b7 ssc.gov.in",
+      "status": "result_out",
+      "published_at": "2026-11-05T09:29:44.016Z",
+      "source": "ssc.gov.in",
+      "official_pdf": "https://ssc.gov.in/api/attachment/uploads/masterData/Results/writeup_05112026.pdf",
+      "pdf_size": "0.2 MB"
+    },
+    {
+      "exam_id": "w2sxxhjkshdcgl26_jbr9mitm6dn46ef7h073c",
+      "category": "ssc",
+      "exam_name": "Combined Graduate Level Examination, 2026 (Tier-I):Uploading of Candidate\u2019s Response Sheet(s)\u2026",
+      "context": "Answer key released",
+      "status": "answer_key",
+      "published_at": "2026-11-04T12:15:37.704Z",
+      "source": "ssc.gov.in",
+      "official_pdf": "https://ssc.gov.in/api/attachment/uploads/masterData/NoticeBoards/writeup_04112026.pdf",
+      "pdf_size": "0.3 MB"
+    },
+    {
+      "exam_id": "ctgd1yln49o2026_q5qc0zgw8hg6itzr5jwzv",
+      "category": "ssc",
+      "exam_name": "Constable (GD) in Central Armed Police Forces (CAPFs) and SSF, and Rifleman (GD) in Assam Rif\u2026",
+      "context": "Answer key released",
+      "status": "result_out",
+      "published_at": "2026-11-03T11:37:46.120Z",
+      "source": "ssc.gov.in",
+      "official_pdf": "https://ssc.gov.in/api/attachment/uploads/masterData/NoticeBoards/writeup_03112026.pdf",
+      "pdf_size": "0.2 MB"
+    },
+    {
+      "exam_id": "ssc_n8tz5b1qsch7uibcchn7u",
+      "category": "ssc",
+      "exam_name": "Important Notice-Dates of CGEPT, 2027, Annual Skill Test, 2025 and SI in DP and CAPFs, Exam, \u2026",
+      "context": "Notice board \u00b7 ssc.gov.in",
+      "status": "awaited",
+      "published_at": "2026-11-02T13:35:03.540Z",
+      "source": "ssc.gov.in",
+      "official_pdf": "https://ssc.gov.in/api/attachment/uploads/masterData/NoticeBoards/Exams_notice_02112026.pdf",
+      "pdf_size": "0.5 MB"
+    },
+    {
+      "exam_id": "j2k7sgab6eu9sh6c_5ufxf0ts6671mcxh451qs",
+      "category": "ssc",
+      "exam_name": "Sub-Inspector in Delhi Police and Central Armed Police Forces Examination, 2025: Declaration \u2026",
+      "context": "Official PDF \u00b7 0.7 MB",
+      "status": "result_out",
+      "published_at": "2026-10-29T09:24:58.805Z",
+      "source": "ssc.gov.in",
+      "official_pdf": "https://ssc.gov.in/api/attachment/uploads/masterData/NoticeBoards/writeup_29102026.pdf",
+      "pdf_size": "0.7 MB"
+    },
+    {
+      "exam_id": "ssc_5jfpb0tey9le4bsgd207x",
+      "category": "ssc",
+      "exam_name": "Important Notice - Revised dates for Junior Engineer Examination, 2026 and Sub-Inspector in D\u2026",
+      "context": "Notice board \u00b7 ssc.gov.in",
+      "status": "awaited",
+      "published_at": "2026-10-26T13:07:31.342Z",
+      "source": "ssc.gov.in",
+      "official_pdf": "https://ssc.gov.in/api/attachment/uploads/masterData/NoticeBoards/Important%20notice_revised_dated_26_10_2026.pdf",
+      "pdf_size": "0.4 MB"
+    },
+    {
+      "exam_id": "bxtirqg6pmwje26_p6htr8jumvefqk0l4h2dg",
+      "category": "ssc",
+      "exam_name": "Information regarding the city of examination and Admission Certificate for the candidates of\u2026",
+      "context": "Notice board \u00b7 ssc.gov.in",
+      "status": "admit_card_live",
+      "published_at": "2026-10-23T16:59:45.637Z",
+      "source": "ssc.gov.in",
+      "official_pdf": "https://ssc.gov.in/api/attachment/uploads/masterData/NoticeBoards/JE_2026_City_Live_Notice_23102026.pdf",
+      "pdf_size": "0.2 MB"
+    },
+    {
+      "exam_id": "ctgd1yln49o2026_x3legiaohf967untxcvwd",
+      "category": "ssc",
+      "exam_name": "Constable (GD) in Central Armed Police Forces (CAPFs) and SSF, and Rifleman (GD) in Assam Rif\u2026",
+      "context": "Notice board \u00b7 ssc.gov.in",
+      "status": "result_out",
+      "published_at": "2026-10-23T07:56:32.818Z",
+      "source": "ssc.gov.in",
+      "official_pdf": "https://ssc.gov.in/api/attachment/uploads/masterData/Results/writeup_23102026.pdf",
+      "pdf_size": "0.2 MB"
+    },
+    {
+      "exam_id": "ctgd1yln49o2026_79emomlpem47k0rh757ut",
+      "category": "ssc",
+      "exam_name": "Constable (GD) in Central Armed Police Forces (CAPFs) and SSF, and Rifleman (GD) in Assam Rif\u2026",
+      "context": "Notice board \u00b7 ssc.gov.in",
+      "status": "result_out",
+      "published_at": "2026-10-12T13:16:30.573Z",
+      "source": "ssc.gov.in",
+      "official_pdf": "https://ssc.gov.in/api/attachment/uploads/masterData/Results/writeup_12102026.pdf",
+      "pdf_size": "1.2 MB"
+    },
+    {
+      "exam_id": "s40d16naqchsl25_u24bddx3swn9avs9ibz0t",
+      "category": "ssc",
+      "exam_name": "Combined Higher Secondary (10+2) Level Examination, 2025 (Final Result): List of Candidates i\u2026",
+      "context": "Official PDF \u00b7 0.6 MB",
+      "status": "result_out",
+      "published_at": "2026-10-07T13:40:15.224Z",
+      "source": "ssc.gov.in",
+      "official_pdf": "https://ssc.gov.in/api/attachment/uploads/masterData/Results/writeup_final_chsl_2025_07102026.pdf",
+      "pdf_size": "0.6 MB"
+    },
+    {
+      "exam_id": "q5zvwlkwna3s17u_oek19fmpzuiwlk8cwua5g",
+      "category": "ssc",
+      "exam_name": "Declaration of Result of Annual Departmental Typewriting Skill Test \u2013 2024: List of the quali\u2026",
+      "context": "Official PDF \u00b7 0.1 MB",
+      "status": "result_out",
+      "published_at": "2026-09-09T14:44:21.770Z",
+      "source": "ssc.gov.in",
+      "official_pdf": "https://ssc.gov.in/api/attachment/uploads/masterData/Results/Typing_qualified_candidates_List1_09092026.pdf",
+      "pdf_size": "0.1 MB"
+    },
+    {
+      "exam_id": "q5zvwlkwna3s17u_bbanvl2awoad13b09a21o",
+      "category": "ssc",
+      "exam_name": "Declaration of Result of Annual Departmental Stenography Skill Test \u2013 2024: List of the quali\u2026",
+      "context": "Official PDF \u00b7 0.0 MB",
+      "status": "result_out",
+      "published_at": "2026-09-09T14:36:39.599Z",
+      "source": "ssc.gov.in",
+      "official_pdf": "https://ssc.gov.in/api/attachment/uploads/masterData/Results/Steno_qualified_candidates_09092026.pdf",
+      "pdf_size": "0.0 MB"
+    },
+    {
+      "exam_id": "59g9y0svsteno25_cgyu40w7q3axom3t0lklh",
+      "category": "ssc",
+      "exam_name": "Stenographer Grade 'C' and 'D' Examination, 2025: List of candidates in Roll No. order provis\u2026",
+      "context": "Notice board \u00b7 ssc.gov.in",
+      "status": "result_out",
+      "published_at": "2026-08-25T12:17:37.209Z",
+      "source": "ssc.gov.in",
+      "official_pdf": "https://ssc.gov.in/api/attachment/uploads/masterData/Results/Final_Result_Write_up_25082026.pdf",
+      "pdf_size": "0.9 MB"
+    },
+    {
+      "exam_id": "s40d16nackd16h0_gsnhl7k5fqtrfr3zzmtfj",
+      "category": "ssc",
+      "exam_name": "Combined Higher Secondary (10+2) Level Examination, 2025: List of Candidates in Roll Number O\u2026",
+      "context": "Notice board \u00b7 ssc.gov.in",
+      "status": "result_out",
+      "published_at": "2026-08-17T13:12:01.499Z",
+      "source": "ssc.gov.in",
+      "official_pdf": "https://ssc.gov.in/api/attachment/uploads/masterData/Results/ROLL_17082026.pdf",
+      "pdf_size": "0.6 MB",
+      "index_available": true,
+      "roll_count": 3507
+    },
+    {
+      "exam_id": "wzeujzxj8ts5z9n_kacgiw0ipnr0ug55z7vov",
+      "category": "ssc",
+      "exam_name": "Multi Tasking (Non-Technical) Staff, and Havaldar (CBIC and CBN) Examination, 2025 : List of \u2026",
+      "context": "Official PDF \u00b7 0.9 MB",
+      "status": "result_out",
+      "published_at": "2026-08-03T12:57:35.369Z",
+      "source": "ssc.gov.in",
+      "official_pdf": "https://ssc.gov.in/api/attachment/uploads/masterData/Results/writeup_mts_03082026.pdf",
+      "pdf_size": "0.9 MB"
     }
   ]
 }

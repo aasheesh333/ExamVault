@@ -43,30 +43,79 @@ instead of turning into a lie.
 | Feed older than 2 min | Header reads `EDGE · 26m OLD` instead of `LIVE` |
 | Vault empty | Every screen shows an explicit empty state with one way forward |
 
-## Going fully live (the remaining work)
+## Fully automated (this is now real)
 
-`data/live_feed.json` is currently maintained by hand. To automate it, replace the
-input of `publish_feed.mjs` with a fetch of the official feeds and run it on a
-schedule:
+The feed is no longer hand-maintained. `tools/fetch_official_feeds.mjs` calls
+SSC's own public JSON API — the same one ssc.gov.in uses:
 
-```yaml
-# .github/workflows/publish-feed.yml
-on:
-  schedule: [{ cron: '*/15 * * * *' }]
-jobs:
-  publish:
-    steps:
-      - run: node tools/fetch_official_feeds.mjs --out data/live_feed.json
-      - run: node tools/publish_feed.mjs --in data/live_feed.json
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+```
+GET /api/general-website/portal/records?contentType=results&…
+GET /api/general-website/portal/records?contentType=notice-boards&…
 ```
 
-That fetcher is intentionally **not** written yet: each commission publishes in a
-different format, several block datacenter IPs, and some only publish a PDF.
-Guessing at those parsers would produce exactly the wrong "RESULT OUT" this
-codebase was just cleaned of. Until a source is verified, publishing stays manual.
+That API needs no auth and is reachable from a datacenter. (An earlier version of
+this document claimed the commissions blocked datacenter IPs and that ingestion
+had to stay manual. That was wrong — it was never tested. It is tested now, and
+it works.)
+
+```
+tools/fetch_official_feeds.mjs  →  data/live_feed.json
+tools/publish_feed.mjs          →  R2  v1/live_feed_v1.json
+tools/build_indexes.py          →  R2  v1/rolls/<exam_id>_rolls.json.gz
+```
+
+`build_indexes.py` closes the loop between "a result was declared" and "the app can
+search it": for every `result_out` row that carries a PDF under `masterData/Results`
+and whose headline says *list of candidates* / *merit list*, it downloads the PDF,
+extracts the roll numbers, verifies the sort, and publishes a gzip index under the
+**same exam id** the feed row uses.
+
+### The two guards that matter
+
+1. **`--min-rolls` (default 100).** SSC publishes two kinds of PDF: a *candidate
+   list* (thousands of rolls) and a *writeup* (a handful of explanatory rows). Early
+   runs published an 11-roll index generated from a writeup — which would have told
+   every other candidate they were not selected. The floor, plus a headline filter,
+   rejects writeups outright.
+2. **Strictly-ascending verification** before writing, because the app binary
+   searches the array.
+
+### Verified end to end
+
+```
+$ flutter test test/live_edge_integration_test.dart
+verified 3507 real rolls · middle=325160290539 · lookup=27683µs
+```
+
+That test downloads the real object from the real edge and looks up a real roll
+number from the official PDF.
+
+## Running it on a schedule
+
+`.github/workflows/refresh-data.yml` runs every 30 minutes:
+
+1. fetch the official feed
+2. validate it (`publish_feed.mjs --dry-run`)
+3. publish the feed
+4. build up to 3 roll indexes
+5. commit the snapshot to `data/live_feed.json` so history is reviewable
+
+**Caveat:** GitHub disables scheduled workflows after 60 days of repository
+inactivity. For a production service, run the same commands from a real cron —
+a small VPS, a Cloudflare Cron Trigger, or a scheduled Worker — and keep the
+workflow as the manual/fallback path.
+
+## What is still not automated
+
+- **UPSC, IBPS, RRB.** Only SSC is wired up. UPSC returns a 307 to
+  `www.upsc.gov.in` and does not expose the same JSON shape; IBPS refused the
+  connection from this host. Each needs its own verified adapter. Adding one
+  without verifying it would reintroduce exactly the class of bug this file
+  documents the removal of.
+- **Legal decision on mirroring.** The app links to the official PDF; it never
+  re-hosts one. Roll-number *sets* are derived and published, which is a
+  different thing from copying the document. If you decide to mirror PDFs for
+  speed, that is a licensing call to make deliberately, not by default.
 
 ## Roll-number indexes
 

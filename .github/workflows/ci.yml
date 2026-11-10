@@ -123,9 +123,18 @@ jobs:
           EV_ONESIGNAL_APP_ID: ${{ secrets.EV_ONESIGNAL_APP_ID }}
         run: |
           set -euo pipefail
-          flutter build apk --release \
-            --dart-define=EV_CDN_BASE="${EV_CDN_BASE:-https://cdn.examvault.in}" \
-            --dart-define=EV_WEB_BASE="${EV_WEB_BASE:-https://examvault.in}" \
+          # Two artefacts, because they answer different questions:
+          #   .aab    — what Play Store requires for upload
+          #   .apk    — what a student sideloads from a link
+          # `--split-per-abi` keeps each APK near a third of the universal size.
+          #
+          # No fallback domain is supplied for EV_CDN_BASE: a build that cannot
+          # reach its data is bad, but a build that silently points at a domain
+          # nobody registered is worse — the app would show a permanent "no feed"
+          # that looks like an outage rather than a misconfiguration.
+          flutter build apk --release --split-per-abi \
+            --dart-define=EV_CDN_BASE="${EV_CDN_BASE}" \
+            --dart-define=EV_WEB_BASE="${EV_WEB_BASE:-}" \
             --dart-define=EV_FIREBASE_API_KEY="$EV_FIREBASE_API_KEY" \
             --dart-define=EV_FIREBASE_APP_ID="$EV_FIREBASE_APP_ID" \
             --dart-define=EV_FIREBASE_SENDER_ID="$EV_FIREBASE_SENDER_ID" \
@@ -133,11 +142,32 @@ jobs:
             --dart-define=EV_FIREBASE_STORAGE_BUCKET="$EV_FIREBASE_STORAGE_BUCKET" \
             --dart-define=EV_ONESIGNAL_APP_ID="$EV_ONESIGNAL_APP_ID"
 
-      - name: Upload artefact
+          # Play Console only accepts an App Bundle. Building only an APK meant
+          # the pipeline could never produce something uploadable, which is the
+          # difference between "a release build exists" and "a release exists".
+          flutter build appbundle --release \
+            --dart-define=EV_CDN_BASE="${EV_CDN_BASE}" \
+            --dart-define=EV_WEB_BASE="${EV_WEB_BASE:-}" \
+            --dart-define=EV_FIREBASE_API_KEY="$EV_FIREBASE_API_KEY" \
+            --dart-define=EV_FIREBASE_APP_ID="$EV_FIREBASE_APP_ID" \
+            --dart-define=EV_FIREBASE_SENDER_ID="$EV_FIREBASE_SENDER_ID" \
+            --dart-define=EV_FIREBASE_PROJECT_ID="$EV_FIREBASE_PROJECT_ID" \
+            --dart-define=EV_FIREBASE_STORAGE_BUCKET="$EV_FIREBASE_STORAGE_BUCKET" \
+            --dart-define=EV_ONESIGNAL_APP_ID="$EV_ONESIGNAL_APP_ID"
+
+      - name: Upload APKs
         uses: actions/upload-artifact@v4
         with:
           name: examvault-apk
           path: app/build/app/outputs/flutter-apk/*.apk
+          retention-days: 14
+          if-no-files-found: error
+
+      - name: Upload App Bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: examvault-aab
+          path: app/build/app/outputs/bundle/release/*.aab
           retention-days: 14
           if-no-files-found: error
 

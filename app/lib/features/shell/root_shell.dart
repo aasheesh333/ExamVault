@@ -206,7 +206,8 @@ class _TabButton extends StatelessWidget {
     return Semantics(
       button: true,
       selected: selected,
-      label: tab.label,
+      // No `label:`: the visible Text below is the accessible name. Both
+      // together made TalkBack announce every tab twice ("Home, Home").
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(EvRadius.button),

@@ -164,6 +164,32 @@ void main() {
       );
     });
 
+    test('an unsorted v2 index degrades to a scan instead of lying', () {
+      // decode() detects and stores `sorted`; contains() used to ignore it and
+      // binary-search anyway — silently answering "not found" for rolls that
+      // ARE on the list whenever a producer violated the sort contract.
+      //
+      // Hash order is arbitrary, so "shuffled" inputs can come out sorted by
+      // luck (this test did, on its first run). Sort-then-reverse guarantees
+      // the descending order that trips the detector.
+      final hashes = [
+        HashedRollIndex.digest('125130000008', salt),
+        HashedRollIndex.digest('125130000023', salt),
+        HashedRollIndex.digest('125130000032', salt),
+      ]..sort();
+      final doc = {
+        'salt': salt,
+        'total': hashes.length,
+        'hashes': hashes.reversed.toList(),
+      };
+      final index = HashedRollIndex.decode(doc);
+      expect(index.sorted, isFalse);
+      expect(index.contains('125130000008'), isTrue);
+      expect(index.contains('125130000023'), isTrue);
+      expect(index.contains('125130000032'), isTrue);
+      expect(index.contains('999999999999'), isFalse);
+    });
+
     test('a plaintext v1 array still works (local fixtures only)', () async {
       final bytes = Uint8List.fromList(
         gzip.encode(utf8.encode(jsonEncode(['125130000008']))),

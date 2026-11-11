@@ -599,7 +599,8 @@ class _Target extends StatelessWidget {
     return Semantics(
       button: true,
       enabled: enabled,
-      label: label,
+      // The visible label Text below is the single accessible name; a
+      // Semantics label on top made TalkBack read every tile twice.
       child: Opacity(
         opacity: enabled ? 1 : 0.4,
         child: InkWell(

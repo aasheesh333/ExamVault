@@ -216,4 +216,57 @@ void main() {
       expect(payload.maxAge, const Duration(seconds: 60));
     });
   });
+
+  group('gzip object validation', () {
+    const gzPath = '/v1/rolls/ssc_cgl_2026_abc123abc123_rolls.json.gz';
+
+    test('a 200 whose body is not gzip is rejected and never cached', () async {
+      var calls = 0;
+      final inner = MockClient((req) async {
+        calls++;
+        return http.Response('<html>captive portal login</html>', 200);
+      });
+      final c = client(inner);
+
+      await expectLater(
+        c.get(gzPath, freshWindow: const Duration(hours: 12)),
+        throwsA(isA<CdnException>()),
+      );
+      // The poisoning case: if the bad body had been cached, this second call
+      // would be served from disk for the whole 12h fresh window without ever
+      // reaching the (now healthy) network.
+      final callsAfterFirst = calls;
+      await expectLater(
+        c.get(gzPath, freshWindow: const Duration(hours: 12)),
+        throwsA(isA<CdnException>()),
+      );
+      // The client retries transient failures internally, so the exact count
+      // belongs to the retry policy — the invariant is simply that the second
+      // get hit the network again instead of a poisoned cache entry.
+      expect(
+        calls,
+        greaterThan(callsAfterFirst),
+        reason: 'a non-gzip 200 must not be written to cache',
+      );
+    });
+
+    test('a real gzip body is accepted and cached', () async {
+      final gz = Uint8List.fromList(gzip.encode(utf8.encode('[]')));
+      var calls = 0;
+      final inner = MockClient((req) async {
+        calls++;
+        return http.Response.bytes(gz, 200);
+      });
+      final c = client(inner);
+
+      final payload = await c.get(
+        gzPath,
+        freshWindow: const Duration(hours: 12),
+      );
+      expect(payload.bytes, gz);
+
+      await c.get(gzPath, freshWindow: const Duration(hours: 12));
+      expect(calls, 1, reason: 'a valid gzip body is cacheable');
+    });
+  });
 }

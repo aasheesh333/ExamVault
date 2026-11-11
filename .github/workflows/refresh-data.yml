@@ -32,6 +32,12 @@ jobs:
     name: Fetch official feed
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    # The job commits the refreshed snapshot and pushes it back to master. The
+    # default GITHUB_TOKEN is read-only, so every scheduled run fetched and
+    # validated fine and then died at `git push` with "403: Write access to
+    # repository not granted" — three nights of silent refresh failures.
+    permissions:
+      contents: write
 
     steps:
       - uses: actions/checkout@v4

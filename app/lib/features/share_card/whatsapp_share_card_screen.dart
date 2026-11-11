@@ -1,5 +1,6 @@
-import 'dart:typed_data';
+import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -7,6 +8,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/theme/theme_tokens.dart';
 import '../../core/utils/clipboard_service.dart';
 import '../../data/services/app_logger.dart';
+import '../../data/services/share_service.dart';
 import '../../domain/entities/admit_card.dart';
 import '../../domain/entities/live_update.dart';
 import '../result_checker/engine/roll_index_engine.dart';
@@ -97,8 +99,6 @@ class _WhatsappShareCardScreenState
       selected: verified,
       shareUrl: ref.read(resultIndexRepositoryProvider).shareUrl(examId),
       officialUrl: update?.officialUrl,
-      // Cut-offs are only shown when a publisher actually released them.
-      cutoffs: null,
       pdfSizeLabel: update?.pdfSizeLabel,
     );
   }
@@ -202,6 +202,20 @@ class _WhatsappShareCardScreenState
     _syncCaption(data);
   }
 
+  /// The caption exactly as it leaves the app — shared, and copied.
+  ///
+  /// An untouched caption is machine-generated, so appending the link there is
+  /// a safety net (one generated before the link was known would otherwise go
+  /// out without it). A *touched* caption is the user's own text: if they
+  /// deleted the link, `_withUrl` used to re-append it at share AND copy time,
+  /// silently overruling a deliberate edit. The user's words go out verbatim.
+  String _outgoingCaption(ShareCardData data) {
+    final caption = _captionController.text.trim().isEmpty
+        ? _defaultCaption(data)
+        : _captionController.text.trim();
+    return _captionTouched ? caption : _withUrl(caption, data);
+  }
+
   String _withUrl(String caption, ShareCardData data) {
     final url = data.link;
     if (url == null || url.isEmpty) return caption;
@@ -210,13 +224,13 @@ class _WhatsappShareCardScreenState
   }
 
   Future<void> _share(ShareCardData data) async {
+    // Re-entrancy guard: the tile and the primary button both land here, and a
+    // second tap while the sheet is opening must not start a second share.
     if (_sharing) return;
     setState(() => _sharing = true);
 
     final share = ref.read(shareServiceProvider);
-    final caption = _captionController.text.trim().isEmpty
-        ? _defaultCaption(data)
-        : _captionController.text.trim();
+    final caption = _outgoingCaption(data);
     final box = context.findRenderObject() as RenderBox?;
     final origin = box == null
         ? null
@@ -234,22 +248,37 @@ class _WhatsappShareCardScreenState
       if (png == null) {
         // Bug: this fallback was silent, so the user thought the image had been
         // sent. A text share still gets the job done — and now says so.
-        await share.shareText(
-          caption: _withUrl(caption, data),
-          subject: data.examName,
-          origin: origin,
-        );
-        _showSnack(
-          'The card image could not be rendered — shared the message text instead.',
+        await _shareTextFallback(
+          share,
+          caption,
+          data,
+          origin,
+          reason: 'The card image could not be rendered',
         );
       } else {
-        await share.shareCardImage(
-          png: png,
-          caption: _withUrl(caption, data),
-          subject: data.examName,
-          origin: origin,
-          fileName: 'examvault_${DateTime.now().millisecondsSinceEpoch}.png',
-        );
+        try {
+          await share.shareCardImage(
+            png: png,
+            caption: caption,
+            subject: data.examName,
+            origin: origin,
+            fileName: 'examvault_${DateTime.now().millisecondsSinceEpoch}.png',
+          );
+        } catch (e, st) {
+          // Bug: a platform that refused the image handoff (share sheet would
+          // not open; a browser without Web Share file support) landed in the
+          // generic catch below and the successfully captured PNG was silently
+          // discarded. The bytes cannot survive this frame, but the caption
+          // carries the same information — send it instead of losing both.
+          AppLogger.e('share', 'image share failed after capture', e, st);
+          await _shareTextFallback(
+            share,
+            caption,
+            data,
+            origin,
+            reason: 'The card image could not be sent',
+          );
+        }
       }
     } catch (e, st) {
       // Bug: a failed share left the button spinning with no explanation. The
@@ -260,8 +289,30 @@ class _WhatsappShareCardScreenState
         'try again.',
       );
     } finally {
+      // Native wrote the PNG into the cache dir; prune it so repeated shares
+      // do not accumulate images. Web never touches the disk, so skip the
+      // (no-op) walk there. Best-effort and never throwing, hence unawaited.
+      if (!kIsWeb) unawaited(share.clearCache());
       if (mounted) setState(() => _sharing = false);
     }
+  }
+
+  /// Sends the caption as plain text and says so. Both fallback paths (capture
+  /// failed / image handoff failed) must be audible: a silent downgrade lets
+  /// the user believe the image went out.
+  Future<void> _shareTextFallback(
+    ShareService share,
+    String caption,
+    ShareCardData data,
+    Rect? origin, {
+    required String reason,
+  }) async {
+    await share.shareText(
+      caption: caption,
+      subject: data.examName,
+      origin: origin,
+    );
+    _showSnack('$reason — shared the message text instead.');
   }
 
   void _showSnack(String message) {
@@ -365,15 +416,11 @@ class _WhatsappShareCardScreenState
                   const SizedBox(height: EvSpace.x5),
                   _ShareTargets(
                     onShare: () => _share(data),
+                    sharing: _sharing,
                     linkIsOfficial: data.linkIsOfficial,
                     onCopyCaption: () => ClipboardService.copy(
                       context,
-                      value: _withUrl(
-                        _captionController.text.trim().isEmpty
-                            ? _defaultCaption(data)
-                            : _captionController.text.trim(),
-                        data,
-                      ),
+                      value: _outgoingCaption(data),
                       label: 'Caption',
                     ),
                     // Never a dead button: with no app URL we copy the
@@ -401,14 +448,24 @@ class _WhatsappShareCardScreenState
                     value: _showRoll,
                     onChanged: (v) => setState(() {
                       _showRoll = v;
-                      // Privacy outranks customisation. _syncCaption skips
-                      // touched captions, so with an edited caption the
-                      // generated "Roll 12345… · in the published list" line
-                      // stayed frozen in the shared *text* even after this
-                      // switch hid the roll from the *image* — broadcasting
-                      // exactly what the user asked to withhold. Toggling now
-                      // regenerates the caption so card and text always agree.
-                      _captionTouched = false;
+                      if (!v) {
+                        // OFF: privacy outranks customisation. _syncCaption
+                        // skips touched captions, so an edited caption could
+                        // keep quoting the roll in the shared *text* after
+                        // this switch hid it from the *image* — broadcasting
+                        // exactly what the user asked to withhold. Only this
+                        // direction sacrifices the edit: reset the flag and
+                        // the next frame regenerates from scrubbed data, so
+                        // card and text always agree.
+                        _captionTouched = false;
+                      }
+                      // ON: nothing to scrub. An edited caption is the user's
+                      // own text — the old reset in BOTH directions destroyed
+                      // it here for no reason privacy can claim, and the
+                      // regenerated default would re-add a roll line the user
+                      // may have deliberately removed. Touched captions pass
+                      // through untouched; an untouched one regenerates from
+                      // the roll-bearing data via _syncCaption.
                     }),
                     hasRoll: built?.rollNumber.isNotEmpty ?? false,
                     hidden:
@@ -520,6 +577,7 @@ class _ShareTargets extends StatelessWidget {
     required this.onCopyLink,
     required this.onCopyCaption,
     required this.linkIsOfficial,
+    this.sharing = false,
   });
 
   final VoidCallback onShare;
@@ -534,6 +592,11 @@ class _ShareTargets extends StatelessWidget {
 
   /// True when the copied link is the commission's own, so the tile says so.
   final bool linkIsOfficial;
+
+  /// True while a share is in flight. `_share()` already ignores re-entrant
+  /// taps, but the tile must also *look* inert — a button that silently
+  /// swallows taps invites exactly the double-tap it guards against.
+  final bool sharing;
 
   @override
   Widget build(BuildContext context) {
@@ -550,9 +613,14 @@ class _ShareTargets extends StatelessWidget {
         _Target(
           label: 'Share card',
           icon: Icons.chat_rounded,
-          color: const Color(0xFF25D366),
+          // Bug: this tile still wore WhatsApp's brand green (#25D366) after
+          // the WhatsApp-targeted tile was merged into the generic share
+          // sheet — a brand colour for an action that opens whatever sheet the
+          // platform provides, and on web is not WhatsApp at all.
+          color: p.accentText,
           highlight: true,
           onTap: onShare,
+          enabled: !sharing,
         ),
         _Target(
           label: 'Copy caption',
@@ -681,9 +749,13 @@ class _CaptionEditorState extends State<_CaptionEditor> {
                 excludeSemantics: true,
                 button: true,
                 label: _editing ? 'Done editing caption' : 'Edit caption',
-                child: GestureDetector(
+                // InkWell, not a bare GestureDetector: the toggle gave zero
+                // pressed feedback, so a slow first frame made it feel dead
+                // and users tapped it twice. The enclosing EvCard supplies
+                // the Material the ink paints on.
+                child: InkWell(
                   onTap: () => setState(() => _editing = !_editing),
-                  behavior: HitTestBehavior.opaque,
+                  borderRadius: BorderRadius.circular(EvRadius.inner),
                   // Fixed 48x44 box, NOT a constraints+alignment Container: an
                   // aligned Container inside a Row expands to the row's free
                   // width — the previous "minWidth 44 + alignment" version
@@ -797,7 +869,10 @@ class _RollVisibilityRow extends StatelessWidget {
                   !hasRoll
                       ? 'No roll number checked yet'
                       : hidden
-                      ? 'Hidden — the card still shows the result'
+                      // The old copy ("the card still shows the result") read
+                      // as if nothing changed; hiding the roll removes the
+                      // entire dark result block, so say exactly that.
+                      ? 'Hidden — the card shows the result without your roll'
                       : 'Visible on the card you share',
                   style: context.type.bodyMuted.copyWith(),
                 ),

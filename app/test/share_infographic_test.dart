@@ -21,9 +21,9 @@ import 'package:hive_ce/hive.dart';
 void main() {
   ShareCardData data({
     bool selected = true,
-    Map<String, String>? cutoffs,
     String roll = '0801786',
     String headline = 'RESULT IS LIVE',
+    String? pdfSize,
   }) => ShareCardData(
     examName: 'Final Result: Combined Section Officers',
     headline: headline,
@@ -33,7 +33,7 @@ void main() {
     selected: selected,
     shareUrl: 'https://examvault.example/v1/feed',
     officialUrl: 'https://www.upsc.gov.in/sites/default/files/example.pdf',
-    cutoffs: cutoffs,
+    pdfSizeLabel: pdfSize,
   );
 
   Future<void> pumpCard(WidgetTester tester, ShareCardData card) async {
@@ -73,9 +73,62 @@ void main() {
   ) async {
     await pumpCard(tester, data());
 
+    // The `cutoffs` field and its block were deleted outright: nothing in the
+    // feed ever populated them, so the only state the widget could render was
+    // a fabricated one.
     expect(find.textContaining('CUT-OFF'), findsNothing);
     // The one fact we do have must still be there.
     expect(find.textContaining('0801786'), findsOneWidget);
+  });
+
+  testWidgets('the PDF size survives a share with no roll', (tester) async {
+    // Bug: pdfSizeLabel lived inside _RollBlock, which only renders when a
+    // roll number exists — so a radar-only share (or one with the roll hidden)
+    // dropped the single feed fact the card had been given.
+    await pumpCard(tester, data(roll: '', pdfSize: '18.4 MB'));
+    expect(find.textContaining('0801786'), findsNothing);
+    expect(
+      find.textContaining('18.4 MB'),
+      findsOneWidget,
+      reason: 'the footer meta line renders whenever the feed gave a size',
+    );
+
+    // And it still renders next to a roll.
+    await pumpCard(tester, data(pdfSize: '18.4 MB'));
+    expect(find.textContaining('0801786'), findsOneWidget);
+    expect(find.textContaining('18.4 MB'), findsOneWidget);
+  });
+
+  testWidgets('the alert strip meets the 4.5:1 white-text contrast floor', (
+    tester,
+  ) async {
+    // Bug: white on the old #F05252 measured 3.48:1 and the date at 86% alpha
+    // on #DC2626 measured 3.89:1 — both under the 4.5:1 AA floor, in an image
+    // the recipient can neither re-theme nor enlarge. The strip now runs
+    // #DC2626 (white 4.83:1) → #B91C1C (white 5.9:1) with a full-opacity date.
+    expect(ShareInfographic.alertRedStart, const Color(0xFFDC2626));
+    expect(ShareInfographic.alertRedEnd, const Color(0xFFB91C1C));
+
+    await pumpCard(tester, data());
+
+    final strip = tester
+        .widgetList<Container>(find.byType(Container))
+        .map((c) => c.decoration)
+        .whereType<BoxDecoration>()
+        .map((d) => d.gradient)
+        .whereType<LinearGradient>()
+        .firstWhere((g) => g.colors.contains(ShareInfographic.alertRedStart));
+    expect(strip.colors, [
+      ShareInfographic.alertRedStart,
+      ShareInfographic.alertRedEnd,
+    ]);
+
+    final date = tester.widget<Text>(find.text('10 NOV 2026'));
+    expect(
+      date.style?.color,
+      Colors.white,
+      reason: 'the date must be full-opacity white — 86% alpha was 3.89:1',
+    );
   });
 
   testWidgets('a shortlisted roll is not labelled SELECTED', (tester) async {

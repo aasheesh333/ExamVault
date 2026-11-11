@@ -17,7 +17,6 @@ class ShareCardData {
     required this.selected,
     required this.shareUrl,
     this.officialUrl,
-    this.cutoffs,
     this.pdfSizeLabel,
   });
 
@@ -46,11 +45,10 @@ class ShareCardData {
   /// correctly instead of implying an app page.
   bool get linkIsOfficial => shareUrl == null && officialUrl != null;
 
-  /// Only rendered when the publisher actually released cut-offs. Showing a
-  /// made-up cut-off on a card that gets forwarded 10 000 times is exactly the
-  /// kind of misinformation this product cannot afford.
-  final Map<String, String>? cutoffs;
-
+  /// The feed's size label for the official PDF (e.g. "18.4 MB"), when the
+  /// row carried one. Rendered in the card footer so it survives every share
+  /// shape — it used to live inside the roll block, which a radar-only card
+  /// (no roll number) never renders.
   final String? pdfSizeLabel;
 
   /// Used when the user turns off "Show my roll number": the card keeps the
@@ -70,7 +68,6 @@ class ShareCardData {
     selected: selected ?? this.selected,
     shareUrl: identical(shareUrl, _clear) ? this.shareUrl : shareUrl as String?,
     officialUrl: officialUrl,
-    cutoffs: cutoffs,
     pdfSizeLabel: pdfSizeLabel,
   );
 }
@@ -90,6 +87,14 @@ class ShareInfographic extends StatelessWidget {
   static const _blue = Color(0xFF2563EB);
   static const _muted = Color(0xFF475569);
   static const _faint = Color(0xFF64748B);
+
+  /// The alert strip's gradient, pinned by contrast tests.
+  ///
+  /// White on the previous start colour #F05252 measured 3.48:1 — below the
+  /// 4.5:1 WCAG AA floor for 11px text, in an image the recipient cannot
+  /// re-theme or enlarge. White on #DC2626 is 4.83:1 and on #B91C1C 5.9:1.
+  static const alertRedStart = Color(0xFFDC2626);
+  static const alertRedEnd = Color(0xFFB91C1C);
 
   @override
   Widget build(BuildContext context) {
@@ -159,14 +164,35 @@ class ShareInfographic extends StatelessWidget {
                         color: _muted,
                       ),
                     ),
-                    const SizedBox(height: 13),
-                    if (data.cutoffs != null && data.cutoffs!.isNotEmpty)
-                      _CutoffBlock(cutoffs: data.cutoffs!)
-                    else if (data.rollNumber.isNotEmpty)
+                    if (data.rollNumber.isNotEmpty) ...[
+                      const SizedBox(height: 13),
                       _RollBlock(data: data),
+                    ],
                     const SizedBox(height: 12),
                     _CtaBar(link: data.link),
                     const SizedBox(height: 10),
+                    // The PDF size belongs to the footer, not the roll block:
+                    // it is a fact about the feed row, and a radar-only share
+                    // (or one with the roll hidden) must not drop the single
+                    // feed fact the card was given.
+                    if (data.pdfSizeLabel != null) ...[
+                      Center(
+                        child: Text(
+                          'OFFICIAL PDF · ${data.pdfSizeLabel!}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontFamily: EvFont.mono,
+                            fontFamilyFallback: EvFont.fallbackMono,
+                            fontSize: 9,
+                            fontWeight: FontWeight.w500,
+                            letterSpacing: 0.7,
+                            color: _faint,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                    ],
                     const Center(
                       child: Text(
                         // Always-true claims only. "VERIFIED SOURCE" was printed
@@ -216,7 +242,10 @@ class _AlertStrip extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.centerLeft,
           end: Alignment.centerRight,
-          colors: [Color(0xFFF05252), Color(0xFFDC2626)],
+          colors: [
+            ShareInfographic.alertRedStart,
+            ShareInfographic.alertRedEnd,
+          ],
         ),
       ),
       child: Row(
@@ -244,13 +273,15 @@ class _AlertStrip extends StatelessWidget {
           ),
           Text(
             dateLine,
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: EvFont.mono,
               fontFamilyFallback: EvFont.fallbackMono,
               fontSize: 9,
               fontWeight: FontWeight.w500,
               letterSpacing: 0.9,
-              color: Colors.white.withValues(alpha: 0.86),
+              // Full-opacity white. At the old 86% alpha the date measured
+              // 3.89:1 against #DC2626 — under the 4.5:1 floor for 9px text.
+              color: Colors.white,
             ),
           ),
         ],
@@ -387,79 +418,10 @@ class _Headline extends StatelessWidget {
   }
 }
 
-class _CutoffBlock extends StatelessWidget {
-  const _CutoffBlock({required this.cutoffs});
-
-  final Map<String, String> cutoffs;
-
-  @override
-  Widget build(BuildContext context) {
-    final entries = cutoffs.entries.take(4).toList();
-
-    return Container(
-      padding: const EdgeInsets.fromLTRB(13, 10, 13, 12),
-      decoration: BoxDecoration(
-        color: ShareInfographic._ink,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'CUT-OFF',
-            style: TextStyle(
-              fontFamily: EvFont.mono,
-              fontFamilyFallback: EvFont.fallbackMono,
-              // Bug: 7 px micro-labels vanish in a WhatsApp thumbnail.
-              fontSize: 9,
-              fontWeight: FontWeight.w500,
-              letterSpacing: 1.3,
-              color: Color(0xFF8CA0BA),
-            ),
-          ),
-          const SizedBox(height: 6),
-          Row(
-            children: [
-              for (final e in entries)
-                Expanded(
-                  child: Row(
-                    children: [
-                      Text(
-                        e.key,
-                        style: const TextStyle(
-                          fontFamily: EvFont.mono,
-                          fontFamilyFallback: EvFont.fallbackMono,
-                          fontSize: 9,
-                          color: Color(0xFF7E90A8),
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                      Flexible(
-                        child: Text(
-                          e.value,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontFamily: EvFont.mono,
-                            fontFamilyFallback: EvFont.fallbackMono,
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFFF8FAFC),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Used when no cut-off has been published — shows the one fact we do have.
+/// The dark result block: shown only when there is a roll number to show.
+///
+/// The PDF size used to ride along inside this block, which silently dropped
+/// it from every roll-less share — it now lives in the card footer.
 class _RollBlock extends StatelessWidget {
   const _RollBlock({required this.data});
 
@@ -473,57 +435,41 @@ class _RollBlock extends StatelessWidget {
         color: ShareInfographic._ink,
         borderRadius: BorderRadius.circular(12),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  // "SELECTED" is only true of a final merit list. Most of what
-                  // this app indexes is a shortlist for the next stage (UPSC's
-                  // "qualified for the Personality Test"), so the card says what
-                  // is actually established: the roll is in the published list.
-                  data.selected ? 'YOUR ROLL · IN THE LIST' : 'YOUR ROLL',
-                  style: const TextStyle(
-                    fontFamily: EvFont.mono,
-                    fontFamilyFallback: EvFont.fallbackMono,
-                    // Bug: the roll badge label was 7 px, unreadable at share size.
-                    fontSize: 9,
-                    fontWeight: FontWeight.w500,
-                    letterSpacing: 1.2,
-                    color: Color(0xFF8CA0BA),
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  data.rollNumber,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontFamily: EvFont.mono,
-                    fontFamilyFallback: EvFont.fallbackMono,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 1.2,
-                    color: data.selected
-                        ? const Color(0xFF6EE7B7)
-                        : const Color(0xFFF8FAFC),
-                  ),
-                ),
-              ],
+          Text(
+            // "SELECTED" is only true of a final merit list. Most of what
+            // this app indexes is a shortlist for the next stage (UPSC's
+            // "qualified for the Personality Test"), so the card says what
+            // is actually established: the roll is in the published list.
+            data.selected ? 'YOUR ROLL · IN THE LIST' : 'YOUR ROLL',
+            style: const TextStyle(
+              fontFamily: EvFont.mono,
+              fontFamilyFallback: EvFont.fallbackMono,
+              // Bug: the roll badge label was 7 px, unreadable at share size.
+              fontSize: 9,
+              fontWeight: FontWeight.w500,
+              letterSpacing: 1.2,
+              color: Color(0xFF8CA0BA),
             ),
           ),
-          if (data.pdfSizeLabel != null)
-            Text(
-              data.pdfSizeLabel!,
-              style: const TextStyle(
-                fontFamily: EvFont.mono,
-                fontFamilyFallback: EvFont.fallbackMono,
-                fontSize: 9,
-                color: Color(0xFF8CA0BA),
-              ),
+          const SizedBox(height: 4),
+          Text(
+            data.rollNumber,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontFamily: EvFont.mono,
+              fontFamilyFallback: EvFont.fallbackMono,
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 1.2,
+              color: data.selected
+                  ? const Color(0xFF6EE7B7)
+                  : const Color(0xFFF8FAFC),
             ),
+          ),
         ],
       ),
     );

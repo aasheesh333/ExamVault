@@ -42,7 +42,9 @@ class LiveRadarTile extends StatelessWidget {
         child: Container(
           constraints: const BoxConstraints(minHeight: 62),
           padding: const EdgeInsets.symmetric(
-            horizontal: EvSpace.x4 - 2,
+            // 16, not 14: the radar's empty-state card uses EvCard's 16px
+            // padding, so the section's left edge shifted 2px between states.
+            horizontal: EvSpace.x4,
             vertical: 12,
           ),
           decoration: BoxDecoration(
@@ -94,20 +96,26 @@ class LiveRadarTile extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  EvStatusPill.status(update.status, compact: true),
-                  const SizedBox(height: 5),
-                  Text(
-                    update.ageLabel(),
-                    style: context.type.monoMeta.copyWith(
-                      fontSize: 11,
-                      color: p.textTertiary,
+              // Flexible: at 320px and 2.0x text the "ADMIT CARD LIVE" pill's
+              // intrinsic width exceeded the row's free space and pushed the
+              // whole row into RenderFlex overflow. As a flex child it gets
+              // bounded and the pill's label ellipsises instead.
+              Flexible(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    EvStatusPill.status(update.status, compact: true),
+                    const SizedBox(height: 5),
+                    Text(
+                      update.ageLabel(),
+                      style: context.type.monoMeta.copyWith(
+                        fontSize: 11,
+                        color: p.textTertiary,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ],
           ),

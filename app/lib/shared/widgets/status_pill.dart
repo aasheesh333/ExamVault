@@ -88,6 +88,10 @@ class EvStatusPill extends StatelessWidget {
           Text(
             label,
             maxLines: 1,
+            // Ellipsis, not the default soft-wrap: in a tight row (radar tile at
+            // 320px, 2.0x) "ADMIT CARD LIVE" would otherwise wrap to a second
+            // line inside a one-line pill.
+            overflow: TextOverflow.ellipsis,
             style: context.type.statusPill.copyWith(
               color: fg,
               fontSize: compact ? 11 : 11.5,

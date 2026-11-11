@@ -56,7 +56,7 @@ class CommandCenterScreen extends ConsumerWidget {
               SliverToBoxAdapter(
                 child: _Hero(
                   cardCount: cardsAsync.hasValue ? allCards.length : null,
-                  liveCount: feed?.feed.liveCount ?? 0,
+                  liveCount: feed?.feed.liveCount,
                 ),
               ),
               const SliverToBoxAdapter(child: SizedBox(height: EvSpace.x3)),
@@ -271,7 +271,11 @@ class _Hero extends StatelessWidget {
   /// that window, so every cold start briefly told a returning user that they had
   /// no cards — the most alarming thing this screen can say.
   final int? cardCount;
-  final int liveCount;
+
+  /// Null while the feed is still loading. `?? 0` made the hero claim a
+  /// confident "0 live updates" on every cold start — while the radar header
+  /// ten pixels below honestly said "CONNECTING…". Same rule as [cardCount].
+  final int? liveCount;
 
   @override
   Widget build(BuildContext context) {
@@ -343,11 +347,15 @@ class _Hero extends StatelessWidget {
                   style: context.type.body.copyWith(color: p.textTertiary),
                 ),
                 TextSpan(
-                  text: liveCount == 1
-                      ? '1 live update'
-                      : '$liveCount live updates',
+                  text: switch (liveCount) {
+                    null => 'Syncing radar…',
+                    1 => '1 live update',
+                    final n => '$n live updates',
+                  },
                   style: context.type.body.copyWith(
-                    color: liveCount > 0 ? p.successText : p.textTertiary,
+                    color: (liveCount ?? 0) > 0
+                        ? p.successText
+                        : p.textTertiary,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -382,7 +390,20 @@ class _SearchFieldState extends ConsumerState<_SearchField> {
   final _focus = FocusNode();
 
   @override
+  void initState() {
+    super.initState();
+    // The border below reads `_focus.hasFocus` during build, but nothing
+    // subscribed to the node: focusing the field never triggered a rebuild, so
+    // the accent ring never appeared — and once some *other* rebuild painted it
+    // (first keystroke), it stuck after blur until the next unrelated rebuild.
+    _focus.addListener(_onFocusChange);
+  }
+
+  void _onFocusChange() => setState(() {});
+
+  @override
   void dispose() {
+    _focus.removeListener(_onFocusChange);
     _controller.dispose();
     _focus.dispose();
     super.dispose();
@@ -490,7 +511,11 @@ class _CategoryChips extends ConsumerWidget {
         children: [
           ListView(
             scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: EvSpace.gutter - 4),
+            // Exact gutter: the `- 4` presumed chips carry ~4px of internal
+            // padding to optically compensate. They don't — EvChip hugs its
+            // pill — so the strip's left edge sat at 12 while every adjacent
+            // section sits at 16.
+            padding: const EdgeInsets.symmetric(horizontal: EvSpace.gutter),
             children: [
               EvChip(
                 label: 'All Exams',
@@ -650,16 +675,12 @@ class _EmptyVault extends ConsumerWidget {
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: EvSpace.gutter),
-      // A plain container, not `EvCard`: EvCard contributes a semantic container
-      // which merged this whole block into one 361x209 button. With nothing but
-      // the CTA left in the tree, VoiceOver reads "Add admit card, button".
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 22),
-        decoration: BoxDecoration(
-          color: p.surface,
-          borderRadius: BorderRadius.circular(EvRadius.card),
-          border: Border.all(color: p.border),
-        ),
+      // Back to `EvCard`: the hand-rolled container was a workaround for EvCard
+      // merging this block into one giant button node — fixed inside EvCard
+      // itself (unconditional explicitChildNodes) long ago, and the workaround
+      // had drifted to off-grid 18/22 padding while every sibling card uses 16.
+      child: EvCard(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
         child: Column(
           children: [
             Container(
@@ -854,7 +875,12 @@ class _RadarSliver extends ConsumerWidget {
             first: first,
             last: last,
             child: LiveRadarTile(
-              key: ValueKey('${updates[i].examId}-${updates[i].publishedAt}'),
+              // Index included: two feed rows with the same exam and timestamp
+              // (the publisher does not promise uniqueness) would collide and
+              // throw "duplicate keys" mid-list.
+              key: ValueKey(
+                '${updates[i].examId}-${updates[i].publishedAt}-$i',
+              ),
               update: updates[i],
               isFirst: first,
               isLast: last,
@@ -908,7 +934,14 @@ class _RadarRowShell extends StatelessWidget {
           bottom: last ? BorderSide(color: p.border) : BorderSide.none,
         ),
       ),
-      child: ClipRRect(borderRadius: radius, child: child),
+      child: ClipRRect(
+        borderRadius: radius,
+        // A transparent Material so the rows' InkWells have an ink canvas that
+        // paints *above* this opaque surface. Without it the splash rendered on
+        // the Scaffold's Material — underneath — and the app's most-tapped list
+        // gave zero press feedback.
+        child: Material(type: MaterialType.transparency, child: child),
+      ),
     );
   }
 }

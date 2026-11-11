@@ -142,6 +142,9 @@ class WalletPassCard extends StatelessWidget {
     if (days == 0) return 'TODAY';
     if (days == 1) return 'TOMORROW';
     if (days > 1) return 'IN $days DAYS';
+    // Singular on the past side too: the day after exam day — a high-traffic
+    // moment for this screen — used to read "1 DAYS AGO".
+    if (days == -1) return 'YESTERDAY';
     return '${-days} DAYS AGO';
   }
 }
@@ -399,7 +402,10 @@ class _FullBody extends StatelessWidget {
     final date = '$day ${months[d.month - 1]} ${d.year}';
     // Empty shift used to leave a dangling " · " on every pass.
     // The start time only: "10:00 AM – 11:00 AM" does not fit one line.
-    final shift = card.shift.split('–').first.trim();
+    // En dash, em dash or plain hyphen: the shift is free text in the vault
+    // form, and "9 AM - 12 PM" defeated the en-dash-only split, rendering the
+    // whole range on a line that only fits the start time.
+    final shift = card.shift.split(RegExp(r'[–—-]')).first.trim();
     return shift.isEmpty ? date : '$date · $shift';
   }
 
@@ -423,6 +429,11 @@ class _CopyPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Semantics(
+      // container + exclude: without them this control merged into the pass's
+      // outer "Tap to open" button node — the codebase's own documented rule
+      // for nested actions (see EvTextAction).
+      container: true,
+      excludeSemantics: true,
       button: true,
       label: 'Copy roll number',
       child: GestureDetector(
@@ -447,11 +458,7 @@ class _CopyPill extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 13),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(EvRadius.pill),
-                gradient: const LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [Color(0xFF4C8DF7), Color(0xFF2563EB)],
-                ),
+                gradient: EvGradient.primary,
                 boxShadow: [
                   BoxShadow(
                     color: const Color(0xFF2563EB).withValues(alpha: 0.55),

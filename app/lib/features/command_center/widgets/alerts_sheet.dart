@@ -61,10 +61,26 @@ class _AlertsSheet extends ConsumerWidget {
         maxChildSize: 0.94,
         builder: (context, controller) => Column(
           children: [
+            // Own grabber: the theme-level drag handle is disabled (over a
+            // transparent sheet background it floated on the dimmed scrim,
+            // detached from the card).
+            Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: Center(
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: p.borderStrong,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+            ),
             // Header sits outside the scroll view: inside it, the title and close
             // button rode up over the first row at 320px and at 2.0x.
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+              padding: const EdgeInsets.fromLTRB(20, 10, 20, 12),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -75,9 +91,11 @@ class _AlertsSheet extends ConsumerWidget {
                         Text('Alerts', style: context.type.sectionTitle),
                         const SizedBox(height: 2),
                         Text(
-                          alerts.isEmpty
-                              ? 'Nothing needs your attention.'
-                              : '${alerts.length} updates need a look',
+                          switch (alerts.length) {
+                            0 => 'Nothing needs your attention.',
+                            1 => '1 update needs a look',
+                            final n => '$n updates need a look',
+                          },
                           // Two lines maximum, so a long subtitle can never push
                           // the list out of the sheet.
                           maxLines: 2,
@@ -116,7 +134,10 @@ class _AlertsSheet extends ConsumerWidget {
             Expanded(
               child: ListView(
                 controller: controller,
-                padding: const EdgeInsets.only(bottom: 32),
+                // 20px sides: the card was full-bleed — its border touching the
+                // screen edges while the sheet's own header sits at x=20. Three
+                // different left edges in one sheet.
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
                 children: [
                   if (alerts.isEmpty)
                     Padding(
@@ -182,7 +203,7 @@ class _AlertRow extends StatelessWidget {
       onTap: onTap,
       child: Container(
         constraints: const BoxConstraints(minHeight: 56),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
           border: Border(
             top: first ? BorderSide.none : BorderSide(color: p.border),

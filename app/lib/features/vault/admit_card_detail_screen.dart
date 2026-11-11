@@ -31,8 +31,35 @@ class AdmitCardDetailScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final cardsAsync = ref.watch(admitCardsProvider);
+    // Rebuilds at midnight (and on app resume) so `daysUntilExam` — computed
+    // from DateTime.now() at build time — cannot go stale overnight. This tab
+    // lives in an IndexedStack with no feed poll to refresh it: a student who
+    // leaves the app open until exam morning used to see "IN 1 DAYS" all night.
+    ref.watch(dayTickProvider);
     final cards = cardsAsync.value ?? const <AdmitCard>[];
     final selectedId = ref.watch(selectedCardIdProvider);
+
+    // Loading and failure are *not* "empty". The repository deliberately
+    // rethrows so the UI can tell them apart, and Home does — but this screen
+    // collapsed all three into "Your vault is empty", so a slow Keystore read
+    // on cold start (all tabs build at launch) greeted users with an Add CTA
+    // over a vault that was full, and a Keystore failure claimed the vault was
+    // empty forever.
+    if (cardsAsync.isLoading) {
+      return Scaffold(
+        backgroundColor: context.ev.bg,
+        body: const SafeArea(child: _VaultLoading()),
+      );
+    }
+
+    if (cardsAsync.hasError) {
+      return Scaffold(
+        backgroundColor: context.ev.bg,
+        body: SafeArea(
+          child: _VaultError(onRetry: () => ref.invalidate(admitCardsProvider)),
+        ),
+      );
+    }
 
     if (cards.isEmpty) {
       return Scaffold(
@@ -403,7 +430,7 @@ class _BoardingPass extends ConsumerWidget {
               ),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(18, 17, 18, 14),
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -604,7 +631,12 @@ class _CopyField extends StatelessWidget {
 
     return Semantics(
       button: hasValue,
-      label: '${field.label}: ${field.value}. Tap to copy.',
+      // The old label promised "Tap to copy." even for empty optional fields,
+      // where onTap is null and the row shows "—" — an instruction for an
+      // interaction that does not exist.
+      label: hasValue
+          ? '${field.label}: ${field.value}. Tap to copy.'
+          : '${field.label}: not provided.',
       child: InkWell(
         onTap: hasValue
             ? () => ClipboardService.copy(
@@ -813,7 +845,7 @@ class _CountdownCard extends StatelessWidget {
     final urgent = days <= 3 && days >= 0;
 
     return EvCard(
-      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       child: Row(
         children: [
           Expanded(
@@ -883,7 +915,7 @@ class _DocumentChecklist extends ConsumerWidget {
     final done = card.checklist.length;
 
     return EvCard(
-      padding: const EdgeInsets.fromLTRB(15, 13, 15, 6),
+      padding: const EdgeInsets.fromLTRB(16, 13, 16, 6),
       child: Column(
         children: [
           Row(
@@ -1026,7 +1058,7 @@ class _CenterCard extends StatelessWidget {
     );
 
     return EvCard(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 13),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
       // Maps needs an address; a gate-only card stays informative, not a dead link.
       onTap: hasAddress
           ? () async {
@@ -1175,6 +1207,76 @@ class _ActionDock extends ConsumerWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Shown while the encrypted store is still being read.
+///
+/// Distinct from [_EmptyState] on purpose: "Your vault is empty" while the
+/// Keystore read is in flight told users with saved cards that their data was
+/// gone, and offered an Add CTA on top of it.
+class _VaultLoading extends StatelessWidget {
+  const _VaultLoading();
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.ev;
+    return EvCenteredScroll(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            width: 22,
+            height: 22,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              valueColor: AlwaysStoppedAnimation(p.accentText),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text('Reading your vault…', style: context.type.bodyMuted),
+        ],
+      ),
+    );
+  }
+}
+
+/// Shown when the encrypted store could not be read.
+///
+/// Mirrors Home's vault-error card: the cards are still on the device, and the
+/// honest action is a retry — never "your vault is empty".
+class _VaultError extends StatelessWidget {
+  const _VaultError({required this.onRetry});
+
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.ev;
+    return EvCenteredScroll(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.lock_outline_rounded, size: 40, color: p.warning),
+          const SizedBox(height: 16),
+          Text('Could not open your vault', style: context.type.sectionTitle),
+          const SizedBox(height: 6),
+          Text(
+            'Your cards are still on this device — nothing was lost. '
+            'Tap retry to read them again.',
+            textAlign: TextAlign.center,
+            style: context.type.bodyMuted,
+          ),
+          const SizedBox(height: 20),
+          EvPrimaryButton(
+            label: 'Retry',
+            icon: Icons.refresh_rounded,
+            expand: false,
+            onPressed: onRetry,
+          ),
+        ],
+      ),
     );
   }
 }

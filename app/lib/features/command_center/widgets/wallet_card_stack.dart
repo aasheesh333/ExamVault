@@ -53,10 +53,13 @@ class WalletCardStack extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           WalletPassCard(card: visible[0], onOpen: () => onOpen(visible[0])),
-          if (visible.length > 1) ...[
+          // cards.length, not visible.length: `visible` is capped at
+          // maxLayers (3), so a user with 5 saved cards read "3 cards total"
+          // here while the hero 300px above said "5 exams tracked".
+          if (cards.length > 1) ...[
             const SizedBox(height: 8),
             Text(
-              '${visible.length} cards total — tap to open all of them',
+              '${cards.length} cards total — tap to open all of them',
               style: context.type.bodyMuted,
             ),
           ],

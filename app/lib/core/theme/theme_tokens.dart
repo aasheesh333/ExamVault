@@ -226,6 +226,20 @@ abstract final class EvSize {
 /// asked for `Plus Jakarta Sans` while pubspec declared `PlusJakartaSans`, so every
 /// glyph in the app silently fell back to Roboto and the design typeface was never
 /// actually rendered.
+/// Gradients shared by the brand's primary actions.
+///
+/// EvPrimaryButton and the wallet's Copy pill each hardcoded their own blue
+/// gradient and had already drifted (0xFF4E90F9 vs 0xFF4C8DF7 top stop) — the
+/// exact drift tokens exist to prevent. One definition, both call sites.
+abstract final class EvGradient {
+  static const primary = LinearGradient(
+    begin: Alignment.topCenter,
+    end: Alignment.bottomCenter,
+    colors: [Color(0xFF4E90F9), Color(0xFF2F74E8), Color(0xFF2563EB)],
+    stops: [0, 0.55, 1],
+  );
+}
+
 abstract final class EvFont {
   static const ui = 'Plus Jakarta Sans';
   static const mono = 'IBM Plex Mono';

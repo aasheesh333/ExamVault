@@ -356,7 +356,10 @@ class _VaultFormSheetState extends ConsumerState<_VaultFormSheet> {
       firstDate: firstDate,
       lastDate: lastDate,
     );
-    if (picked != null) {
+    // Guarded like every other await in this file: the route is normally kept
+    // alive by PopScope while the picker is open, but a system-initiated
+    // teardown mid-picker would turn this setState into a crash.
+    if (picked != null && mounted) {
       setState(() {
         _examDate = picked;
         _validationNotice = null;
@@ -376,6 +379,10 @@ class _VaultFormSheetState extends ConsumerState<_VaultFormSheet> {
         if (!didPop) _requestClose();
       },
       child: Container(
+        // Clip to the rounded top: the form scrolls, and unclipped scrolled
+        // text painted over the dimmed page outside the corner arcs — the same
+        // bleed the about and alerts sheets already guard against.
+        clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
           color: p.surface,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),

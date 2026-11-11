@@ -190,7 +190,10 @@ String matrixFeedJson({int rows = 4, bool empty = false}) {
       {
         'exam_name': 'RRB CEN 09/2026 · Notification',
         'category': 'railways',
-        'status': 'awaited',
+        // The longest status label in the app ("ADMIT CARD LIVE"): the fixture
+        // used to only carry short statuses, so the matrix never exercised the
+        // pill widths that overflow on a 320px row.
+        'status': 'admit_card_live',
         'context': 'Railway Recruitment Board · 9 Nov 2026',
       },
       {

@@ -592,3 +592,50 @@ final liveRadarBadgeProvider = Provider<int>((ref) {
       )
       .length;
 });
+
+/// ---------------------------------------------------------------------------
+/// Day tick
+/// ---------------------------------------------------------------------------
+
+/// Rebuilds watchers once per calendar day, and on every app resume.
+///
+/// Countdowns ("IN 2 DAYS", "TODAY") are computed from `DateTime.now()` at
+/// build time. Screens that live inside the shell's IndexedStack get no other
+/// reason to rebuild overnight, so a student who left the app open until exam
+/// morning watched a stale "IN 1 DAYS" at 7:40 AM. Watching this provider ties
+/// those builds to the date instead of to luck.
+class DayTickNotifier extends Notifier<DateTime> {
+  Timer? _timer;
+  AppLifecycleListener? _lifecycle;
+
+  @override
+  DateTime build() {
+    ref.onDispose(() {
+      _timer?.cancel();
+      _lifecycle?.dispose();
+    });
+    _scheduleMidnight();
+    _lifecycle = AppLifecycleListener(
+      onResume: () {
+        state = DateTime.now();
+        _scheduleMidnight();
+      },
+    );
+    return DateTime.now();
+  }
+
+  void _scheduleMidnight() {
+    _timer?.cancel();
+    final now = DateTime.now();
+    final midnight = DateTime(now.year, now.month, now.day + 1);
+    _timer = Timer(midnight.difference(now), () {
+      if (!ref.mounted) return;
+      state = DateTime.now();
+      _scheduleMidnight();
+    });
+  }
+}
+
+final dayTickProvider = NotifierProvider<DayTickNotifier, DateTime>(
+  DayTickNotifier.new,
+);

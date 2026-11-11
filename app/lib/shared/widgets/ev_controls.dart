@@ -86,16 +86,7 @@ class EvPrimaryButton extends StatelessWidget {
             height: EvSize.primaryButton,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(EvRadius.button),
-              gradient: const LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Color(0xFF4E90F9),
-                  Color(0xFF2F74E8),
-                  Color(0xFF2563EB),
-                ],
-                stops: [0, 0.55, 1],
-              ),
+              gradient: EvGradient.primary,
               boxShadow: active
                   ? [
                       BoxShadow(

@@ -69,7 +69,14 @@ function parseRows(html) {
       .trim();
 
     rows.push({
-      exam_id: slug(`rrb-cen-${cen ?? 'unknown'}-${kind}-${published.slice(0, 10)}`),
+      // NO notice date in the id. RRB re-dates reposted CEN notices, and with
+      // the date embedded, every repost became a brand-new row — the snapshot
+      // shipped BOTH rrb_cen_09_2026_notification_2026_11_09 and
+      // rrb_cen_09_2026_notification_2026_11_05 for the same notice. The
+      // dedupe in run() (newest first, first-seen wins) now collapses reposts
+      // and keeps the newest posting, whose date is still on the row itself
+      // (published_at + context).
+      exam_id: slug(`rrb-cen-${cen ?? 'unknown'}-${kind}`),
       category: 'railways',
       exam_name: truncate(
         `${cen ? `RRB CEN ${cen}` : 'RRB'} · ${kind || 'Notice'}`,

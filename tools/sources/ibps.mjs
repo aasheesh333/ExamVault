@@ -63,14 +63,42 @@ async function getWithChain(url, { timeoutMs = 25000, attempts = 3 } = {}) {
   throw lastError;
 }
 
+/**
+ * Loads the pinned intermediate + root store, FAILING CLOSED.
+ *
+ * The old code caught a missing/corrupt PEM and silently fell back to
+ * `rootCertificates` alone — which is precisely the "unknown CA" outage the
+ * pin exists to prevent, re-created by our own error handling. Now a missing
+ * or non-PEM file throws with the filename in the message; the orchestrator
+ * reports IBPS `unavailable` in the feed health block, which is the honest
+ * failure mode.
+ *
+ * The pinned certificate (GlobalSign GCC R46 OV TLS CA 2025) EXPIRES
+ * 2029-06-23 — see the rotation note in docs/DATA_PIPELINE.md.
+ */
+function loadTrustChain() {
+  let pem;
+  try {
+    pem = readFileSync(CERT_FILE, 'utf8');
+  } catch (e) {
+    throw new Error(
+      `pinned IBPS intermediate unreadable: ${CERT_FILE} (${e?.code ?? e?.message}). ` +
+        'Refusing to fall back to the root store: ibps.in omits its intermediate, ' +
+        'so that fallback reproduces the exact "unknown CA" outage the pin prevents. ' +
+        'Restore the PEM — see docs/DATA_PIPELINE.md.',
+    );
+  }
+  if (!/-----BEGIN CERTIFICATE-----/.test(pem)) {
+    throw new Error(
+      `pinned IBPS intermediate is corrupt (no PEM certificate found): ${CERT_FILE}`,
+    );
+  }
+  return [pem, ...rootCertificates];
+}
+
 function once(url, timeoutMs) {
   return new Promise((resolve, reject) => {
-    let ca;
-    try {
-      ca = [readFileSync(CERT_FILE, 'utf8'), ...rootCertificates];
-    } catch {
-      ca = rootCertificates;
-    }
+    const ca = loadTrustChain();
 
     const req = https.get(
       new URL(url),
@@ -172,7 +200,14 @@ export default {
       const label = `${org} — ${item.title}`;
       if (statusOf(label) === null && !/recruit/i.test(item.title)) continue;
 
-      const open = Date.parse(item.closes) > today;
+      // `closes` is stamped at 00:00 UTC of the closing day (see lib.toIsoDate),
+      // and registration normally stays open until 23:59 IST ON that day. Treat
+      // the whole closing day as open, or the form flips to "closed" up to a
+      // full day early.
+      const closeMs = Date.parse(item.closes);
+      const closeEndMs = Number.isFinite(closeMs) ? closeMs + 24 * 3600 * 1000 - 1 : NaN;
+      const open = Number.isFinite(closeEndMs) && closeEndMs > today;
+
       rows.push({
         exam_id: `ibps_${slugify(`${org}_${item.title}_${item.closes?.slice(0, 10) ?? ''}`)}`,
         category: 'banking',
@@ -183,6 +218,14 @@ export default {
         status: open ? 'form_closing' : 'awaited',
         // The window's opening date is the only date IBPS publishes here.
         published_at: item.opens,
+        // EXPLICIT expiry pinned to the end of the closing day. The default
+        // form_closing TTL (7 days from published_at = opens, in both
+        // publish_feed.mjs and the app's _defaultExpiry fallback) hid banking
+        // rows WEEKS before registration actually closed. Both sides only
+        // stamp a default when expires_at is absent, so emitting it here wins.
+        ...(open && Number.isFinite(closeMs)
+          ? { expires_at: new Date(closeEndMs - 999).toISOString() }
+          : {}),
         source: 'ibps.in',
         source_id: 'ibps',
         official_pdf: null,

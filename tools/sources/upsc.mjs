@@ -10,10 +10,28 @@
  * like SSC's.
  */
 
+import { createHash } from 'node:crypto';
+
 import { absUrl, clean, getText, slug, statusOf, toIsoDate } from './lib.mjs';
 
 const BASE = 'https://www.upsc.gov.in';
 const LIST = `${BASE}/whats-new`;
+
+/**
+ * A collision-free exam_id for a "What's New" path.
+ *
+ * `slug()` truncates to 56 chars, and UPSC paths share long prefixes
+ * (`/whats-new/written-result-with-name-combined-defence-services-…`), so
+ * distinct notices used to collapse onto the SAME id: the snapshot shipped 8
+ * of 12 fetched upsc rows, and because detail pages are fetched by a 4-worker
+ * pool the surviving row was nondeterministic run to run. Suffixing a 6-char
+ * hash of the FULL path makes the id unique while staying within the cap
+ * (49 + 1 + 6 = 56).
+ */
+function examIdFor(pathname) {
+  const hash = createHash('sha1').update(pathname).digest('hex').slice(0, 6);
+  return `${slug(`upsc-${pathname}`).slice(0, 49)}_${hash}`;
+}
 
 /** Extracts (title, detailUrl) pairs from the "What's New" widget. */
 function parseList(html) {
@@ -82,7 +100,7 @@ export default {
         if (!status || !detail.published) continue;
 
         rows.push({
-          exam_id: slug(`upsc-${decodeURIComponent(new URL(item.url).pathname)}`),
+          exam_id: examIdFor(decodeURIComponent(new URL(item.url).pathname)),
           category: 'upsc',
           exam_name: item.title.length > 96 ? `${item.title.slice(0, 93)}…` : item.title,
           context: detail.pdf

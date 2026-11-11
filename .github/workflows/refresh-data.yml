@@ -83,16 +83,31 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: node publish_feed.mjs --in ../data/live_feed.json
 
-      # Keep a copy so the feed's history is reviewable in the repo.
+      # Keep a copy so the feed's history is reviewable in the repo — but ONLY
+      # when the CONTENT changed.
+      #
+      # fetched_at / sources[].checked_at / sources[].elapsed_ms differ on
+      # every run by construction, so a raw `git diff` was dirty on all ~48
+      # daily runs and the history was pure noise. The comparison uses the
+      # same normalization as fetch_official_feeds.mjs's revision logic
+      # (tools/normalize_feed.mjs): volatile fields stripped, keys sorted.
+      # No content change → no commit, no push.
       - name: Commit the snapshot
         run: |
           set -euo pipefail
-          if git diff --quiet -- data/live_feed.json; then
-            echo "no change"
+          git show HEAD:data/live_feed.json > "$RUNNER_TEMP/head_feed.json" 2>/dev/null \
+            || echo '{}' > "$RUNNER_TEMP/head_feed.json"
+          node tools/normalize_feed.mjs "$RUNNER_TEMP/head_feed.json" > "$RUNNER_TEMP/head_norm.json"
+          node tools/normalize_feed.mjs data/live_feed.json           > "$RUNNER_TEMP/new_norm.json"
+          if diff -q "$RUNNER_TEMP/head_norm.json" "$RUNNER_TEMP/new_norm.json" > /dev/null; then
+            echo "feed content unchanged (volatile timestamps only) — skipping commit"
             exit 0
           fi
           git config user.name  "examvault-bot"
           git config user.email "bot@users.noreply.github.com"
           git add data/live_feed.json
           git commit -m "data: refresh official exam feed [skip ci]"
+          # A scheduled run can race another push to master (or a slow job can
+          # overlap the next scheduled one); rebasing beats failing the push.
+          git pull --rebase
           git push

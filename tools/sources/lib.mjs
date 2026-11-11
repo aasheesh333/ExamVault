@@ -93,8 +93,32 @@ function iso(year, month, day) {
   if (!(year >= 2015 && year <= 2100)) return null;
   if (!(month >= 0 && month <= 11)) return null;
   if (!(day >= 1 && day <= 31)) return null;
-  return new Date(Date.UTC(year, month, day, 12)).toISOString();
+  // Midnight UTC, NOT noon. A date-only notice ("09 Nov 2026") stamped at
+  // 12:00Z is in the FUTURE for every refresh that runs between 00:00Z and
+  // 12:00Z, and publish_feed.mjs (correctly) rejects any future
+  // `published_at` — one same-day UPSC/TNPSC/RRB notice used to take the whole
+  // document down with it for half the day. Midnight is always in the past by
+  // the time the notice is fetched; app-side age labels ("2h old") are
+  // unaffected in kind, only up to 12 h coarser on day one.
+  return new Date(Date.UTC(year, month, day)).toISOString();
 }
+
+/**
+ * Verification-stage notices: IV / DV / shortlist-for-verification.
+ *
+ * These LOOK like results — SSC's own wording is "Identity Verification (IV)
+ * for the candidates shortlisted in …" — but the PDF lists candidates SUMMONED
+ * to be verified, not candidates SELECTED. `RESULT_WORDS` matches
+ * "shortlist", so without this earlier check the row became `result_out`, the
+ * indexer queued it, and the checker would answer "NOT SELECTED" to everyone
+ * the IV notice never mentioned. Classification order is the fix: a
+ * verification notice is a call to appear → `admit_card_live`.
+ *
+ * Deliberately anchored on "verification" phrases rather than a bare /\biv\b/
+ * or /\bdv\b/, so "Written Result Part IV" stays a result.
+ */
+const VERIFICATION_WORDS =
+  /(identity verification|document verification|certificate verification|physical verification|verification \(|shortlisted[^.]{0,80}(verification|\bdv\b|\biv\b)|(?:\bdv\b|\biv\b)[^.]{0,80}shortlist)/;
 
 /**
  * Milestone words that mean "a result exists", ordered so the most specific
@@ -126,6 +150,9 @@ export function statusOf(input) {
   if (!text) return null;
   if (NOT_FOR_CANDIDATES.test(text)) return null;
 
+  // BEFORE result words: "shortlisted for Document Verification" contains
+  // "shortlist" and would otherwise ship as result_out (see VERIFICATION_WORDS).
+  if (VERIFICATION_WORDS.test(text)) return 'admit_card_live';
   // A headline that mentions both a result and an admit card is a result
   // announcement: the admit card is a footnote to the outcome.
   if (RESULT_WORDS.test(text)) return 'result_out';

@@ -50,6 +50,19 @@ intermediate — public certificate data published by GlobalSign — is pinned i
 `tools/certs/` and passed as an extra CA **alongside the normal root store**, so
 the chain is still verified in full. If IBPS rotates to another CA the fetch fails
 closed, the source is reported `unavailable`, and nothing is published from it.
+A missing or corrupt PEM file **also fails closed** with an error naming the
+file: `ibps.mjs` never silently degrades to the bare root store, because that
+fallback *is* the “unknown CA” outage the pin exists to prevent.
+
+> **Rotation note — the pinned intermediate
+> (`GlobalSign GCC R46 OV TLS CA 2025`) expires 2029-06-23.** Before that date,
+> download GlobalSign's then-current issuing intermediate for `www.ibps.in`
+> (`openssl s_client -showcerts -connect www.ibps.in:443` once the server sends
+> it, or from GlobalSign's repository), replace
+> `tools/certs/globalsign-gcc-r46-ov-tls-ca-2025.pem` (or add the new file and
+> update `CERT_FILE` in `tools/sources/ibps.mjs`), and confirm the source
+> reports `ok` in the feed health block. After expiry every IBPS fetch fails
+> closed until this is done — by design.
 
 ## Health is published, not implied
 
@@ -62,9 +75,13 @@ closed, the source is reported `unavailable`, and nothing is published from it.
 ]
 ```
 
-An outage in one commission is therefore visible in the artefact, not only in CI
-logs. The orchestrator also refuses to overwrite a populated feed with an empty
-one, so a bad afternoon on the network cannot blank the radar for every client.
+`rows` is the count the source actually has in the published document —
+**after** dedupe, the per-source cap and the global cap (retained searchable
+results included). It used to be the pre-dedupe fetch count, so the app's
+About sheet could claim “25 items” for a source contributing 20. An outage in
+one commission is therefore visible in the artefact, not only in CI logs. The
+orchestrator also refuses to overwrite a populated feed with an empty one, so a
+bad afternoon on the network cannot blank the radar for every client.
 
 ## The feed
 
@@ -78,8 +95,24 @@ node publish_feed.mjs --in ../data/live_feed.json --dry-run          # validate 
 
 `publish_feed.mjs` refuses a document with a missing field, an unknown
 category/status, an unparseable or future `published_at`, or a row with no
-official link. It stamps `expires_at` per status, so a forgotten row degrades to
-silence instead of turning into a lie.
+official link. It stamps `expires_at` per status **only when the row does not
+carry one**, so an adapter can pin an explicit expiry to a real-world deadline
+— IBPS does exactly that: a registration row expires at the end of its closing
+day instead of 7 days after it opened. A forgotten row degrades to silence
+instead of turning into a lie.
+
+Date-only notices (`9 Nov 2026`) are stamped at **00:00 UTC**. They used to be
+stamped at noon, which made any same-day notice “in the future” for every run
+between 00:00 and 12:00 UTC — and since the publisher rejects future
+timestamps wholesale, one same-day UPSC notice could take the entire document
+down for half the day.
+
+`revision` counts distinct feed **states**, not refresh runs: the fetcher bumps
+it only when the normalized content (volatile timestamps stripped — see
+`tools/normalize_feed.mjs`) actually changed, and the publisher never bumps it.
+It used to rise twice per cycle (once in the snapshot, once only in the
+uploaded copy), so the edge and the repo permanently disagreed and the number
+climbed ~48/day through runs that changed nothing.
 
 | Situation | Behaviour |
 |---|---|
@@ -107,8 +140,13 @@ each one, and publishes only the digests:
 - **Digest** — `sha256("<salt>:<NORMALISED_ROLL>")` truncated to 8 bytes, hex.
 - **Normalisation** — strip whitespace, NBSP, zero-width spaces and dashes, then
   uppercase. Byte-identical in Dart (`HashedRollIndex.normalise`) and Python
-  (`tools/hashed_index.py`); `test/hashed_index_test.dart` pins both against the
-  same vectors, because a drift here would answer “not selected” for everybody.
+  (`tools/hashed_index.py`). Pinned twice: `test/hashed_index_test.dart` keeps
+  hardcoded vectors on the Dart side, and `.github/workflows/parity.yml` runs
+  the Python side for real (`hashed_index.py --emit-vectors`) and feeds the
+  output to `app/tool/parity_check.dart`, which recomputes every digest with
+  the app's own engine and fails the build on any mismatch. Before that gate
+  existed, an edit to the Python normalisation shipped green and would have
+  answered “not selected” for everybody.
 - **Salt** — derived per exam from the exam id
   (`sha256("examvault/v2/<exam_id>")`), so one precomputed table cannot serve
   every exam, and a rebuild of unchanged data produces byte-identical output.
@@ -139,17 +177,44 @@ clock, which would change the bytes — and therefore the version — on every r
    not selected. Any PDF whose URL says `writeup` is rejected outright, and the
    floor catches the rest. Twenty is low enough to keep a genuinely small final
    list (a 30-post LDCE publishes 30 rolls).
-2. **Strictly-ascending check** before writing, because the app binary-searches
-   the array.
-3. **Per-source roll patterns.** SSC uses 12-digit rolls (`125160000498`), UPSC
+2. **Ascending order is structural, not checked.** The extractor returns
+   `sorted(set(...))`, so the array the app binary-searches cannot be unsorted —
+   an earlier “strictly-ascending check before writing” was dead code that
+   could never fire, and this document used to list it as a guard. It has been
+   replaced by a check that carries real signal: a **bimodal digit-length
+   warning**. A genuine list has one roll shape (SSC 12 digits, UPSC 7);
+   two populated length modes usually mean an interleaved PDF column (serial
+   numbers, dates, marks) was captured as rolls. That prints a loud WARNING
+   for the operator — it does not fail the build, because a combined list can
+   legitimately mix shapes.
+3. **Device size budget.** The app refuses index downloads above
+   `AppConfig.maxDownloadBytes` (12 MB). After gzip, an index larger than
+   10 MB is NOT published — it would be an object no phone can load. The row
+   is skipped with the memo `index exceeds device budget` and a loud warning;
+   lists that big need chunking, which is a deliberate feature, not a silent
+   publish.
+4. **Per-source roll patterns.** SSC uses 12-digit rolls (`125160000498`), UPSC
    uses zero-padded 7-digit rolls (`0100823`), TNPSC uses 9-digit registration
    numbers. A single pattern silently drops real candidates, so `ROLL_PATTERNS`
    in `build_indexes.py` declares one per source and the build prints the count it
    found so a wrong guess is visible.
-4. **Failure memo.** A PDF that yields three rolls today yields three rolls in
-   half an hour. Failures are stamped with `index_attempted_at` and skipped for a
-   week, so a small `--limit` budget is not consumed by the same writeups every
-   run.
+5. **Failure memo.** A PDF that yields three rolls today yields three rolls in
+   half an hour. Failures are stamped with `index_attempted_at` /
+   `index_skipped` and cooled down for a week, so a small `--limit` budget is
+   not consumed by the same writeups every run. The memo is written to
+   `data/live_feed.json` **even when a run builds nothing**, and the fetcher
+   carries it across regenerations — previously it was discarded on every
+   built-zero run and erased on every fetch, so dead PDFs were re-downloaded
+   every 30 minutes forever.
+6. **Multi-part SSC lists pause indexing.** SSC splits big candidate lists
+   across several attachments. Indexing attachment 1 alone would publish a
+   PARTIAL index — and a partial index answers “NOT SELECTED” to every
+   candidate in parts 2+. Such rows keep their official link, carry the
+   context `Multi-part list — indexing paused` and the flag
+   `index_skipped: multi-part list (N attachments)`, and `build_indexes.py`
+   never indexes them. (Partial indexing of verification notices is separately
+   prevented by classification: IV/DV/“shortlisted for verification” headlines
+   are `admit_card_live`, never `result_out`.)
 
 ### Verified end to end
 
@@ -170,9 +235,19 @@ repository would be its own privacy problem.
 
 1. fetch all sources → `data/live_feed.json`
 2. validate it (`publish_feed.mjs --dry-run`)
-3. build up to 8 roll indexes (unindexed rows first, failures retried weekly)
+3. build up to 8 roll indexes, scheduled **round-robin** between two classes:
+   rows with no index yet (newest first), and rows whose index is due for a
+   revisit — `index_available` but `index_built_at` older than 7 days (oldest
+   verification first). Failed rows cool down for a week via the failure memo;
+   multi-part SSC rows are paused and excluded. The revisit class is why a
+   commission correcting a PDF **at the same URL** no longer serves a stale
+   index forever: previously unindexed rows had absolute priority, and with a
+   standing backlog the indexed rows were never revisited at all.
 4. publish the feed **after** the indexes, so `index_version` reaches the app
-5. commit the snapshot so the feed's history is reviewable
+5. commit the snapshot **only when its normalized content changed** (volatile
+   timestamps stripped via `tools/normalize_feed.mjs`, keys sorted), rebasing
+   before push — an unchanged refresh produces no commit, instead of the ~48
+   guaranteed-dirty noise commits per day the raw `git diff` produced
 
 **Caveat:** GitHub disables scheduled workflows after 60 days of repository
 inactivity. For a production service, run the same commands from a real cron — a

@@ -31,7 +31,9 @@
 
 import { readFileSync, writeFileSync } from 'node:fs';
 import { argv } from 'node:process';
+import { pathToFileURL } from 'node:url';
 
+import { canonicalJson, stripVolatile } from './normalize_feed.mjs';
 import ssc from './sources/ssc.mjs';
 import upsc from './sources/upsc.mjs';
 import ibps from './sources/ibps.mjs';
@@ -72,34 +74,49 @@ const VALID_STATUS = new Set([
 ]);
 
 /**
- * Carries the index fields forward from the previous feed.
+ * Carries the index bookkeeping forward from the previous feed.
  *
  * `build_indexes.py` runs *after* this script and stamps `index_available`,
- * `index_version` and `roll_count` onto rows it publishes. Without this, the next
- * 30-minute refresh would erase those stamps and the app would stop offering
- * "check my result" until the index was rebuilt — even though the object is still
- * on the CDN.
+ * `index_version`, `roll_count` and `index_built_at` onto rows it publishes,
+ * and `index_attempted_at`/`index_skipped` onto rows it fails on. Without
+ * carrying ALL of them, the next 30-minute refresh would erase those stamps:
+ * the app would stop offering "check my result" even though the object is
+ * still on the CDN, and — worse — every failed PDF would lose its weekly
+ * cooldown memo and be re-downloaded on every single run forever.
  */
-function carryIndexFields(rows, previous) {
+export function carryIndexFields(rows, previous) {
   const byId = new Map();
   for (const row of previous?.updates ?? []) {
     if (row?.exam_id) byId.set(row.exam_id, row);
   }
 
   for (const row of rows) {
+    // A producer-set pause (e.g. SSC's multi-part flag) outranks any old
+    // stamp: the pipeline is refusing to index this row, so it must not
+    // advertise a stale index built from a partial list.
+    if (row.index_skipped) continue;
+
     const old = byId.get(row.exam_id);
-    if (!old || !old.index_available) continue;
-    // Only trust the old index when it was built from the same PDF.
+    if (!old) continue;
+    // Only trust the old bookkeeping when it was made from the same PDF.
     if ((old.official_pdf ?? null) !== (row.official_pdf ?? null)) continue;
-    row.index_available = true;
-    if (old.index_version) row.index_version = old.index_version;
-    if (typeof old.roll_count === 'number') row.roll_count = old.roll_count;
+
+    if (old.index_available) {
+      row.index_available = true;
+      if (old.index_version) row.index_version = old.index_version;
+      if (typeof old.roll_count === 'number') row.roll_count = old.roll_count;
+      if (old.index_built_at) row.index_built_at = old.index_built_at;
+    }
+    if (old.index_attempted_at) {
+      row.index_attempted_at = old.index_attempted_at;
+      if (old.index_skipped) row.index_skipped = old.index_skipped;
+    }
   }
   return rows;
 }
 
 /** Drops rows that cannot be shown or opened, and rows the app would reject. */
-function validate(row) {
+export function validate(row) {
   if (!row?.exam_id || !row?.exam_name) return 'missing id or name';
   if (!VALID_STATUS.has(row.status)) return `bad status ${row.status}`;
   if (!row.published_at || Number.isNaN(Date.parse(row.published_at))) {
@@ -113,6 +130,22 @@ function validate(row) {
     return 'relative page url';
   }
   return null;
+}
+
+/**
+ * Deterministic feed ordering: newest first, ties broken by exam_id ascending.
+ *
+ * The tie-breaker matters. Date-only notices now share a midnight-UTC stamp,
+ * and UPSC rows arrive from a worker pool in completion order — without a
+ * total order, the same world state serialises to a different array order on
+ * every run, and the "did the CONTENT change?" decisions (the revision bump
+ * here, the snapshot commit in refresh-data.yml) would fire on pure ordering
+ * jitter. A stable sort is not enough; the INPUT order must not leak through.
+ */
+function byRecencyThenId(a, b) {
+  const delta = Date.parse(b.published_at) - Date.parse(a.published_at);
+  if (delta !== 0) return delta;
+  return a.exam_id < b.exam_id ? -1 : a.exam_id > b.exam_id ? 1 : 0;
 }
 
 async function main() {
@@ -148,7 +181,7 @@ async function main() {
         ...(source.note ? { note: source.note } : {}),
       });
       console.log(
-        `${source.id.padEnd(9)} ${String(kept).padStart(3)} rows  ${elapsed} ms` +
+        `${source.id.padEnd(9)} ${String(kept).padStart(3)} fetched  ${elapsed} ms` +
           (source.note ? `  (${source.note})` : ''),
       );
     } catch (e) {
@@ -183,7 +216,7 @@ async function main() {
   // push another board's news out entirely.
   const counts = new Map();
   const capped = [...byId.values()]
-    .sort((a, b) => Date.parse(b.published_at) - Date.parse(a.published_at))
+    .sort(byRecencyThenId)
     .filter((row) => {
       const key = row.source_id ?? row.category;
       const n = counts.get(key) ?? 0;
@@ -205,33 +238,85 @@ async function main() {
    */
   const RETAIN_MS = 150 * 24 * 60 * 60 * 1000;
   const present = new Set(carried.map((r) => r.exam_id));
+  // Also dedupe retention by official URL: when a row's exam_id SCHEME changes
+  // (upsc hash suffixes, railways date-free ids), the old-id row is no longer
+  // "present" by id and would be retained ALONGSIDE its new-id twin — the same
+  // notice twice on the radar, one of them pointing at an index path that no
+  // longer matches its (re-salted) exam id.
+  const presentUrls = new Set(
+    carried.map((r) => r.official_pdf ?? r.official_page).filter(Boolean),
+  );
   for (const row of previous?.updates ?? []) {
     if (!row?.index_available || present.has(row.exam_id)) continue;
+    const url = row.official_pdf ?? row.official_page;
+    if (url && presentUrls.has(url)) continue;
     if (Date.now() - Date.parse(row.published_at) > RETAIN_MS) continue;
     if (!row.official_pdf) continue;
     carried.push(row);
     present.add(row.exam_id);
+    if (url) presentUrls.add(url);
   }
 
   const updates = carried
-    .sort((a, b) => Date.parse(b.published_at) - Date.parse(a.published_at))
+    .sort(byRecencyThenId)
     .slice(0, MAX_UPDATES);
 
-  const doc = {
-    revision: (previous?.revision ?? 1) + 1,
+  /**
+   * The health block's `rows` is displayed by the app as "N items", so it must
+   * be the number of rows the source ACTUALLY has in the published document —
+   * after global dedupe, the per-source cap and the MAX_UPDATES slice. It used
+   * to be the pre-dedupe keep count (railways reported 25 while contributing
+   * 20; upsc reported 12 while contributing 8), i.e. the About sheet lied.
+   * Retained rows count for the source that produced them.
+   */
+  const contributed = new Map();
+  for (const u of updates) {
+    const key = u.source_id ?? u.category;
+    contributed.set(key, (contributed.get(key) ?? 0) + 1);
+  }
+  for (const entry of health) {
+    if (entry.status === 'unavailable') continue; // outage: rows stay 0 + reason
+    entry.rows = contributed.get(entry.id) ?? 0;
+    if (entry.rows === 0) entry.status = 'empty';
+  }
+
+  const docContent = {
     source: 'official commission websites',
     fetched_at: new Date().toISOString(),
     // Machine-readable coverage: which bodies answered, and which did not. The
-    // app ignores this today, but publishing it means a silent loss of a
-    // category is visible in the artefact rather than only in CI logs.
+    // `rows` counts above are post-dedupe/post-cap, so the app's About sheet
+    // reports what the document actually contains.
     sources: health,
     updates,
+  };
+
+  /**
+   * `revision` counts distinct feed STATES, not refresh runs.
+   *
+   * It used to rise on every fetch AND again in publish_feed.mjs (on the
+   * uploaded copy only), so the edge and the repo snapshot permanently
+   * disagreed and the number meant nothing. Now: publish never bumps, and
+   * fetch bumps only when the normalized content (volatile timestamps
+   * stripped, keys sorted — see normalize_feed.mjs) actually differs from the
+   * previous document.
+   */
+  const contentNow = canonicalJson(stripVolatile({ ...docContent, revision: 0 }));
+  const contentBefore = previous ? canonicalJson(stripVolatile({ ...previous, revision: 0 })) : null;
+  const changedContent = contentBefore === null || contentNow !== contentBefore;
+  const revision = changedContent ? (previous?.revision ?? 1) + 1 : previous.revision;
+
+  const doc = {
+    revision,
+    ...docContent,
   };
 
   const byCategory = {};
   for (const u of updates) byCategory[u.category] = (byCategory[u.category] ?? 0) + 1;
   console.log(`\nkept           ${updates.length}`);
   console.log('categories     ' + JSON.stringify(byCategory));
+  console.log(
+    `revision       ${revision} (${changedContent ? 'content changed' : 'content unchanged'})`,
+  );
   for (const u of updates.slice(0, 8)) {
     console.log(
       `  ${u.published_at.slice(0, 10)}  ${u.category.padEnd(9)} ${u.status.padEnd(16)} ${u.exam_name.slice(0, 52)}`,
@@ -255,9 +340,16 @@ async function main() {
   return 0;
 }
 
-main()
-  .then((code) => process.exit(code ?? 0))
-  .catch((e) => {
-    console.error('FAILED:', e.message);
-    process.exit(1);
-  });
+// Runs only when invoked as a script (`node fetch_official_feeds.mjs …`), so
+// unit tests can import `carryIndexFields`/`validate` without triggering a
+// network fetch of all five commissions.
+const invokedAsCli = argv[1] && import.meta.url === pathToFileURL(argv[1]).href;
+
+if (invokedAsCli) {
+  main()
+    .then((code) => process.exit(code ?? 0))
+    .catch((e) => {
+      console.error('FAILED:', e.message);
+      process.exit(1);
+    });
+}

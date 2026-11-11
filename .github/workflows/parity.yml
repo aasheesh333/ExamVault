@@ -1,0 +1,90 @@
+name: Digest parity (Python ⇄ Dart)
+
+# The published roll index is HASHED in Python (tools/hashed_index.py) and
+# SEARCHED in Dart (app/lib/features/result_checker/engine/hashed_index.dart).
+# The two normalise()/digest() implementations must agree byte for byte.
+#
+# A drift here does not fail loudly — it answers "NOT SELECTED" for every
+# student whose roll is on the list, which is the worst failure this product
+# has. app/test/hashed_index_test.dart pins hardcoded vectors on the Dart
+# side, but no CI job ever ran the Python side against them: editing
+# normalise(), DIGEST_BYTES or the salt format in Python shipped GREEN and
+# broke every lookup.
+#
+# This workflow closes that gap for real: the Python producer emits its
+# vectors, the app's own engine consumes them via app/tool/parity_check.dart,
+# and any mismatch fails the build. The Dart-side pinned vectors stay as the
+# second leg.
+
+on:
+  push:
+    branches: [master, main]
+    paths:
+      - 'tools/**'
+      - 'app/lib/features/result_checker/engine/**'
+      - 'app/tool/**'
+      - '.github/workflows/parity.yml'
+  pull_request:
+    branches: [master, main]
+    paths:
+      - 'tools/**'
+      - 'app/lib/features/result_checker/engine/**'
+      - 'app/tool/**'
+      - '.github/workflows/parity.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: parity-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Keep in lockstep with ci.yml.
+  FLUTTER_VERSION: '3.47.4'
+
+jobs:
+  parity:
+    name: Python producer vs Dart engine
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # (a) The Python side emits the canonical vectors: digests for the three
+      # pinned rolls plus normalise() edge cases (nbsp, zero-width, dashes,
+      # whitespace, ASCII-hyphen passthrough).
+      - name: Emit parity vectors from the Python producer
+        run: python3 tools/hashed_index.py --emit-vectors > "$RUNNER_TEMP/parity_vectors.json"
+
+      - name: Vectors under test
+        run: cat "$RUNNER_TEMP/parity_vectors.json"
+
+      # Adapter/normalisation regressions (status classification, date
+      # stamping) are pure Node and cheap; they live in tools/test/.
+      - name: Pipeline unit tests (node --test)
+        working-directory: tools
+        run: node --test test/*.test.mjs
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Resolve app dependencies
+        working-directory: app
+        run: flutter pub get
+
+      # (b) The Dart side recomputes every vector with the app's OWN engine
+      # and exits non-zero on any mismatch.
+      - name: Dart engine must reproduce the Python vectors
+        working-directory: app
+        run: dart run tool/parity_check.dart "$RUNNER_TEMP/parity_vectors.json"

@@ -32,19 +32,30 @@ function attachmentUrl(path) {
   return `https://ssc.gov.in/api/attachment/${encoded}`;
 }
 
-function contextLine(headline, attachment) {
+function contextLine(headline, attachment, sizeBytes) {
   const h = headline.toLowerCase();
   if (h.includes('admit card') || h.includes('exam city')) {
     return 'Admit card available on ssc.gov.in';
   }
   if (h.includes('result')) {
-    return attachment
-      ? `Official PDF · ${(attachment.size / 1024 / 1024).toFixed(1)} MB`
-      : 'Declared on ssc.gov.in';
+    if (sizeBytes) return `Official PDF · ${(sizeBytes / 1024 / 1024).toFixed(1)} MB`;
+    return attachment ? 'Official PDF · ssc.gov.in' : 'Declared on ssc.gov.in';
   }
   if (h.includes('answer key')) return 'Answer key released';
   if (h.includes('last date') || h.includes('closing')) return 'Apply before the deadline';
   return 'Notice board · ssc.gov.in';
+}
+
+/**
+ * The byte size of an attachment, or null when it is missing/garbage.
+ *
+ * SSC records occasionally arrive without `size`; `(undefined / 1048576).toFixed(1)`
+ * is "NaN MB", which used to ship in the row context — and the throw from the
+ * sibling `createdAt` bug took the ENTIRE source down for the run.
+ */
+function attachmentSize(attachment) {
+  const size = attachment?.size;
+  return typeof size === 'number' && Number.isFinite(size) && size > 0 ? size : null;
 }
 
 async function fetchRecords(contentType, limit) {
@@ -88,41 +99,71 @@ export default {
     const rows = [];
     const seen = new Set();
 
-    for (const row of [...results, ...notices]) {
-      const headline = clean(row.headline);
-      if (!headline) continue;
+    for (const record of [...results, ...notices]) {
+      // One malformed record must not take down the whole source. A missing
+      // `createdAt` used to throw (Invalid Date → toISOString) inside this
+      // loop, which surfaced as "ssc unavailable" for the ENTIRE run — every
+      // SSC row lost because of one bad record. Same shape as upsc.mjs: skip
+      // the item, keep the source.
+      try {
+        const headline = clean(record.headline);
+        if (!headline) continue;
 
-      const status = statusOf(headline);
-      if (!status) continue;
+        const status = statusOf(headline);
+        if (!status) continue;
 
-      // Deduplicate twice: by record id (the same notice appears under both
-      // content types) and by headline+day (SSC publishes one notice per force
-      // with identical text, and four identical radar rows is noise).
-      const byId = `${row.id}|${status}`;
-      const byText = `${slug(headline)}|${String(row.createdAt).slice(0, 10)}`;
-      if (seen.has(byId) || seen.has(byText)) continue;
-      seen.add(byId);
-      seen.add(byText);
+        const createdAt = new Date(record.createdAt);
+        if (Number.isNaN(createdAt.getTime())) {
+          throw new Error(`unparseable createdAt: ${JSON.stringify(record.createdAt)}`);
+        }
 
-      const attachment = (row.attachments ?? [])[0] ?? null;
+        // Deduplicate twice: by record id (the same notice appears under both
+        // content types) and by headline+day (SSC publishes one notice per force
+        // with identical text, and four identical radar rows is noise).
+        const byId = `${record.id}|${status}`;
+        const byText = `${slug(headline)}|${createdAt.toISOString().slice(0, 10)}`;
+        if (seen.has(byId) || seen.has(byText)) continue;
+        seen.add(byId);
+        seen.add(byText);
 
-      rows.push({
-        // The feed row id and the index id are the same string, so
-        // `AppConfig.rollIndexPath(examId)` resolves with no mapping table.
-        exam_id: slug(`${row.examId || 'ssc'}-${row.id}`),
-        category: 'ssc',
-        exam_name: headline.length > 96 ? `${headline.slice(0, 93)}…` : headline,
-        context: contextLine(headline, attachment),
-        status,
-        published_at: new Date(row.createdAt).toISOString(),
-        source: 'ssc.gov.in',
-        source_id: 'ssc',
-        // Link-only: the official PDF stays on ssc.gov.in.
-        official_pdf: attachmentUrl(attachment?.path),
-        ...(attachment
-          ? { pdf_size: `${(attachment.size / 1024 / 1024).toFixed(1)} MB` }
-          : {}),
-      });
+        const attachments = record.attachments ?? [];
+        const attachment = attachments[0] ?? null;
+        const sizeBytes = attachmentSize(attachment);
+
+        // MULTI-PART LISTS: SSC splits big candidate lists across several
+        // attachments. Indexing attachments[0] alone would publish a PARTIAL
+        // index — and a partial index answers "NOT SELECTED" to every
+        // candidate in parts 2+, the worst wrong verdict this product has.
+        // So: keep the link (part 1 is a real official document), pause
+        // indexing via `index_skipped`, and say so in the row context.
+        // build_indexes.py honours the flag and never indexes the row.
+        const multiPart = attachments.length > 1;
+
+        rows.push({
+          // The feed row id and the index id are the same string, so
+          // `AppConfig.rollIndexPath(examId)` resolves with no mapping table.
+          exam_id: slug(`${record.examId || 'ssc'}-${record.id}`),
+          category: 'ssc',
+          exam_name: headline.length > 96 ? `${headline.slice(0, 93)}…` : headline,
+          context: multiPart
+            ? 'Multi-part list — indexing paused'
+            : contextLine(headline, attachment, sizeBytes),
+          status,
+          published_at: createdAt.toISOString(),
+          source: 'ssc.gov.in',
+          source_id: 'ssc',
+          // Link-only: the official PDF stays on ssc.gov.in.
+          official_pdf: attachmentUrl(attachment?.path),
+          ...(!multiPart && sizeBytes
+            ? { pdf_size: `${(sizeBytes / 1024 / 1024).toFixed(1)} MB` }
+            : {}),
+          ...(multiPart
+            ? { index_skipped: `multi-part list (${attachments.length} attachments)` }
+            : {}),
+        });
+      } catch (e) {
+        console.error(`  ssc: dropped malformed record ${record?.id ?? '?'}: ${e.message}`);
+      }
     }
 
     return rows;

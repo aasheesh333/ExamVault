@@ -41,6 +41,7 @@ import re
 import sys
 import urllib.request
 from typing import Iterable
+from urllib.parse import urlsplit
 
 USER_AGENT = (
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) "
@@ -49,14 +50,18 @@ USER_AGENT = (
 
 
 def download(url: str) -> bytes:
-    req = urllib.request.Request(
-        url,
-        headers={
-            "User-Agent": USER_AGENT,
-            "Referer": "https://ssc.gov.in/",
-            "Accept": "application/pdf,*/*",
-        },
-    )
+    # The Referer must be the target's OWN origin. It used to be hardcoded to
+    # ssc.gov.in for every commission, which is exactly the cross-origin
+    # referer shape that WAFs on upsc.gov.in / tnpsc.gov.in / ibps.in treat as
+    # a hotlinking scraper — a tripwire we were handing them for free.
+    headers = {
+        "User-Agent": USER_AGENT,
+        "Accept": "application/pdf,*/*",
+    }
+    parts = urlsplit(url)
+    if parts.scheme and parts.netloc:
+        headers["Referer"] = f"{parts.scheme}://{parts.netloc}/"
+    req = urllib.request.Request(url, headers=headers)
     with urllib.request.urlopen(req, timeout=120) as resp:
         if resp.status != 200:
             raise SystemExit(f"download failed: HTTP {resp.status}")
@@ -95,6 +100,42 @@ def extract_rolls(text: str, pattern: re.Pattern[str]) -> list[str]:
         if 4 <= len(value) <= 24:
             found.add(value)
     return sorted(found)
+
+
+def warn_if_bimodal(rolls: list[str]) -> dict | None:
+    """Warns when roll digit-lengths cluster at two or more distinct lengths.
+
+    A real candidate list has ONE roll shape (SSC 12 digits, UPSC zero-padded
+    7, TNPSC 9-10). Two populated length modes usually mean the extractor
+    picked up an interleaved column from the PDF layout — serial numbers,
+    dates, marks — and is publishing junk digests that will answer "not
+    selected" for every real candidate.
+
+    This replaces the old "strictly ascending" check, which was dead code:
+    `extract_rolls` returns `sorted(set(...))`, so the order is structural and
+    the check could never fire. A warning (not a failure) is the right signal
+    strength: a combined list CAN legitimately mix shapes, so a human decides.
+    """
+    if len(rolls) < 20:
+        return None
+    from collections import Counter
+
+    counts = Counter(len(r) for r in rolls)
+    significant = {
+        length: count
+        for length, count in counts.items()
+        if count >= max(2, int(0.05 * len(rolls)))
+    }
+    if len(significant) >= 2:
+        print(
+            "WARNING   bimodal roll digit-lengths "
+            f"{dict(sorted(significant.items()))} — likely column interleaving "
+            "(serial numbers/dates/marks captured as rolls); verify the pattern "
+            "before trusting this index",
+            file=sys.stderr,
+        )
+        return significant
+    return None
 
 
 def build_index(
@@ -189,13 +230,11 @@ def main() -> int:
         )
         return 1
 
-    # The app binary-searches this array. Verify strict ascending order before
-    # anything is written — a broken sort silently costs every user a full scan.
-    for i in range(1, len(rolls)):
-        if not rolls[i - 1] < rolls[i]:
-            print(f"FAILED    not strictly ascending at {i}", file=sys.stderr)
-            return 1
-    print("sorted    verified strictly ascending")
+    # Ascending order is structural, not checked: `extract_rolls` returns
+    # `sorted(set(...))`, so a "verify strictly ascending" loop here could never
+    # fire — it was removed as dead code. The check that DOES carry signal is
+    # shape bimodality (interleaved-column junk), and it warns rather than fails.
+    warn_if_bimodal(rolls)
 
     print(f"sample    {', '.join(rolls[:4])} …")
 

@@ -124,9 +124,16 @@ function validate(doc) {
 const raw = readFileSync(input, 'utf8');
 const doc = validate(JSON.parse(raw));
 
-// Stamp the publish time so the app can show age honestly.
+// Stamp the publish time so the app can show age honestly. `generated_at` is
+// publish-side by nature (it lives only in the uploaded copy).
 doc.generated_at = new Date().toISOString();
-doc.revision = (doc.revision ?? 0) + 1;
+
+// Revision is NOT bumped here. `fetch_official_feeds.mjs` owns it and raises it
+// only when the feed CONTENT actually changed. This script used to bump it
+// again on the uploaded copy only, so the edge document and the repo snapshot
+// permanently disagreed by one and the number climbed ~48/day through runs
+// that changed nothing. publish_feed must be a pure stamp-and-upload.
+doc.revision = doc.revision ?? 0;
 
 const { stale, total } = stampExpiry(doc);
 

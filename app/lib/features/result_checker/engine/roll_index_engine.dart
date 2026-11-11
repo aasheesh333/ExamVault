@@ -45,7 +45,11 @@ class RollLookupResult {
       elapsedMicros = 0,
       meritRank = null,
       privacyPreserving = false,
-      errorMessage = 'Enter a roll number with at least 4 characters.';
+      // Must cover both rejection reasons — `_isPlausibleRoll` also rejects
+      // rolls *longer* than 24 characters, and "at least 4 characters" is then
+      // exactly the wrong advice (it is what TalkBack announces).
+      errorMessage =
+          'Roll numbers are 4–24 characters: letters, digits, - and /.';
 
   const RollLookupResult.unavailable(String roll, String reason)
     : state = RollLookupState.indexUnavailable,

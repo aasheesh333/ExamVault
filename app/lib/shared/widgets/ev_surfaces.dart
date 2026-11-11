@@ -241,17 +241,26 @@ class EvCenteredScroll extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
-      builder: (context, constraints) => SingleChildScrollView(
-        padding: padding,
-        child: ConstrainedBox(
-          // Fill the viewport minus the padding, so `Center` still centres in the
-          // normal case and only starts scrolling once content exceeds it.
-          constraints: BoxConstraints(
-            minHeight: (constraints.maxHeight - 64).clamp(0.0, double.infinity),
+      builder: (context, constraints) {
+        // Derived from the *resolved* padding — the hardcoded 64 was only
+        // correct for the default all-32 and pushed callers passing
+        // vertical: 24 padding 8px off true centre.
+        final resolved = padding.resolve(Directionality.of(context));
+        return SingleChildScrollView(
+          padding: padding,
+          child: ConstrainedBox(
+            // Fill the viewport minus the padding, so `Center` still centres in
+            // the normal case and only starts scrolling once content exceeds it.
+            constraints: BoxConstraints(
+              minHeight: (constraints.maxHeight - resolved.vertical).clamp(
+                0.0,
+                double.infinity,
+              ),
+            ),
+            child: Center(child: child),
           ),
-          child: Center(child: child),
-        ),
-      ),
+        );
+      },
     );
   }
 }

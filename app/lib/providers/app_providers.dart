@@ -375,7 +375,6 @@ class ResultCheckState {
     this.examId,
     this.result,
     this.indexSource,
-    this.warmIndex,
     this.error,
   });
 
@@ -384,7 +383,6 @@ class ResultCheckState {
       examId = null,
       result = null,
       indexSource = null,
-      warmIndex = null,
       error = null;
 
   final ResultPhase phase;
@@ -396,9 +394,6 @@ class ResultCheckState {
   final String? examId;
   final RollLookupResult? result;
   final IndexSource? indexSource;
-
-  /// Kept so a second tap is a pure binary search, not a re-download.
-  final RollIndex? warmIndex;
   final String? error;
 
   bool get isBusy =>
@@ -471,6 +466,12 @@ class ResultCheckerNotifier extends Notifier<ResultCheckState> {
       final result = await RollIndexEngine.searchCompressed(
         compressed: bundle.bytes,
         rollNumber: rollNumber,
+        // The documented ops escape hatch was dead: the define existed, the
+        // engine parameter existed, and nothing connected them. If the edge
+        // ever serves Content-Encoding: gzip (transport-decoded by the HTTP
+        // stack), flipping EV_ROLLS_TRANSPORT_ENCODED now actually skips the
+        // second gunzip instead of silently doing nothing.
+        transportEncoded: AppConfig.rollIndexIsTransportEncoded,
       );
       if (seq != _seq) return null;
 

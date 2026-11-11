@@ -448,26 +448,52 @@ class _ShareNavBar extends ConsumerWidget {
               Padding(
                 padding: const EdgeInsets.only(right: EvSpace.x4),
                 child: Container(
-                  height: 24,
+                  // minHeight + min-sized Row child, never `alignment:` — an
+                  // aligned Container inside a Row expands to the row's free
+                  // width; this pill was rendering hundreds of px wide, and a
+                  // fixed 24px height sliced the label at large text scales.
+                  constraints: const BoxConstraints(minHeight: 24),
                   padding: const EdgeInsets.symmetric(horizontal: 9),
-                  alignment: Alignment.center,
                   decoration: BoxDecoration(
                     color: p.surfaceSunken,
                     borderRadius: BorderRadius.circular(EvRadius.pill),
                     border: Border.all(color: p.border),
                   ),
-                  child: Text(
-                    'PREVIEW',
-                    style: context.type.statusPill.copyWith(
-                      letterSpacing: 1.1,
-                      color: p.textTertiary,
-                    ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'PREVIEW',
+                        maxLines: 1,
+                        style: context.type.statusPill.copyWith(
+                          letterSpacing: 1.1,
+                          color: p.textTertiary,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
             ],
           ),
-          Text('Share Card', style: context.type.navTitle),
+          Positioned.fill(
+            child: Padding(
+              // Same guard as the checker's nav bar: title and pill are
+              // independent Stack children and overlapped on a 320px screen at
+              // 2.0x text. The title owns only the space between × and pill.
+              padding: const EdgeInsets.symmetric(horizontal: 96),
+              child: Center(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    'Share Card',
+                    maxLines: 1,
+                    style: context.type.navTitle,
+                  ),
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -633,23 +659,37 @@ class _CaptionEditorState extends State<_CaptionEditor> {
               Expanded(
                 child: Text('MESSAGE CAPTION', style: context.type.microLabel),
               ),
-              GestureDetector(
-                onTap: () => setState(() => _editing = !_editing),
-                behavior: HitTestBehavior.opaque,
-                // A 17px-tall text label was the entire tap target. Padded to the
-                // 44px minimum; the label keeps its size.
-                child: Container(
-                  constraints: const BoxConstraints(
-                    minWidth: EvSize.minTapTarget,
-                    minHeight: EvSize.minTapTarget,
-                  ),
-                  alignment: Alignment.centerRight,
-                  child: Text(
-                    _editing ? 'DONE' : 'EDIT',
-                    style: context.type.statusPill.copyWith(
-                      color: p.accentText,
-                      fontSize: 11,
-                      letterSpacing: 0.9,
+              Semantics(
+                container: true,
+                excludeSemantics: true,
+                button: true,
+                label: _editing ? 'Done editing caption' : 'Edit caption',
+                child: GestureDetector(
+                  onTap: () => setState(() => _editing = !_editing),
+                  behavior: HitTestBehavior.opaque,
+                  // Fixed 48x44 box, NOT a constraints+alignment Container: an
+                  // aligned Container inside a Row expands to the row's free
+                  // width — the previous "minWidth 44 + alignment" version
+                  // ballooned and starved the "MESSAGE CAPTION" label beside it
+                  // to zero width. A SizedBox cannot expand.
+                  child: SizedBox(
+                    width: 48,
+                    height: EvSize.minTapTarget,
+                    child: Center(
+                      // Scaled to fit: at 2.0x the 11px label is ~62px wide and
+                      // was clipped mid-word inside the fixed 48px box.
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          _editing ? 'DONE' : 'EDIT',
+                          maxLines: 1,
+                          style: context.type.statusPill.copyWith(
+                            color: p.accentText,
+                            fontSize: 11,
+                            letterSpacing: 0.9,
+                          ),
+                        ),
+                      ),
                     ),
                   ),
                 ),

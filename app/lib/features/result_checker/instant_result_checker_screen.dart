@@ -47,6 +47,10 @@ class _InstantResultCheckerScreenState
   /// no way to switch. Null means "not chosen yet" and falls back to the first.
   String? _cardId;
 
+  /// Which card the roll field was auto-filled from, so the prefill happens
+  /// once per card and never fights a field the student cleared on purpose.
+  String? _prefilledFor;
+
   String _initialRoll() {
     final card = _targetCard(ref.read(admitCardsProvider).value, null);
     return card?.rollNumber ?? '';
@@ -117,6 +121,12 @@ class _InstantResultCheckerScreenState
 
   void _selectCard(AdmitCard card) {
     setState(() => _cardId = card.id);
+    // Publish the choice. `selectedCardIdProvider` is the screen's other input
+    // (the vault pager writes it on every swipe) and the build syncs *from* it
+    // whenever it disagrees with `_cardId` — so a pick made only locally was
+    // reverted one frame later, snapping the chip back and overwriting the roll
+    // field. Writing both keeps the two sources agreeing.
+    ref.read(selectedCardIdProvider.notifier).select(card.id);
     // The roll field belongs to the chosen card; leaving another card's roll in
     // place would search the wrong number against the wrong list.
     if (card.rollNumber.isNotEmpty) {
@@ -150,9 +160,17 @@ class _InstantResultCheckerScreenState
         (update?.examId == examId ? update?.indexVersion : null) ??
         _indexVersionFor(examId);
 
+    // `force` must actually travel: "Try again" on the unavailable card passes
+    // force: true to escape the session's memoised 404/malformed bundle, and it
+    // was silently dropped here — every retry re-decoded the same bad bytes.
     final result = await ref
         .read(resultCheckerProvider.notifier)
-        .check(examId: examId, rollNumber: roll, indexVersion: indexVersion);
+        .check(
+          examId: examId,
+          rollNumber: roll,
+          indexVersion: indexVersion,
+          force: force,
+        );
 
     if (!mounted || result == null) return;
 
@@ -177,15 +195,20 @@ class _InstantResultCheckerScreenState
     unawaited(result.isFound ? EvHaptics.success() : EvHaptics.failure());
 
     if (result.isFound) {
+      // Only the card whose *own* roll was found may be stamped verified. The
+      // field is freely editable — a student checking a sibling's roll (or a
+      // mistyped one that happens to exist) must not print a permanent
+      // "VERIFIED" onto a card whose roll was never matched.
+      final ownRoll = card != null && roll == card.rollNumber.trim();
       // A bookkeeping update must never swallow the answer. If marking the card
       // verified fails, the student still needs to see that their roll is in the
       // list — that is the entire product.
-      try {
-        await ref
-            .read(admitCardsProvider.notifier)
-            .markVerified(card?.id ?? '');
-      } catch (e, st) {
-        AppLogger.e('checker', 'could not mark card verified', e, st);
+      if (ownRoll) {
+        try {
+          await ref.read(admitCardsProvider.notifier).markVerified(card.id);
+        } catch (e, st) {
+          AppLogger.e('checker', 'could not mark card verified', e, st);
+        }
       }
       if (!mounted) return;
       await _showSelectedDialog(
@@ -228,6 +251,25 @@ class _InstantResultCheckerScreenState
           setState(() => _syncWithSelectedCard(chosen));
         });
       }
+    }
+
+    // Cold-start prefill. The controller's `text: _initialRoll()` ran during the
+    // launch build, when the vault was still loading, so it always resolved to
+    // '' — and with exactly one saved card the picker is hidden, leaving no way
+    // to fill the field except retyping a roll the app already has. Fill it once
+    // per card, but only while the student has not typed anything.
+    if (card != null && _prefilledFor != card.id && _roll.text.isEmpty) {
+      final prefillId = card.id;
+      final prefillRoll = card.rollNumber;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        setState(() {
+          _prefilledFor = prefillId;
+          if (_roll.text.isEmpty && prefillRoll.isNotEmpty) {
+            _roll.text = prefillRoll;
+          }
+        });
+      });
     }
 
     // Resolve the exam from something real: the radar row the user tapped, or
@@ -416,7 +458,14 @@ class _InstantResultCheckerScreenState
                         state.result != null &&
                         !state.result!.isFound) ...[
                       const SizedBox(height: 16),
-                      _NotFoundCard(result: state.result!),
+                      // A rejected roll number is a *validation* state, not a
+                      // verdict. It used to render "not found among 0 published
+                      // roll numbers" — contradicting the mirror panel's real
+                      // count and claiming a list was searched when it was not.
+                      if (state.result!.state == RollLookupState.invalidInput)
+                        _InvalidRollCard(message: state.result!.errorMessage)
+                      else
+                        _NotFoundCard(result: state.result!),
                     ],
                     if (state.isUnavailable) ...[
                       const SizedBox(height: 16),
@@ -515,7 +564,11 @@ class _NavBar extends ConsumerWidget {
               Padding(
                 padding: const EdgeInsets.only(right: EvSpace.x4),
                 child: Container(
-                  height: 24,
+                  // Floor, not fixed: at a hard 24px the pill sliced its own
+                  // label at large text scales. No `alignment:` — inside a Row
+                  // that would expand the pill to the row's full width; the
+                  // inner min-sized Row fills the minHeight instead.
+                  constraints: const BoxConstraints(minHeight: 24),
                   padding: const EdgeInsets.symmetric(horizontal: 9),
                   decoration: BoxDecoration(
                     color: (isLive ? p.success : p.textTertiary).withValues(
@@ -529,6 +582,10 @@ class _NavBar extends ConsumerWidget {
                     ),
                   ),
                   child: Row(
+                    // min — a max-sized Row in loose constraints expands to the
+                    // nav bar's full width, the same ballooning `alignment:`
+                    // would have caused.
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Container(
                         width: 5,
@@ -552,7 +609,25 @@ class _NavBar extends ConsumerWidget {
               ),
             ],
           ),
-          Text('Result Radar', style: context.type.navTitle),
+          Positioned.fill(
+            child: Padding(
+              // The centred title and the right-hand pill are independent Stack
+              // children: on a 320px screen at 2.0x text they overlapped. The
+              // title now owns only the space between back button and pill, and
+              // scales down to stay whole.
+              padding: const EdgeInsets.symmetric(horizontal: 96),
+              child: Center(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    'Result Radar',
+                    maxLines: 1,
+                    style: context.type.navTitle,
+                  ),
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -696,7 +771,7 @@ class _MirrorCard extends StatelessWidget {
     ];
 
     return EvCard(
-      padding: const EdgeInsets.fromLTRB(14, 13, 14, 6),
+      padding: const EdgeInsets.fromLTRB(16, 13, 16, 6),
       child: Column(
         children: [
           Row(
@@ -771,8 +846,10 @@ class _MirrorRowView extends StatelessWidget {
   Widget build(BuildContext context) {
     final p = context.ev;
 
-    return SizedBox(
-      height: 46,
+    return ConstrainedBox(
+      // A floor, not a ceiling: the fixed 46px row clipped its own contents
+      // once text scale pushed the badges past it.
+      constraints: const BoxConstraints(minHeight: 46),
       child: Row(
         children: [
           Expanded(
@@ -823,33 +900,40 @@ class _MirrorRowView extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 10),
-          // Wide enough for "MISSING" on one line: at 42px it broke into
+          // Wide enough for "MISSING" on one line at 1.0x: at 42px it broke into
           // "MISSI / NG", which reads as broken chrome on the panel whose whole
-          // job is to look trustworthy. Never wraps, shrinks instead.
+          // job is to look trustworthy. Never wraps — and now *actually*
+          // shrinks: the cells used `TextOverflow.visible`, which paints outside
+          // the box (at 2.0x the badge overran the progress bar); the FittedBox
+          // scales the text down inside its allotted width instead.
           SizedBox(
             width: 58,
-            child: Text(
-              row.state,
-              maxLines: 1,
-              softWrap: false,
-              overflow: TextOverflow.visible,
-              textAlign: TextAlign.right,
-              style: context.type.statusPill.copyWith(
-                color: row.textColor,
-                fontSize: 11,
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerRight,
+              child: Text(
+                row.state,
+                maxLines: 1,
+                softWrap: false,
+                style: context.type.statusPill.copyWith(
+                  color: row.textColor,
+                  fontSize: 11,
+                ),
               ),
             ),
           ),
           const SizedBox(width: 8),
           SizedBox(
             width: 62,
-            child: Text(
-              row.value,
-              maxLines: 1,
-              softWrap: false,
-              overflow: TextOverflow.visible,
-              textAlign: TextAlign.right,
-              style: context.type.monoMeta.copyWith(color: p.textTertiary),
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerRight,
+              child: Text(
+                row.value,
+                maxLines: 1,
+                softWrap: false,
+                style: context.type.monoMeta.copyWith(color: p.textTertiary),
+              ),
             ),
           ),
         ],
@@ -989,10 +1073,16 @@ class _RollField extends StatelessWidget {
                 ),
               ),
               if (value.text.isNotEmpty)
-                IconButton(
-                  icon: Icon(Icons.cancel, size: 16, color: p.textTertiary),
-                  onPressed: busy ? null : controller.clear,
+                // EvIconButton, not a bare IconButton: the M3 default is 40px,
+                // under the 44px floor, and the ghost variant matches the nav
+                // bar's icon language.
+                EvIconButton(
+                  icon: Icons.cancel_rounded,
+                  ghost: true,
+                  iconSize: 16,
+                  iconColor: p.textTertiary,
                   tooltip: 'Clear',
+                  onPressed: busy ? null : controller.clear,
                 ),
             ],
           ),
@@ -1002,9 +1092,57 @@ class _RollField extends StatelessWidget {
   }
 }
 
+/// The roll number itself was rejected — a validation state, not a verdict.
+///
+/// Distinct from [_NotFoundCard] on purpose: nothing was searched, and saying
+/// "not found among 0 roll numbers" both contradicts the mirror panel's real
+/// count and reads as a failed exam result.
+class _InvalidRollCard extends StatelessWidget {
+  const _InvalidRollCard({this.message});
+
+  final String? message;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.ev;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: p.warning.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(EvRadius.card),
+        border: Border.all(color: p.warning.withValues(alpha: 0.26)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.backspace_rounded, size: 16, color: p.warning),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Check the roll number',
+                  style: context.type.tileTitle.copyWith(color: p.warningText),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            message ??
+                'Roll numbers are 4–24 characters: letters, digits, - and /. '
+                    'Nothing was searched yet.',
+            style: context.type.bodyMuted,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _NotFoundCard extends StatelessWidget {
   const _NotFoundCard({required this.result});
-
   final RollLookupResult result;
 
   @override
@@ -1128,7 +1266,7 @@ class _UnavailableCard extends StatelessWidget {
     final d = _describe();
 
     return Container(
-      padding: const EdgeInsets.all(15),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: p.warning.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(EvRadius.card),
@@ -1189,7 +1327,33 @@ class _RecentChecks extends StatelessWidget {
     final p = context.ev;
     if (card == null) return const SizedBox.shrink();
 
-    final verified = card!.rollNumberVerified || (lastResult?.isFound ?? false);
+    // Three states, not two. "NOT CHECKED" under a completed not-found verdict
+    // contradicted the card directly above it ("searched 10,066 rolls, not
+    // found") — a finished search *is* a check. NOT FOUND only applies when the
+    // verdict was about this card's own roll and the search really ran.
+    final result = lastResult;
+    final aboutThisRoll =
+        result != null &&
+        result.rollNumber == card!.rollNumber &&
+        result.state != RollLookupState.invalidInput;
+    final notFound = aboutThisRoll && result.state == RollLookupState.notFound;
+    final verified = card!.rollNumberVerified || (result?.isFound ?? false);
+
+    final badgeFg = verified
+        ? p.success
+        : notFound
+        ? p.warning
+        : p.textTertiary;
+    final badgeText = verified
+        ? p.successText
+        : notFound
+        ? p.warningText
+        : p.textTertiary;
+    final badgeLabel = verified
+        ? 'FOUND'
+        : notFound
+        ? 'NOT FOUND'
+        : 'NOT CHECKED';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1204,7 +1368,10 @@ class _RecentChecks extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         EvCard(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          padding: const EdgeInsets.symmetric(
+            horizontal: EvSpace.x4,
+            vertical: 12,
+          ),
           child: Row(
             children: [
               Expanded(
@@ -1226,25 +1393,26 @@ class _RecentChecks extends StatelessWidget {
                 ),
               ),
               Container(
-                height: 20,
-                padding: const EdgeInsets.symmetric(horizontal: 7),
-                alignment: Alignment.center,
+                // Floor, not fixed: the hard 20px box sliced the label at large
+                // text scales. No `alignment:` — inside a Row that would expand
+                // the badge to the row's full width and starve the Expanded
+                // beside it; the min-sized Row fills the minHeight and centres.
+                constraints: const BoxConstraints(minHeight: 20),
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                 decoration: BoxDecoration(
-                  color: (verified ? p.success : p.textTertiary).withValues(
-                    alpha: 0.14,
-                  ),
+                  color: badgeFg.withValues(alpha: 0.14),
                   borderRadius: BorderRadius.circular(EvRadius.badge),
-                  border: Border.all(
-                    color: (verified ? p.success : p.textTertiary).withValues(
-                      alpha: 0.3,
-                    ),
-                  ),
+                  border: Border.all(color: badgeFg.withValues(alpha: 0.3)),
                 ),
-                child: Text(
-                  verified ? 'FOUND' : 'NOT CHECKED',
-                  style: context.type.statusPill.copyWith(
-                    color: verified ? p.successText : p.textTertiary,
-                  ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      badgeLabel,
+                      maxLines: 1,
+                      style: context.type.statusPill.copyWith(color: badgeText),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -1283,7 +1451,11 @@ class _SelectedDialog extends StatelessWidget {
 
     return Dialog(
       backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+      // Vertical insets too: with only horizontal padding the dialog could
+      // claim the full screen height and still overflow it at 2.0x text on a
+      // 320x568 phone — the one celebration moment that must not show
+      // yellow-and-black stripes.
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
       child: TweenAnimationBuilder<double>(
         // 0.94 -> 1 with an 8px rise, no overshoot. The old 0.86 pop on
         // `easeOutBack` overshot past 100% — the wrong tone for the moment a
@@ -1299,7 +1471,12 @@ class _SelectedDialog extends StatelessWidget {
           ),
         ),
         child: Container(
-          padding: const EdgeInsets.fromLTRB(22, 26, 22, 18),
+          // Scrollable, and clipped to its own rounded corners: the fixed
+          // Column was taller than a 320x568 viewport at 2.0x text — the
+          // dialog overflowed at the exact moment a student learns they got
+          // through. Padding moved onto the scroll view so content scrolls
+          // inside the decoration instead of over it.
+          clipBehavior: Clip.antiAlias,
           decoration: BoxDecoration(
             color: p.surface,
             borderRadius: BorderRadius.circular(24),
@@ -1312,124 +1489,136 @@ class _SelectedDialog extends StatelessWidget {
               ),
             ],
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 60,
-                height: 60,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      p.success.withValues(alpha: 0.9),
-                      p.success.withValues(alpha: 0.55),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(22, 26, 22, 18),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 60,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        p.success.withValues(alpha: 0.9),
+                        p.success.withValues(alpha: 0.55),
+                      ],
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: p.success.withValues(alpha: 0.5),
+                        blurRadius: 26,
+                        spreadRadius: -4,
+                      ),
                     ],
                   ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: p.success.withValues(alpha: 0.5),
-                      blurRadius: 26,
-                      spreadRadius: -4,
-                    ),
-                  ],
+                  child: const Icon(
+                    Icons.emoji_events_rounded,
+                    color: Colors.white,
+                    size: 30,
+                  ),
                 ),
-                child: const Icon(
-                  Icons.emoji_events_rounded,
-                  color: Colors.white,
-                  size: 30,
+                const SizedBox(height: 16),
+                Text(
+                  // Accurate for both cases this screen actually sees: a final
+                  // merit list and a shortlist for the next stage (UPSC's "Written
+                  // Result … qualified for the Personality Test"). "SELECTED" was
+                  // wrong for the second, and wrong here means a student believes
+                  // they have the job.
+                  'YOUR ROLL IS IN THE LIST',
+                  textAlign: TextAlign.center,
+                  style: context.type.sectionTitle.copyWith(
+                    color: p.successText,
+                    letterSpacing: 0.6,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                // Accurate for both cases this screen actually sees: a final
-                // merit list and a shortlist for the next stage (UPSC's "Written
-                // Result … qualified for the Personality Test"). "SELECTED" was
-                // wrong for the second, and wrong here means a student believes
-                // they have the job.
-                'YOUR ROLL IS IN THE LIST',
-                textAlign: TextAlign.center,
-                style: context.type.sectionTitle.copyWith(
-                  color: p.successText,
-                  letterSpacing: 0.6,
+                const SizedBox(height: 6),
+                Text(
+                  examName ?? 'Your result',
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: context.type.bodyMuted,
                 ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                examName ?? 'Your result',
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: context.type.bodyMuted,
-              ),
-              const SizedBox(height: 16),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                decoration: BoxDecoration(
-                  color: p.surfaceSunken,
-                  borderRadius: BorderRadius.circular(EvRadius.inner),
-                  border: Border.all(color: p.border),
-                ),
-                child: Column(
-                  children: [
-                    Text('ROLL NUMBER', style: context.type.microLabel),
-                    const SizedBox(height: 4),
-                    Text(
-                      result.rollNumber,
-                      style: context.type.fieldValue.copyWith(
-                        fontSize: 22,
-                        letterSpacing: 1.6,
-                        color: p.textPrimary,
-                      ),
-                    ),
-                    if (result.hasRank) ...[
-                      const SizedBox(height: 8),
-                      Text(
-                        'MERIT RANK ${result.meritRank}',
-                        style: context.type.statusPill.copyWith(
-                          color: p.successText,
-                          fontSize: 11,
-                          letterSpacing: 1.1,
+                const SizedBox(height: 16),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  decoration: BoxDecoration(
+                    color: p.surfaceSunken,
+                    borderRadius: BorderRadius.circular(EvRadius.inner),
+                    border: Border.all(color: p.border),
+                  ),
+                  child: Column(
+                    children: [
+                      Text('ROLL NUMBER', style: context.type.microLabel),
+                      const SizedBox(height: 4),
+                      // Scaled to fit: a 20-character roll at 22px + 2.0 text
+                      // scale is wider than the dialog.
+                      SizedBox(
+                        width: double.infinity,
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            result.rollNumber,
+                            maxLines: 1,
+                            style: context.type.fieldValue.copyWith(
+                              fontSize: 22,
+                              letterSpacing: 1.6,
+                              color: p.textPrimary,
+                            ),
+                          ),
                         ),
                       ),
+                      if (result.hasRank) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          'MERIT RANK ${result.meritRank}',
+                          style: context.type.statusPill.copyWith(
+                            color: p.successText,
+                            fontSize: 11,
+                            letterSpacing: 1.1,
+                          ),
+                        ),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'Found in ${(result.elapsedMicros / 1000).toStringAsFixed(1)} ms '
-                'among ${result.totalRolls} roll numbers.',
-                textAlign: TextAlign.center,
-                style: context.type.microLabel.copyWith(),
-              ),
-              if (result.privacyPreserving) ...[
-                const SizedBox(height: 8),
-                _HashedNote(
-                  align: TextAlign.center,
-                  text:
-                      'Matched on your device. We never download the official '
-                      'candidate list — only one-way hashes of it.',
+                const SizedBox(height: 12),
+                Text(
+                  'Found in ${(result.elapsedMicros / 1000).toStringAsFixed(1)} ms '
+                  'among ${result.totalRolls} roll numbers.',
+                  textAlign: TextAlign.center,
+                  style: context.type.microLabel.copyWith(),
+                ),
+                if (result.privacyPreserving) ...[
+                  const SizedBox(height: 8),
+                  _HashedNote(
+                    align: TextAlign.center,
+                    text:
+                        'Matched on your device. We never download the official '
+                        'candidate list — only one-way hashes of it.',
+                  ),
+                ],
+                const SizedBox(height: 18),
+                EvPrimaryButton(
+                  label: 'Share the news',
+                  icon: Icons.ios_share_rounded,
+                  onPressed: onShare ?? () => Navigator.of(context).pop(),
+                ),
+                const SizedBox(height: 4),
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: Text(
+                    'Close',
+                    style: context.type.label.copyWith(color: p.textSecondary),
+                  ),
                 ),
               ],
-              const SizedBox(height: 18),
-              EvPrimaryButton(
-                label: 'Share the news',
-                icon: Icons.ios_share_rounded,
-                onPressed: onShare ?? () => Navigator.of(context).pop(),
-              ),
-              const SizedBox(height: 4),
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: Text(
-                  'Close',
-                  style: context.type.label.copyWith(color: p.textSecondary),
-                ),
-              ),
-            ],
+            ),
           ),
         ),
       ),

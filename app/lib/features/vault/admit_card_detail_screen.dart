@@ -442,7 +442,12 @@ class _BoardingPass extends ConsumerWidget {
                       ),
                       const SizedBox(width: 10),
                       Container(
-                        height: 22,
+                        // Floor, not fixed: the hard 22px box sliced VERIFIED /
+                        // SAVED at large text scales. The child Row is min-sized
+                        // and fills the minHeight, centring itself — no
+                        // `alignment:` (an aligned Container in a Row expands to
+                        // the row's free width).
+                        constraints: const BoxConstraints(minHeight: 22),
                         padding: const EdgeInsets.symmetric(horizontal: 8),
                         decoration: BoxDecoration(
                           color: p.success.withValues(alpha: 0.15),
@@ -829,9 +834,12 @@ class _CountdownCard extends StatelessWidget {
             ),
           ),
           Container(
-            height: 44,
+            // minHeight, no `alignment:` — an aligned Container inside a Row
+            // expands to the row's free width, which starved the Expanded
+            // countdown text beside it to a sliver. The min-sized Row child
+            // fills the minHeight and centres itself.
+            constraints: const BoxConstraints(minHeight: 44),
             padding: const EdgeInsets.symmetric(horizontal: 14),
-            alignment: Alignment.center,
             decoration: BoxDecoration(
               color: (urgent ? p.danger : p.accent).withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(EvRadius.tile),
@@ -839,17 +847,23 @@ class _CountdownCard extends StatelessWidget {
                 color: (urgent ? p.danger : p.accent).withValues(alpha: 0.3),
               ),
             ),
-            child: Text(
-              days < 0
-                  ? 'PAST'
-                  : days == 0
-                  ? 'TODAY'
-                  : 'IN $days DAYS',
-              style: context.type.statusPill.copyWith(
-                color: urgent ? p.dangerText : p.accentText,
-                fontSize: 12,
-                letterSpacing: 1,
-              ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  days < 0
+                      ? 'PAST'
+                      : days == 0
+                      ? 'TODAY'
+                      : 'IN $days DAYS',
+                  maxLines: 1,
+                  style: context.type.statusPill.copyWith(
+                    color: urgent ? p.dangerText : p.accentText,
+                    fontSize: 12,
+                    letterSpacing: 1,
+                  ),
+                ),
+              ],
             ),
           ),
         ],

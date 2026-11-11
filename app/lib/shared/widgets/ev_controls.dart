@@ -70,7 +70,12 @@ class EvPrimaryButton extends StatelessWidget {
     return Semantics(
       button: true,
       enabled: active,
-      label: label,
+      // No `label:` here — the inner Text *is* the accessible name. Setting
+      // both made TalkBack read every primary button twice ("Check my result
+      // instantly, Check my result instantly, button"): the Semantics label and
+      // the un-excluded child Text merge into one node. While busy the content
+      // is a spinner with no text, so the name is supplied then.
+      label: busy ? label : null,
       child: AnimatedOpacity(
         duration: EvMotion.of(context, EvMotion.micro),
         opacity: active ? 1 : 0.55,
@@ -151,44 +156,57 @@ class EvSecondaryButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = context.ev;
+    // A null onPressed used to render a full-opacity button that TalkBack
+    // announced as enabled but that did nothing — the primary button gates and
+    // dims; its siblings must behave the same.
+    final active = onPressed != null;
 
     return Semantics(
       button: true,
-      label: label,
-      child: Material(
-        color: p.surface,
-        borderRadius: BorderRadius.circular(EvRadius.button),
-        child: InkWell(
-          onTap: onPressed,
+      enabled: active,
+      // The inner Text is the accessible name; a Semantics label on top made
+      // TalkBack read every secondary button twice.
+      child: AnimatedOpacity(
+        duration: EvMotion.of(context, EvMotion.micro),
+        opacity: active ? 1 : 0.55,
+        child: Material(
+          color: p.surface,
           borderRadius: BorderRadius.circular(EvRadius.button),
-          child: Container(
-            height: EvSize.secondaryButton,
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(EvRadius.button),
-              border: Border.all(color: p.borderStrong),
-            ),
-            child: Row(
-              mainAxisSize: expand ? MainAxisSize.max : MainAxisSize.min,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                if (icon != null) ...[
-                  Icon(icon, size: 14, color: p.textSecondary),
-                  const SizedBox(width: 7),
-                ],
-                Flexible(
-                  child: Text(
-                    label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: context.type.label.copyWith(
-                      color: p.textPrimary,
-                      fontSize: 12,
+          child: InkWell(
+            onTap: onPressed,
+            borderRadius: BorderRadius.circular(EvRadius.button),
+            child: Container(
+              height: EvSize.secondaryButton,
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(EvRadius.button),
+                border: Border.all(color: p.borderStrong),
+              ),
+              child: Row(
+                mainAxisSize: expand ? MainAxisSize.max : MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  if (icon != null) ...[
+                    Icon(icon, size: 14, color: p.textSecondary),
+                    const SizedBox(width: 7),
+                  ],
+                  Flexible(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: context.type.label.copyWith(
+                        color: p.textPrimary,
+                        fontSize: 12,
+                      ),
                     ),
                   ),
-                ),
-                if (trailing != null) ...[const SizedBox(width: 8), trailing!],
-              ],
+                  if (trailing != null) ...[
+                    const SizedBox(width: 8),
+                    trailing!,
+                  ],
+                ],
+              ),
             ),
           ),
         ),
@@ -283,10 +301,24 @@ class EvIconButton extends StatelessWidget {
       child: Center(child: button),
     );
 
+    // The badge is the app's only unread-alerts signal — it must exist for
+    // screen readers too, not just visually. And a null onPressed now announces
+    // as disabled instead of "enabled but dead".
+    final enabled = onPressed != null;
+    final badge = (badgeCount ?? 0) > 0
+        ? '${badgeCount! > 9 ? '9+' : badgeCount} unread'
+        : null;
+    final label = [?tooltip, ?badge].join(', ');
+
     return Semantics(
       button: true,
-      label: tooltip,
-      child: tooltip == null ? hit : Tooltip(message: tooltip!, child: hit),
+      enabled: enabled,
+      label: label.isEmpty ? null : label,
+      child: AnimatedOpacity(
+        duration: EvMotion.of(context, EvMotion.micro),
+        opacity: enabled ? 1 : 0.55,
+        child: tooltip == null ? hit : Tooltip(message: tooltip!, child: hit),
+      ),
     );
   }
 }
@@ -311,7 +343,8 @@ class EvChip extends StatelessWidget {
     return Semantics(
       button: true,
       selected: selected,
-      label: label,
+      // No `label:`: the inner Text is the accessible name. Both together made
+      // TalkBack announce every chip twice.
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: onTap,
@@ -331,8 +364,14 @@ class EvChip extends StatelessWidget {
             child: AnimatedContainer(
               duration: EvMotion.of(context, EvMotion.micro),
               curve: EvMotion.enter,
-              height: EvSize.chip,
-              padding: const EdgeInsets.symmetric(horizontal: 14),
+              // Floor, not fixed height: at 2.0x text the 12.5px label's line
+              // box (~32.5px) exceeded the hard 32px pill and overhung it.
+              // No `alignment:` here — a Container with alignment expands to
+              // the largest incoming constraints, which un-hugs the chip (the
+              // 328px-wide "SSC" the layout test caught). The Row fills the
+              // minHeight and centres its own children.
+              constraints: const BoxConstraints(minHeight: EvSize.chip),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
               decoration: BoxDecoration(
                 color: selected
                     ? p.accent.withValues(alpha: 0.15)

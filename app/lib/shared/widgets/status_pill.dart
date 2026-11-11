@@ -48,49 +48,52 @@ class EvStatusPill extends StatelessWidget {
         _status?.textOn(context) ??
         textColor ??
         (base > 0.35 ? const Color(0xFF1F2937) : color);
-    final height = compact ? 22.0 : EvSize.statusPill;
 
-    return Semantics(
-      label: label,
-      child: Container(
-        height: height,
-        padding: EdgeInsets.symmetric(horizontal: compact ? 7 : 8),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.12),
-          borderRadius: BorderRadius.circular(EvRadius.badge),
-          border: Border.all(color: color.withValues(alpha: 0.3)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (dot) ...[
-              Container(
-                width: 5,
-                height: 5,
-                decoration: BoxDecoration(
-                  color: color,
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: color.withValues(alpha: 0.7),
-                      blurRadius: 6,
-                      spreadRadius: -1,
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 5),
-            ],
-            Text(
-              label,
-              maxLines: 1,
-              style: context.type.statusPill.copyWith(
-                color: fg,
-                fontSize: compact ? 11 : 11.5,
+    return Container(
+      // A floor, not a ceiling: the fixed 22px box let the label overhang the
+      // pill's border at 2.0x text (11px × 1.2 line height × 2 = 26.4px) — the
+      // same fixed-height bug every sibling chrome had already shed. No
+      // `alignment:` — that would expand the pill to its row's full width; the
+      // inner min-sized Row fills the minHeight and centres itself.
+      constraints: BoxConstraints(
+        minHeight: compact ? 22.0 : EvSize.statusPill,
+      ),
+      padding: EdgeInsets.symmetric(horizontal: compact ? 7 : 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(EvRadius.badge),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (dot) ...[
+            Container(
+              width: 5,
+              height: 5,
+              decoration: BoxDecoration(
+                color: color,
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: color.withValues(alpha: 0.7),
+                    blurRadius: 6,
+                    spreadRadius: -1,
+                  ),
+                ],
               ),
             ),
+            const SizedBox(width: 5),
           ],
-        ),
+          Text(
+            label,
+            maxLines: 1,
+            style: context.type.statusPill.copyWith(
+              color: fg,
+              fontSize: compact ? 11 : 11.5,
+            ),
+          ),
+        ],
       ),
     );
   }

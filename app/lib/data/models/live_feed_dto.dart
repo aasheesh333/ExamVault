@@ -118,7 +118,14 @@ abstract final class LiveFeedDto {
       officialPage: _tryUrl(row['official_page']),
       // The content hash of the published index, if there is one. Part of the
       // CDN path, so dropping it silently would make every lookup 404.
-      indexVersion: row['index_available'] == true && indexVersionRaw is String
+      // Non-empty guard: `index_available: true` with a forgotten version
+      // string used to build a guaranteed-404 URL (`examId__rolls.json.gz`),
+      // which was then memoised for the session as "not published" — for an
+      // exam the feed itself advertised as published.
+      indexVersion:
+          row['index_available'] == true &&
+              indexVersionRaw is String &&
+              indexVersionRaw.trim().isNotEmpty
           ? indexVersionRaw
           : null,
       rollCount: _tryInt(row['roll_count']),
@@ -199,10 +206,15 @@ abstract final class LiveFeedStore {
           'exam_name': u.examName,
           'context': u.contextLine,
           'status': u.status.id,
-          'published_at': u.publishedAt.toIso8601String(),
+          // UTC, explicitly: the wire format carries an offset, but a local
+          // toIso8601String() round-trip through the cache loses it, shifting
+          // every age label and expiry by the zone delta if the device's
+          // timezone ever changes.
+          'published_at': u.publishedAt.toUtc().toIso8601String(),
           // Without this the cached row re-parsed with the default 30-day TTL,
           // silently resurrecting a row the publisher had already retired.
-          if (u.expiresAt != null) 'expires_at': u.expiresAt!.toIso8601String(),
+          if (u.expiresAt != null)
+            'expires_at': u.expiresAt!.toUtc().toIso8601String(),
           if (u.pdfSizeLabel != null) 'pdf_size': u.pdfSizeLabel,
           if (u.mirrorLatencyMs != null) 'mirror_latency_ms': u.mirrorLatencyMs,
           if (u.officialPdf != null) 'official_pdf': u.officialPdf,

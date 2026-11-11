@@ -176,7 +176,12 @@ void main() {
             client: MockClient((_) async {
               return failing
                   ? http.Response('boom', 503)
-                  : http.Response('[]', 200);
+                  // Real gzip bytes: production roll indexes are gzip objects,
+                  // and CdnClient now rejects a 200 whose body lacks the gzip
+                  // magic before caching it (a captive-portal HTML page used to
+                  // poison the cache for the whole fresh window). A plain '[]'
+                  // fixture no longer represents a success.
+                  : http.Response.bytes(gzip.encode(utf8.encode('[]')), 200);
             }),
             baseUrl: 'https://cdn.test',
           ),

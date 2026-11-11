@@ -103,10 +103,18 @@ class HashedRollIndex {
     return buffer.toString().toUpperCase();
   }
 
-  /// Binary search for [rollNumber]. Returns true when present.
+  /// Search for [rollNumber]. Returns true when present.
   bool contains(String rollNumber) {
     if (hashes.isEmpty || salt.isEmpty) return false;
     final needle = digest(rollNumber, salt);
+    // Degraded path: binary search is only valid on a sorted array. decode()
+    // *detects* an unsorted publisher and stores the fact, yet this method
+    // ignored it — an unsorted v2 index would silently answer "not found" for
+    // rolls that ARE on the list, the worst possible wrong verdict. v1 has
+    // always carried exactly this fallback ("correctness never depends on a
+    // producer's sort contract"); v2 — the format actually published — never
+    // got it.
+    if (!sorted) return hashes.contains(needle);
     var low = 0;
     var high = hashes.length - 1;
     while (low <= high) {

@@ -72,16 +72,31 @@ abstract final class ExamMatcher {
     final have = _tokens('${update.examName} ${update.contextLine}');
     if (have.isEmpty) return 0;
 
+    final yearRe = RegExp(r'^\d{4}$');
+    final wantYears = want.where(yearRe.hasMatch).toSet();
+    final haveYears = have.where(yearRe.hasMatch).toSet();
+    // A typed year is a *requirement*, not a free point. The old rule added any
+    // 4-digit token to the numerator unconditionally — "SSC JE 2027" scored
+    // 2/3 (0.67 ≥ threshold) against a feed row for "SSC GD Constable Result
+    // 2026" and pinned the wrong exam's id onto the card, so the checker then
+    // searched another exam's roll index and reported a confident false "not
+    // found". Contradicting years now block the match outright.
+    if (wantYears.isNotEmpty &&
+        haveYears.isNotEmpty &&
+        wantYears.intersection(haveYears).isEmpty) {
+      return 0;
+    }
+
     var shared = 0;
     for (final token in want) {
       if (have.contains(token)) {
         shared += 1;
         continue;
       }
-      // A year written as "2027" should not be required to match a headline that
-      // says "2026": the *exam* is the same, the cycle is not. Years are scored
-      // loosely so they neither help nor block.
-      if (RegExp(r'^\d{4}$').hasMatch(token)) shared += 1;
+      // A year the headline does not mention at all stays neutral: the *exam*
+      // can still be identified by its other tokens. (A headline that mentions
+      // a *different* year was rejected above.)
+      if (yearRe.hasMatch(token)) shared += 1;
     }
     return shared / want.length;
   }

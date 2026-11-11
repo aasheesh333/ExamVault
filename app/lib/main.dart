@@ -24,8 +24,8 @@ Future<void> main() async {
   // here. Opening a box is one file read, so first paint never waits on the
   // network — the single most important property on result day.
   await Hive.initFlutter();
-  final httpCacheBox = await Hive.openBox<dynamic>(AppConfig.boxHttpCache);
-  final settingsBox = await Hive.openBox<dynamic>(AppConfig.boxSettings);
+  final httpCacheBox = await _openBoxResilient(AppConfig.boxHttpCache);
+  final settingsBox = await _openBoxResilient(AppConfig.boxSettings);
 
   // Must be registered before runApp, or a data-only push that arrives while the
   // app is dead is silently dropped.
@@ -40,7 +40,14 @@ Future<void> main() async {
     ],
   );
 
-  await _purgeLegacySampleCards();
+  // Best-effort migration with a hard outer bound: first paint must never be
+  // held hostage by secure storage. (The repository bounds its own reads; this
+  // is the belt to that brace — a hung OEM Keystore used to be able to keep
+  // the app on the native splash forever, because runApp waited on this.)
+  await _purgeLegacySampleCards().timeout(
+    const Duration(seconds: 12),
+    onTimeout: () => AppLogger.w('boot', 'sample purge timed out; continuing'),
+  );
 
   // Push is best-effort: a failure here must never stop the app from booting.
   unawaited(_bootPush(container));
@@ -51,6 +58,23 @@ Future<void> main() async {
       child: const ExamVaultApp(),
     ),
   );
+}
+
+/// Opens a Hive box, recreating it from scratch when the file is corrupt.
+///
+/// Both boxes hold only regenerable data (HTTP cache, theme/alert settings).
+/// An unguarded `openBox` before `runApp` meant one corrupt file — a process
+/// kill during compaction, an OS upgrade, a full disk — threw on every launch,
+/// the crash guard swallowed it into a log nobody reads, and the user got a
+/// permanent blank splash with no recovery short of reinstalling.
+Future<Box<dynamic>> _openBoxResilient(String name) async {
+  try {
+    return await Hive.openBox<dynamic>(name);
+  } catch (e, st) {
+    AppLogger.e('boot', 'hive box "$name" unreadable — recreating it', e, st);
+    await Hive.deleteBoxFromDisk(name);
+    return Hive.openBox<dynamic>(name);
+  }
 }
 
 /// Routes every uncaught error into the logger instead of a white screen.

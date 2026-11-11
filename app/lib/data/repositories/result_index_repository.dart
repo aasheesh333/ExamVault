@@ -143,7 +143,14 @@ class ResultIndexRepository {
     if (base.isEmpty) return null;
     final uri = Uri.tryParse(base);
     if (uri == null || !uri.hasScheme) return null;
-    return '$base/r/$examId';
+    // Strip a trailing slash: operators naturally write EV_WEB_BASE as
+    // "https://example.com/", and the naive concatenation produced
+    // "https://example.com//r/…" — a path many hosts treat as missing, so
+    // every shared deep link 404'd for its recipient.
+    final normalized = base.endsWith('/')
+        ? base.substring(0, base.length - 1)
+        : base;
+    return '$normalized/r/$examId';
   }
 
   void clearMemo() => _memo.clear();

@@ -72,11 +72,29 @@ void main() {
       expect(match?.examId, 'upsc_csm_2026');
     });
 
-    test('a typed name with the wrong cycle still matches the exam', () {
-      // A student types the current year; the published list is last year's. The
-      // exam is the same and the roll is still worth checking.
+    test('a typed year that contradicts the headline blocks the match', () {
+      // This test pinned the OPPOSITE until the audit ("the exam is the same
+      // and the roll is still worth checking"). It is not worth checking: a
+      // 2027-cycle roll cannot appear in the 2026 published list, so the link
+      // produced a confident false "not found" on result day — precisely the
+      // wrong-verdict harm this file's contract names ("a wrong link would
+      // point the student at another exam's candidate list, which is worse
+      // than no link"). Last year's row is another cycle's candidate list.
       final match = ExamMatcher.best('Civil Services Main 2027', feed);
-      expect(match?.examId, 'upsc_csm_2026');
+      expect(match, isNull);
+    });
+
+    test('a year the headline never mentions stays neutral', () {
+      // Neutral means "neither helps nor blocks" — that only holds when the
+      // candidate carries no year of its own to contradict.
+      final noYear = [
+        update(
+          id: 'upsc_csm_next',
+          name: 'Written Result: Civil Services (Main) Examination',
+        ),
+      ];
+      final match = ExamMatcher.best('Civil Services Main 2027', noYear);
+      expect(match?.examId, 'upsc_csm_next');
     });
 
     test('matches on distinctive words, not on "result"', () {

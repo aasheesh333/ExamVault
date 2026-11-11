@@ -181,9 +181,23 @@ class CdnClient {
       final request = http.Request('GET', Uri.parse(url))
         ..headers.addAll(headers);
 
-      final streamed = await _http
-          .send(request)
-          .timeout(AppConfig.connectTimeout);
+      final pending = _http.send(request);
+      late final http.StreamedResponse streamed;
+      try {
+        streamed = await pending.timeout(AppConfig.connectTimeout);
+      } on TimeoutException {
+        // Future.timeout abandons but cannot cancel. Drain the response
+        // whenever it does arrive so the keep-alive socket returns to the pool
+        // instead of leaking — on a congested result-day PoP each fetch could
+        // strand up to maxAttempts open requests per URL.
+        unawaited(
+          pending.then(
+            (lateResponse) => lateResponse.stream.drain<void>(),
+            onError: (Object _) {},
+          ),
+        );
+        throw const CdnException('Request timed out');
+      }
 
       if (streamed.statusCode == 304 && cached != null) {
         _writeCache(
@@ -249,6 +263,18 @@ class CdnClient {
       final bytes = builder.takeBytes();
       final etag = streamed.headers['etag'];
       final type = streamed.headers['content-type'];
+
+      // Validate before caching. Any 200 body used to be written as
+      // authoritative — a captive-portal HTML page or proxy interstitial then
+      // poisoned the roll index for the full 12-hour fresh window, and every
+      // lookup reported "index is malformed" with no self-healing path.
+      // Gzip objects must start with the 0x1f 0x8b magic.
+      if (url.contains('.gz') &&
+          (bytes.length < 2 || bytes[0] != 0x1f || bytes[1] != 0x8b)) {
+        throw const CdnException(
+          'Object is not the gzip document that was requested',
+        );
+      }
 
       _writeCache(url, bytes, DateTime.now(), etag, type);
 

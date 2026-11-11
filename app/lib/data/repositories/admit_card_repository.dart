@@ -36,16 +36,10 @@ class AdmitCardRepository {
       // A secure-storage read can hang outright on some OEMs (Keystore bugs,
       // device restores). Without a ceiling that hang becomes a permanent
       // spinner on every screen that depends on the vault, so it is bounded and
-      // treated as a failure.
-      final ids = await _store.readIndex().timeout(_readTimeout);
-      final cards = <AdmitCard>[];
-
-      for (final id in ids) {
-        final raw = await _store.readRaw(id);
-        if (raw == null) continue;
-        final card = AdmitCardCodec.decode(raw);
-        if (card != null) cards.add(card);
-      }
+      // treated as a failure. The *whole* load is bounded, not just the index
+      // read: `readRaw` runs once per card, and a hang in that loop used to
+      // escape the per-read timeout — booting the app waited on it forever.
+      final cards = await _readAllCards().timeout(_loadTimeout);
 
       // Soonest exam first — the pass the user needs is always on top.
       cards.sort((a, b) => a.examDate.compareTo(b.examDate));
@@ -69,11 +63,37 @@ class AdmitCardRepository {
     }
   }
 
+  Future<List<AdmitCard>> _readAllCards() async {
+    final ids = await _store.readIndex().timeout(_readTimeout);
+    final cards = <AdmitCard>[];
+    for (final id in ids) {
+      final raw = await _store.readRaw(id);
+      if (raw == null) continue;
+      final card = AdmitCardCodec.decode(raw);
+      if (card != null) cards.add(card);
+    }
+    return cards;
+  }
+
   /// Upper bound on a single secure-storage read.
   static const _readTimeout = Duration(seconds: 5);
 
+  /// Upper bound on the whole load (index + every card body).
+  static const _loadTimeout = Duration(seconds: 10);
+
   Future<AdmitCard> save(AdmitCard card) {
     return _enqueue(() async {
+      // Never claim a loaded state we did not observe. If an earlier load
+      // failed, `_cache` is empty while the *stored index* still lists the
+      // user's cards; building the new cache from the empty one and flipping
+      // `_loaded = true` hid every existing card behind the newly saved one
+      // until an app restart. Reload first (bounded); if the store is genuinely
+      // unreadable the save fails loudly instead of lying about the vault's
+      // contents.
+      if (!_loaded) {
+        await load(force: true);
+      }
+
       final existingIndex = await _store.readIndex();
       await _store.writeRaw(card.id, AdmitCardCodec.encode(card));
 

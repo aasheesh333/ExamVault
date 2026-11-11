@@ -129,7 +129,14 @@ class LiveFeedRepository {
     } catch (e) {
       AppLogger.w('feed', 'refresh failed: $e');
       final cached = readCached();
-      return cached ?? emptySnapshot();
+      // Attach the failure here too. The realistic trigger is a malformed edge
+      // document: CdnClient has already cached those bytes as fresh, so every
+      // refresh inside the window re-parses the same garbage. Returning a bare
+      // snapshot with error == null made that hard failure indistinguishable
+      // from a genuinely empty radar — a confident "no updates" on result day.
+      return (cached ?? emptySnapshot()).copyWith(
+        error: 'The live feed could not be read. Pull to retry.',
+      );
     }
   }
 

@@ -52,6 +52,10 @@ class PushService {
   final _messages = StreamController<PushMessage>.broadcast();
   final Set<String> _subscribed = {};
 
+  /// Kept so [dispose] can cancel before closing [_messages]: a foreground
+  /// message arriving after close() used to throw inside a platform callback.
+  StreamSubscription<RemoteMessage>? _onMessageSub;
+
   PushProvider _provider = PushProvider.disabled;
   bool _initialised = false;
 
@@ -171,7 +175,7 @@ class PushService {
         sound: true,
       );
 
-      FirebaseMessaging.onMessage.listen((message) {
+      _onMessageSub = FirebaseMessaging.onMessage.listen((message) {
         final data = message.data;
         _messages.add(
           PushMessage(
@@ -276,6 +280,10 @@ class PushService {
   }
 
   Future<void> dispose() async {
+    // Cancel before closing: a foreground message arriving after `close()`
+    // used to call `add` on a closed controller — a StateError inside a
+    // platform callback, in a class whose contract is "never throws".
+    await _onMessageSub?.cancel();
     await _messages.close();
   }
 }

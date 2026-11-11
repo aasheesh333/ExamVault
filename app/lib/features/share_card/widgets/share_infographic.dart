@@ -93,94 +93,103 @@ class ShareInfographic extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: _paper,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.45),
-            blurRadius: 44,
-            offset: const Offset(0, 22),
-            spreadRadius: -16,
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _AlertStrip(dateLine: data.dateLine, headline: data.headline),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _BrandRow(shareUrl: data.shareUrl),
-                  const SizedBox(height: 14),
-                  Text(
-                    data.examName.toUpperCase(),
-                    // Bug: one line at 9 px clipped the distinguishing tail of
-                    // real exam names ("...Tier-1 2026" vs "...Tier-2 2026").
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontFamily: EvFont.mono,
-                      fontFamilyFallback: EvFont.fallbackMono,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 1.2,
-                      color: _blue,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  _Headline(headline: data.headline),
-                  const SizedBox(height: 9),
-                  Text(
-                    data.subline,
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontFamily: EvFont.ui,
-                      fontFamilyFallback: EvFont.fallbackUi,
-                      fontSize: 11.5,
-                      height: 1.35,
-                      fontWeight: FontWeight.w600,
-                      color: _muted,
-                    ),
-                  ),
-                  const SizedBox(height: 13),
-                  if (data.cutoffs != null && data.cutoffs!.isNotEmpty)
-                    _CutoffBlock(cutoffs: data.cutoffs!)
-                  else if (data.rollNumber.isNotEmpty)
-                    _RollBlock(data: data),
-                  const SizedBox(height: 12),
-                  _CtaBar(link: data.link),
-                  const SizedBox(height: 10),
-                  const Center(
-                    child: Text(
-                      // Always-true claims only. "VERIFIED SOURCE" was printed
-                      // unconditionally, which is a promise the app cannot keep
-                      // for a card the user typed in themselves.
-                      'FREE · NO ACCOUNT · CHECKED ON YOUR DEVICE',
-                      style: TextStyle(
-                        fontFamily: EvFont.mono,
-                        fontFamilyFallback: EvFont.fallbackMono,
-                        // Bug: 8 px is illegible once WhatsApp shrinks the card
-                        // into a chat thumbnail; 9 is the floor used here.
-                        fontSize: 9,
-                        fontWeight: FontWeight.w500,
-                        letterSpacing: 0.7,
-                        color: _faint,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+    return MediaQuery(
+      // The exported PNG must not inherit the sender's accessibility text
+      // size. At the app's 2.0x clamp the 38px headline became 76px, wrapped
+      // to three lines and roughly doubled the card's height — the "viral
+      // card" artifact's geometry depended on a device setting, breaking its
+      // own 1080px/<200KB contract. The preview is wrapped identically, so
+      // what the user sees is still what gets exported.
+      data: MediaQuery.of(context).copyWith(textScaler: TextScaler.noScaling),
+      child: Container(
+        decoration: BoxDecoration(
+          color: _paper,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.45),
+              blurRadius: 44,
+              offset: const Offset(0, 22),
+              spreadRadius: -16,
             ),
           ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _AlertStrip(dateLine: data.dateLine, headline: data.headline),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _BrandRow(shareUrl: data.shareUrl),
+                    const SizedBox(height: 14),
+                    Text(
+                      data.examName.toUpperCase(),
+                      // Bug: one line at 9 px clipped the distinguishing tail of
+                      // real exam names ("...Tier-1 2026" vs "...Tier-2 2026").
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontFamily: EvFont.mono,
+                        fontFamilyFallback: EvFont.fallbackMono,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 1.2,
+                        color: _blue,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    _Headline(headline: data.headline),
+                    const SizedBox(height: 9),
+                    Text(
+                      data.subline,
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontFamily: EvFont.ui,
+                        fontFamilyFallback: EvFont.fallbackUi,
+                        fontSize: 11.5,
+                        height: 1.35,
+                        fontWeight: FontWeight.w600,
+                        color: _muted,
+                      ),
+                    ),
+                    const SizedBox(height: 13),
+                    if (data.cutoffs != null && data.cutoffs!.isNotEmpty)
+                      _CutoffBlock(cutoffs: data.cutoffs!)
+                    else if (data.rollNumber.isNotEmpty)
+                      _RollBlock(data: data),
+                    const SizedBox(height: 12),
+                    _CtaBar(link: data.link),
+                    const SizedBox(height: 10),
+                    const Center(
+                      child: Text(
+                        // Always-true claims only. "VERIFIED SOURCE" was printed
+                        // unconditionally, which is a promise the app cannot keep
+                        // for a card the user typed in themselves.
+                        'FREE · NO ACCOUNT · CHECKED ON YOUR DEVICE',
+                        style: TextStyle(
+                          fontFamily: EvFont.mono,
+                          fontFamilyFallback: EvFont.fallbackMono,
+                          // Bug: 8 px is illegible once WhatsApp shrinks the card
+                          // into a chat thumbnail; 9 is the floor used here.
+                          fontSize: 9,
+                          fontWeight: FontWeight.w500,
+                          letterSpacing: 0.7,
+                          color: _faint,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

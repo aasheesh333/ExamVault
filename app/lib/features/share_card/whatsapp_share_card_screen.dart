@@ -318,8 +318,12 @@ class _WhatsappShareCardScreenState
       } else {
         body = _NothingToShare(
           onAddCard: () => showVaultFormSheet(context, ref),
+          // Home, not the Radar tab: this state means nothing is tapped and
+          // nothing is saved, and the checker then shows an empty form whose
+          // own advice is "open a result from Home" — the button used to route
+          // into a dead end that pointed back here.
           onOpenRadar: () =>
-              ref.read(tabIndexProvider.notifier).select(EvTab.radar),
+              ref.read(tabIndexProvider.notifier).select(EvTab.home),
         );
       }
       return Scaffold(
@@ -392,15 +396,25 @@ class _WhatsappShareCardScreenState
                       _captionTouched = true;
                     },
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: EvSpace.x3),
                   _RollVisibilityRow(
                     value: _showRoll,
-                    onChanged: (v) => setState(() => _showRoll = v),
+                    onChanged: (v) => setState(() {
+                      _showRoll = v;
+                      // Privacy outranks customisation. _syncCaption skips
+                      // touched captions, so with an edited caption the
+                      // generated "Roll 12345… · in the published list" line
+                      // stayed frozen in the shared *text* even after this
+                      // switch hid the roll from the *image* — broadcasting
+                      // exactly what the user asked to withhold. Toggling now
+                      // regenerates the caption so card and text always agree.
+                      _captionTouched = false;
+                    }),
                     hasRoll: built?.rollNumber.isNotEmpty ?? false,
                     hidden:
                         !_showRoll && (built?.rollNumber.isNotEmpty ?? false),
                   ),
-                  const SizedBox(height: 14),
+                  const SizedBox(height: EvSpace.x4),
                   EvPrimaryButton(
                     label: 'Share to study group',
                     icon: Icons.ios_share_rounded,
@@ -650,7 +664,9 @@ class _CaptionEditorState extends State<_CaptionEditor> {
     final p = context.ev;
 
     return EvCard(
-      padding: const EdgeInsets.fromLTRB(14, 10, 10, 10),
+      // Matches the roll-visibility card below it: the two adjacent cards used
+      // to disagree (14/10/10/10 vs 14/12), so their content edges did not line up.
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -764,7 +780,7 @@ class _RollVisibilityRow extends StatelessWidget {
     final p = context.ev;
 
     return EvCard(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
         children: [
           Expanded(
@@ -809,7 +825,7 @@ class _ShareLoading extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = context.ev;
-    return Center(
+    return EvCenteredScroll(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -917,7 +933,7 @@ class _NothingToShare extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           EvSecondaryButton(
-            label: 'Open Radar',
+            label: 'Browse live results',
             icon: Icons.radar_rounded,
             expand: false,
             onPressed: onOpenRadar,

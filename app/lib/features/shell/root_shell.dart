@@ -100,9 +100,13 @@ class EvTabBar extends ConsumerWidget {
     final liveCount = ref.watch(liveRadarBadgeProvider);
 
     return Padding(
+      // Landscape cutouts and notches report as MediaQuery padding.left/right;
+      // reading only `bottom` here let the floating bar slide under a cutout
+      // (and its first/last tab with it) on any landscape device. The bar's
+      // own 16px inset is kept on top of the device inset in both axes.
       padding: EdgeInsets.only(
-        left: EvSize.tabBarInset,
-        right: EvSize.tabBarInset,
+        left: EvSize.tabBarInset + MediaQuery.paddingOf(context).left,
+        right: EvSize.tabBarInset + MediaQuery.paddingOf(context).right,
         bottom: MediaQuery.paddingOf(context).bottom + 12,
       ),
       child: ClipRRect(

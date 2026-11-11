@@ -19,9 +19,13 @@ class EvStatusPill extends StatelessWidget {
     this.compact = false,
   }) : _status = null;
 
+  /// Defers the accent to build time: the old `color = status.pillColor` froze
+  /// a hardcoded hex at construction, which made the pill theme-blind (the
+  /// light theme rendered the DARK palette's grey for AWAITED). `color` stays
+  /// null here and [build] resolves it from `context.ev`.
   EvStatusPill.status(UpdateStatus status, {super.key, this.compact = false})
     : label = status.label,
-      color = status.pillColor,
+      color = null,
       _status = status,
       textColor = null,
       dot = true;
@@ -31,7 +35,11 @@ class EvStatusPill extends StatelessWidget {
   final UpdateStatus? _status;
 
   final String label;
-  final Color color;
+
+  /// Explicit accent for the default constructor; null on [.status], which
+  /// resolves the themed accent in [build].
+  final Color? color;
+
   final Color? textColor;
   final bool dot;
   final bool compact;
@@ -42,12 +50,12 @@ class EvStatusPill extends StatelessWidget {
     // itself — 2.27:1 for green and 1.96:1 for amber in light mode. The word is
     // the *only* signal for colour-blind users, so it must be readable text, not
     // a decoration: prefer the status's tuned text token, then any explicit
-    // override, then darken the accent until it passes on its own tint.
-    final base = color.computeLuminance();
-    final fg =
-        _status?.textOn(context) ??
-        textColor ??
-        (base > 0.35 ? const Color(0xFF1F2937) : color);
+    // override, then the accent itself. (A luminance test that swapped in a
+    // hardcoded 0xFF1F2937 for bright accents was dropped: it was dead code —
+    // every default-constructor caller passes `textColor`, and 0xFF1F2937 was
+    // the dark palette's border hex smuggling itself into the light theme.)
+    final accent = color ?? _status!.accentOn(context);
+    final fg = _status?.textOn(context) ?? textColor ?? accent;
 
     return Container(
       // A floor, not a ceiling: the fixed 22px box let the label overhang the
@@ -60,9 +68,9 @@ class EvStatusPill extends StatelessWidget {
       ),
       padding: EdgeInsets.symmetric(horizontal: compact ? 7 : 8, vertical: 2),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
+        color: accent.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(EvRadius.badge),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
+        border: Border.all(color: accent.withValues(alpha: 0.3)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -72,11 +80,11 @@ class EvStatusPill extends StatelessWidget {
               width: 5,
               height: 5,
               decoration: BoxDecoration(
-                color: color,
+                color: accent,
                 shape: BoxShape.circle,
                 boxShadow: [
                   BoxShadow(
-                    color: color.withValues(alpha: 0.7),
+                    color: accent.withValues(alpha: 0.7),
                     blurRadius: 6,
                     spreadRadius: -1,
                   ),
@@ -85,16 +93,18 @@ class EvStatusPill extends StatelessWidget {
             ),
             const SizedBox(width: 5),
           ],
-          Text(
-            label,
-            maxLines: 1,
-            // Ellipsis, not the default soft-wrap: in a tight row (radar tile at
-            // 320px, 2.0x) "ADMIT CARD LIVE" would otherwise wrap to a second
-            // line inside a one-line pill.
-            overflow: TextOverflow.ellipsis,
-            style: context.type.statusPill.copyWith(
-              color: fg,
-              fontSize: compact ? 11 : 11.5,
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              // Ellipsis, not the default soft-wrap: in a tight row (radar tile at
+              // 320px, 2.0x) "ADMIT CARD LIVE" would otherwise wrap to a second
+              // line inside a one-line pill.
+              overflow: TextOverflow.ellipsis,
+              style: context.type.statusPill.copyWith(
+                color: fg,
+                fontSize: compact ? 11 : 11.5,
+              ),
             ),
           ),
         ],
@@ -104,15 +114,28 @@ class EvStatusPill extends StatelessWidget {
 }
 
 extension UpdateStatusColors on UpdateStatus {
-  Color get pillColor => accentOf(this);
+  /// The status accent resolved against the *active* palette. This is the only
+  /// theme-correct accessor: the old static table hardcoded one palette's
+  /// hexes, so light mode rendered the dark palette's grey (#8695AB instead of
+  /// #5B6B80) for AWAITED.
+  Color accentOn(BuildContext context) => accentIn(context.ev);
 
-  static Color accentOf(UpdateStatus status) => switch (status) {
-    UpdateStatus.resultOut => const Color(0xFF10B981),
-    UpdateStatus.admitCardLive => const Color(0xFFF59E0B),
-    UpdateStatus.formClosing => const Color(0xFFEF4444),
-    UpdateStatus.answerKey => const Color(0xFF3B82F6),
-    UpdateStatus.awaited => const Color(0xFF8695AB),
+  /// The same mapping against an explicit palette — the single definition both
+  /// accessors share, so the table cannot drift from the tokens again.
+  Color accentIn(EvPalette p) => switch (this) {
+    UpdateStatus.resultOut => p.success,
+    UpdateStatus.admitCardLive => p.warning,
+    UpdateStatus.formClosing => p.danger,
+    UpdateStatus.answerKey => p.accent,
+    UpdateStatus.awaited => p.textTertiary,
   };
+
+  /// Legacy theme-blind accessor, kept compiling only because
+  /// `live_radar_tile.dart:31` still calls it without routing through context
+  /// (its icon tile therefore shows the dark-palette grey for AWAITED in light
+  /// mode). That call site has a BuildContext two lines up; once it moves to
+  /// `accentOn(context)`, delete this getter.
+  Color get pillColor => accentIn(EvPalette.dark);
 }
 
 extension UpdateStatusText on UpdateStatus {

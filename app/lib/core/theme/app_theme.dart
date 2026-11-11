@@ -140,13 +140,18 @@ abstract final class AppTheme {
         selectionColor: p.accent.withValues(alpha: 0.28),
         selectionHandleColor: p.accent,
       ),
+      switchTheme: _switchTheme(p),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: p.surfaceSunken,
         hintStyle: EvTextStyles(p).microLabel.copyWith(
           letterSpacing: 0,
           fontSize: 11,
-          color: p.textTertiary.withValues(alpha: 0.75),
+          // The full-alpha token, not `textTertiary.withValues(alpha: 0.75)`:
+          // the translucent blend over surfaceSunken measured 3.05:1 in light
+          // and 3.91:1 in dark — both under the 4.5:1 AA floor for 11px text.
+          // At full alpha the same token measures 4.97:1 / 6.01:1.
+          color: p.textTertiary,
         ),
         labelStyle: EvTextStyles(p).label,
         contentPadding: const EdgeInsets.symmetric(
@@ -171,6 +176,50 @@ abstract final class AppTheme {
         ),
       ),
       extensions: [EvTheme(palette: p)],
+    );
+  }
+
+  /// The Share screen's privacy switch is the app's only Switch, and with no
+  /// theme it rendered Material's defaults: an OFF track ~1.0:1 against the
+  /// white card (functionally invisible) and the primary blue as ON — which
+  /// reads as "accent chrome", not as a privacy state.
+  ///
+  /// Every state now carries a >= 3:1 boundary against the surface it sits on
+  /// (WCAG 1.4.11 non-text contrast), measured:
+  ///  * ON — light uses `successText` (#047857: 5.48:1 on white, white thumb
+  ///    5.48:1). Deliberately *not* `success`: #10B981 is only 2.54:1 on a
+  ///    white card. Dark keeps `success` (#10B981: 6.99:1 on #111827).
+  ///  * OFF — a `borderStrong` track (a quiet well, 1.4-1.5:1) made visible by
+  ///    a `textTertiary` outline (5.44:1 light / 5.83:1 dark against the
+  ///    surface, >= 3.6:1 against its own track) and a `textSecondary` thumb
+  ///    (7.58:1 / 6.99:1 against the surface).
+  ///  * Disabled — exempt from 1.4.11, so both parts simply dim to signal
+  ///    "not interactive" (the Share screen disables the switch until a roll
+  ///    number exists).
+  static SwitchThemeData _switchTheme(EvPalette p) {
+    const selected = WidgetState.selected;
+    const disabled = WidgetState.disabled;
+    final onTrack = p.isDark ? p.success : p.successText;
+
+    return SwitchThemeData(
+      thumbColor: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(disabled)) {
+          return p.textTertiary.withValues(alpha: 0.5);
+        }
+        return states.contains(selected) ? Colors.white : p.textSecondary;
+      }),
+      trackColor: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(disabled)) {
+          return p.borderStrong.withValues(alpha: 0.4);
+        }
+        return states.contains(selected) ? onTrack : p.borderStrong;
+      }),
+      trackOutlineColor: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(disabled) || states.contains(selected)) {
+          return Colors.transparent;
+        }
+        return p.textTertiary;
+      }),
     );
   }
 }

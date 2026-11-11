@@ -104,8 +104,14 @@ class EvSectionHeader extends StatelessWidget {
     final stacked = trailing != null && scale > 1.4;
 
     final title = Semantics(
-      // Header text is a label, never a control.
+      // Header text is a label, never a control — and a *heading*: heading
+      // navigation ("jump between headings" in TalkBack) was empty app-wide,
+      // so screen-reader users had no landmark to skip between sections with.
+      // (The widget flag is spelled `header`; it maps to the semantics
+      // `heading` trait platforms expose.) The trailing action stays its own
+      // node.
       container: true,
+      header: true,
       child: Text(
         label.toUpperCase(),
         style: context.type.microLabel,

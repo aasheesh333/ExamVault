@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- DARK variant of the launch canvas: Deep Navy (#0B0F19), matching the
+         app's dark bg so the launch window never flashes white before the
+         first Flutter frame. The light variant lives in values/colors.xml. -->
+    <color name="ev_background">#0B0F19</color>
+</resources>

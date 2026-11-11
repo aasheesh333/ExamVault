@@ -41,6 +41,7 @@ class EvPalette {
     required this.warning,
     required this.warningText,
     required this.danger,
+    required this.dangerStrong,
     required this.dangerText,
     required this.walletTop,
     required this.walletMid,
@@ -73,6 +74,13 @@ class EvPalette {
   final Color warning;
   final Color warningText;
   final Color danger;
+
+  /// The shade of danger that can *carry white text* at AA. `danger` (#EF4444)
+  /// only reaches 3.76:1 under white — enough for a dot, a border or a tinted
+  /// pill background, but not for the 11px count inside the notification badge.
+  /// `dangerStrong` (#DC2626) measures 4.83:1 under white in both themes.
+  final Color dangerStrong;
+
   final Color dangerText;
 
   /// The three stops of the wallet-pass gradient.
@@ -111,13 +119,17 @@ class EvPalette {
     warning: Color(0xFFF59E0B),
     warningText: Color(0xFFFCD34D),
     danger: Color(0xFFEF4444),
+    dangerStrong: Color(0xFFDC2626),
     dangerText: Color(0xFFFCA5A5),
     walletTop: Color(0xFF1E2C46),
     walletMid: Color(0xFF172136),
     walletBottom: Color(0xFF121A29),
     onWallet: Color(0xFFF3F6FB),
     onWalletMuted: Color(0xFF9CA3AF),
-    onWalletFaint: Color(0xFF7C8DA6),
+    // AA on the pass's top stop (#1E2C46): the old #7C8DA6 measured 4.13:1.
+    // Same hue (~215°), lightness lifted until white-space AA holds: 4.77:1,
+    // and still visibly fainter than onWalletMuted (5.50:1).
+    onWalletFaint: Color(0xFF8998AE),
     brightness: Brightness.dark,
   );
 
@@ -142,6 +154,7 @@ class EvPalette {
     warning: Color(0xFFF59E0B),
     warningText: Color(0xFFB45309),
     danger: Color(0xFFEF4444),
+    dangerStrong: Color(0xFFDC2626),
     dangerText: Color(0xFFB91C1C),
     // The pass is a physical object: it keeps its navy shell in light mode.
     walletTop: Color(0xFF1E2C46),
@@ -194,11 +207,14 @@ abstract final class EvSize {
   static const double statusPill = 22;
   static const double copyPill = 32;
 
-  /// Visual size of an icon button's *chevron/dot*, not its hit area.
+  /// Icon-button edge length: the visual *and* the hit box are this value.
   ///
-  /// Kept at 36 for the visual, but `EvIconButton` wraps it in a 44x44 hit box —
-  /// the value below was being used as the tap target itself, which is under both
-  /// Material's 48 and this app's own `minTapTarget`.
+  /// It used to be 36, and `EvIconButton` used it as the tap target itself —
+  /// under both Material's 48 and this app's own `minTapTarget` floor. The
+  /// value was raised to 44; `EvIconButton` additionally wraps whatever size
+  /// a caller passes in `max(size, minTapTarget)`, so the hit area can never
+  /// fall below the floor again. (An earlier revision of this comment still
+  /// claimed "kept at 36" after the value had already been changed.)
   static const double iconButton = 44;
   static const double navBar = 40;
 
@@ -232,10 +248,20 @@ abstract final class EvSize {
 /// gradient and had already drifted (0xFF4E90F9 vs 0xFF4C8DF7 top stop) — the
 /// exact drift tokens exist to prevent. One definition, both call sites.
 abstract final class EvGradient {
+  /// The whole ramp — not just its middle — must carry white label text at AA.
+  ///
+  /// The 14.5px/w700 button label sits in the middle of a 52px button, over
+  /// roughly t=0.35..0.65 of the gradient. The previous top stop (#4E90F9,
+  /// 3.14:1 under white) faded into a middle stop (#2F74E8) that measured
+  /// 4.39:1 — under the 4.5 AA floor. The darkened ramp measures
+  /// 4.65 / 5.17 / 6.70 under white at the stops (worst blend inside the
+  /// label band: 5.00), and both lower stops are colours the palette already
+  /// ships (`accentDeep` #2563EB and the light theme's `accentText` #1D4ED8),
+  /// so the brand hue survives.
   static const primary = LinearGradient(
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
-    colors: [Color(0xFF4E90F9), Color(0xFF2F74E8), Color(0xFF2563EB)],
+    colors: [Color(0xFF2F6FE4), Color(0xFF2563EB), Color(0xFF1D4ED8)],
     stops: [0, 0.55, 1],
   );
 }
@@ -413,7 +439,11 @@ class EvTextStyles {
   TextStyle get statusPill => TextStyle(
     fontFamily: EvFont.mono,
     fontFamilyFallback: EvFont.fallbackMono,
-    fontSize: 10,
+    // 11, not the old 10: this file's own header rule says body text never
+    // goes below 11px, and every pill call site was overriding the token to
+    // 11/11.5 anyway — the two that did not were shipping 10px text. Raising
+    // the token makes the floor the default instead of a per-site patch.
+    fontSize: 11,
     height: 1.2,
     fontWeight: FontWeight.w600,
     letterSpacing: 0.6,

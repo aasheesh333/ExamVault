@@ -28,7 +28,11 @@ class LiveRadarTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = context.ev;
-    final accent = update.status.pillColor;
+    // Themed accent, not the frozen dark-palette hex: `pillColor` resolved
+    // against EvPalette.dark at construction, so light theme rendered the
+    // dark grey/amber icon tints. The pill widget itself was fixed in
+    // status_pill.dart; this was its last caller.
+    final accent = update.status.accentOn(context);
 
     return Semantics(
       button: true,

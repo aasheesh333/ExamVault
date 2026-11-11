@@ -282,6 +282,17 @@ Future<T> _offload<T>(T Function() computation) {
 /// same second. Everything costly — gunzip, JSON parse, sort verification — is
 /// pushed off the UI thread so the app never drops a frame while waiting.
 abstract final class RollIndexEngine {
+  /// Whether [input] could be a roll number, judged exactly like the search
+  /// path judges it: normalise (trim, strip PDF-paste artefacts, upper-case),
+  /// then apply the 4–24 character alphabet rule.
+  ///
+  /// Exposed so the UI can reject bad input *before* fetching anything. The
+  /// engine's own rejection lives inside [searchCompressed] — i.e. after the
+  /// index (up to 12 MB compressed) has already been downloaded and gunzipped
+  /// just to be told "invalid". A 40-char paste used to cost the full fetch.
+  static bool isPlausibleRoll(String input) =>
+      _isPlausibleRoll(normaliseRoll(input));
+
   /// End-to-end: compressed bytes in, verdict out. Runs in an isolate.
   static Future<RollLookupResult> searchCompressed({
     required Uint8List compressed,

@@ -5,8 +5,10 @@ import 'package:examvault/data/remote/cdn_client.dart';
 import 'package:examvault/data/repositories/admit_card_repository.dart';
 import 'package:examvault/domain/entities/exam_category.dart';
 import 'package:examvault/domain/entities/live_update.dart';
+import 'package:examvault/features/shell/root_shell.dart';
 import 'package:examvault/providers/app_providers.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_ce/hive.dart';
@@ -153,5 +155,94 @@ void main() {
       'card_a',
       reason: 'the dock must still hand the checker this card',
     );
+  });
+
+  testWidgets("tapping a different exam's radar row clears the prefilled roll", (
+    tester,
+  ) async {
+    final card = matrixCard(id: 'card_a', roll: '2201098765');
+    final container = await pumpApp(tester, cards: [card]);
+
+    await tester.tap(find.text('Radar'));
+    await tester.pump(const Duration(milliseconds: 400));
+
+    // The cold-start prefill filled the field from the saved card — the app's
+    // primary flow, no explicit pick involved.
+    final field = find.byKey(const ValueKey('roll-field'));
+    expect(tester.widget<TextField>(field).controller?.text, '2201098765');
+
+    // Now tap a radar row for a *different* exam (the same notifier a row
+    // tap writes). The stale-roll guard must clear the field: it used to be
+    // gated on `_cardId`, which the cold-start prefill never set — so card A's
+    // roll stayed in the field under exam B's header, one tap from being
+    // searched against the wrong list.
+    container
+        .read(resultExamIdProvider.notifier)
+        .select(
+          LiveUpdate(
+            examId: 'exam_other',
+            examName: 'Some Other Exam Result',
+            category: ExamCategory.upsc,
+            status: UpdateStatus.resultOut,
+            contextLine: 'test',
+            publishedAt: DateTime.now(),
+          ),
+        );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(
+      tester.widget<TextField>(field).controller?.text,
+      isEmpty,
+      reason: "card A's roll must never be searchable against tapped exam B",
+    );
+    // The header follows the tapped row, not the saved card.
+    expect(
+      find.textContaining('Some Other Exam', findRichText: true),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('a tap during the cross-fade reaches only the incoming tab', (
+    tester,
+  ) async {
+    final card = matrixCard(id: 'card_a', roll: '2201098765');
+    final container = await pumpApp(tester, cards: [card]);
+
+    // Get onto Vault so its dock button is on screen.
+    await tester.tap(find.text('Vault'));
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(container.read(tabIndexProvider), EvTab.vault);
+
+    // Leave for Home. 60ms into the 220ms fade the outgoing Vault tab is still
+    // painted and laid out — but it must be deaf: a hit test at the centre of
+    // its dock button must not reach it, or a tap meant for Home would fire
+    // the vault action.
+    await tester.tap(find.text('Home'));
+    await tester.pump(const Duration(milliseconds: 60));
+    final dock = find.text('Check my result');
+    final dockTarget = tester.element(dock).renderObject;
+    final hit = HitTestResult();
+    tester.binding.hitTestInView(
+      hit,
+      tester.getRect(dock).center,
+      tester.view.viewId,
+    );
+    expect(
+      hit.path.any((e) => e.target == dockTarget),
+      isFalse,
+      reason: 'the outgoing tab must not receive taps mid-fade',
+    );
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(container.read(tabIndexProvider), EvTab.home);
+
+    // Back toward Vault. 60ms into *this* fade Vault is the incoming tab, so
+    // the same tap must land: it hands the card to the checker and switches.
+    await tester.tap(find.text('Vault'));
+    await tester.pump(const Duration(milliseconds: 60));
+    await tester.tap(find.text('Check my result'));
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(container.read(tabIndexProvider), EvTab.radar);
+    expect(container.read(selectedCardIdProvider), 'card_a');
   });
 }

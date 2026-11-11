@@ -51,9 +51,31 @@ class _InstantResultCheckerScreenState
   /// once per card and never fights a field the student cleared on purpose.
   String? _prefilledFor;
 
+  /// A roll rejected by the pre-flight plausibility check in [_check], before
+  /// any network. Renders the same [_InvalidRollCard] the engine's post-fetch
+  /// rejection would — minus the 12 MB download that rejection cost first.
+  String? _localInvalidMessage;
+
   String _initialRoll() {
     final card = _targetCard(ref.read(admitCardsProvider).value, null);
     return card?.rollNumber ?? '';
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _roll.addListener(_onRollEdited);
+  }
+
+  /// A pre-flight rejection describes the field's text at the moment Check was
+  /// tapped. Once the student edits the number, drop the card rather than keep
+  /// scolding a roll that has already been fixed.
+  void _onRollEdited() {
+    if (_localInvalidMessage == null) return;
+    final text = _roll.text.trim();
+    if (text.isEmpty || RollIndexEngine.isPlausibleRoll(text)) {
+      setState(() => _localInvalidMessage = null);
+    }
   }
 
   /// Keeps the form pointing at the card the user chose elsewhere.
@@ -66,7 +88,17 @@ class _InstantResultCheckerScreenState
     if (card == null) return;
     if (_cardId == card.id && _roll.text.isNotEmpty) return;
     _cardId = card.id;
+    // The field's contents now belong to this card — record the ownership so
+    // the cold-start prefill does not fire again for it and the stale-roll
+    // guard knows whose number the field holds.
+    _prefilledFor = card.id;
     if (card.rollNumber.isNotEmpty) _roll.text = card.rollNumber;
+    // A verdict computed for the *previous* card must not survive the switch:
+    // the card below only gates on exam id, and two saved cards can share an
+    // exam — a stale NOT FOUND under a new roll reads as "this roll failed".
+    // `_selectCard` resets for the same reason; this path forgot to.
+    _localInvalidMessage = null;
+    ref.read(resultCheckerProvider.notifier).reset();
   }
 
   @override
@@ -120,7 +152,11 @@ class _InstantResultCheckerScreenState
   }
 
   void _selectCard(AdmitCard card) {
-    setState(() => _cardId = card.id);
+    setState(() {
+      _cardId = card.id;
+      // A different card invalidates a pre-flight rejection of the old text.
+      _localInvalidMessage = null;
+    });
     // Publish the choice. `selectedCardIdProvider` is the screen's other input
     // (the vault pager writes it on every swipe) and the build syncs *from* it
     // whenever it disagrees with `_cardId` — so a pick made only locally was
@@ -142,6 +178,22 @@ class _InstantResultCheckerScreenState
       return;
     }
 
+    // Reject an implausible roll *before* the fetch, not after. The engine has
+    // always rejected >24-char input — but only inside `searchCompressed`,
+    // i.e. after `repo.load()` downloaded and gunzipped up to 12 MB of index
+    // to be told "invalid". The field's maxLength stops typed/pasted input;
+    // this stops everything else, with zero network on this path.
+    if (!RollIndexEngine.isPlausibleRoll(roll)) {
+      FocusScope.of(context).unfocus();
+      setState(() {
+        _localInvalidMessage = RollLookupResult.invalid(roll).errorMessage;
+      });
+      return;
+    }
+    if (_localInvalidMessage != null) {
+      setState(() => _localInvalidMessage = null);
+    }
+
     FocusScope.of(context).unfocus();
 
     final update = ref.read(resultExamIdProvider);
@@ -152,13 +204,19 @@ class _InstantResultCheckerScreenState
     }
 
     // The index lives at a content-addressed URL, so the version must be sent.
-    // It normally comes from the tapped radar row — but a saved card only knows
-    // the exam id, so the version is resolved from the feed by id. Without this
-    // the lookup would request the unversioned path and 404 for a list that is
-    // published.
+    // Resolve it fresh from the feed on *every* check, ahead of the tapped
+    // radar row's copy: the row is a frozen snapshot, while the feed repolls
+    // every 60s. When the commission publishes a corrected list, the feed
+    // carries the new indexVersion but the tapped object keeps the old one —
+    // trusting the snapshot searched the pre-correction list for the whole
+    // process lifetime and reported "not in this list" for a roll the
+    // corrected list contains. Old versioned URLs stay valid on the immutable
+    // edge, so the stale fetch does not even 404 and self-heal. The tapped row
+    // remains the source of examId/examName; its version is only a fallback
+    // for the window before the feed has loaded.
     final indexVersion =
-        (update?.examId == examId ? update?.indexVersion : null) ??
-        _indexVersionFor(examId);
+        _indexVersionFor(examId) ??
+        (update?.examId == examId ? update?.indexVersion : null);
 
     // `force` must actually travel: "Try again" on the unavailable card passes
     // force: true to escape the session's memoised 404/malformed bundle, and it
@@ -199,7 +257,17 @@ class _InstantResultCheckerScreenState
       // field is freely editable — a student checking a sibling's roll (or a
       // mistyped one that happens to exist) must not print a permanent
       // "VERIFIED" onto a card whose roll was never matched.
-      final ownRoll = card != null && roll == card.rollNumber.trim();
+      //
+      // Compare normalised, not raw: the engine searches `normaliseRoll(input)`
+      // (trimmed, upper-cased), so a student who typed their own roll in
+      // lowercase got the celebration but the raw `==` refused the stamp. And
+      // require exam identity: a found verdict computed against a *tapped radar
+      // row's* exam says nothing about this card's exam, even when the roll
+      // text matches — stamping there certifies the wrong list.
+      final ownRoll =
+          card != null &&
+          examId == card.examId &&
+          normaliseRoll(roll) == normaliseRoll(card.rollNumber);
       // A bookkeeping update must never swallow the answer. If marking the card
       // verified fails, the student still needs to see that their roll is in the
       // list — that is the entire product.
@@ -211,11 +279,21 @@ class _InstantResultCheckerScreenState
         }
       }
       if (!mounted) return;
-      await _showSelectedDialog(
-        result,
-        card,
-        examName: update?.examName ?? card?.examName,
-      );
+      // The celebration belongs on the checker. `showDialog` uses the root
+      // navigator, so a student who switched tabs while the check was in
+      // flight used to get the "you are through" modal dropped over whatever
+      // screen they had landed on — or stacked on top of a sheet they had
+      // already opened. The FOUND badge in "Your check" keeps the verdict on
+      // this screen either way, so skipping silently loses nothing.
+      final onCheckerTab = ref.read(tabIndexProvider) == EvTab.radar;
+      final nothingAbove = ModalRoute.of(context)?.isCurrent ?? true;
+      if (onCheckerTab && nothingAbove) {
+        await _showSelectedDialog(
+          result,
+          card,
+          examName: update?.examName ?? card?.examName,
+        );
+      }
     }
   }
 
@@ -267,6 +345,13 @@ class _InstantResultCheckerScreenState
           _prefilledFor = prefillId;
           if (_roll.text.isEmpty && prefillRoll.isNotEmpty) {
             _roll.text = prefillRoll;
+            // Record *ownership*, not just content. The stale-roll guard below
+            // keys on which card the field belongs to, and the cold-start
+            // prefill is the app's primary flow — without this, `_cardId`
+            // stayed null until an explicit pick, the guard was dead code on
+            // that flow, and a later tapped radar row searched this card's
+            // roll against the other exam's list.
+            _cardId = prefillId;
           }
         });
       });
@@ -289,8 +374,14 @@ class _InstantResultCheckerScreenState
     // roll in the field, the header saying B, and "YOUR CHECK" showing A. One tap
     // on Check then searched A's roll against B's list and could report "not in
     // this list" — the worst possible wrong answer.
-    if (tapped != null && _cardId != null) {
-      final fieldCard = cards?.where((c) => c.id == _cardId).firstOrNull;
+    //
+    // The owner is `_cardId ?? _prefilledFor`: the cold-start prefill fills the
+    // field before any explicit pick, and a card whose roll number is empty
+    // records only `_prefilledFor` — the guard must know the field's card in
+    // both shapes, or it is dead on exactly the flow every cold start takes.
+    final fieldOwnerId = _cardId ?? _prefilledFor;
+    if (tapped != null && fieldOwnerId != null) {
+      final fieldCard = cards?.where((c) => c.id == fieldOwnerId).firstOrNull;
       // Only clear when the field still holds *that card's* number — never a
       // value the student typed by hand.
       final stale =
@@ -339,7 +430,16 @@ class _InstantResultCheckerScreenState
                   const SizedBox(height: 6),
                   _TitleWithAccent(examName: examName),
                   const SizedBox(height: 8),
-                  if (update == null && cards != null && cards.length > 1) ...[
+                  // Shown whenever there is more than one card — *including*
+                  // while an exam is resolved. It used to hide the moment any
+                  // update existed (tapped row OR the card's own feed row),
+                  // which made a mismatch uncorrectable: when no saved card
+                  // matches the tapped row's exam, the header follows the row
+                  // while the resolved card belongs to a different exam, and
+                  // with no chips on screen there was no way to pick the card
+                  // that actually matches. The header still follows the tapped
+                  // row; the picker just stays reachable.
+                  if (cards != null && cards.length > 1) ...[
                     const SizedBox(height: 10),
                     const EvSectionHeader(
                       label: 'Which card?',
@@ -453,7 +553,14 @@ class _InstantResultCheckerScreenState
                   // this guard, tapping a second radar row re-rendered the first
                   // exam's "Roll N was not found among M published roll numbers"
                   // under the new exam's title — which reads as "you failed B".
-                  if (examId != null && state.belongsTo(examId)) ...[
+                  //
+                  // A pre-flight rejection renders *instead* of any stored
+                  // verdict: nothing was searched for the text now in the field,
+                  // so a neighbouring stored card would describe older input.
+                  if (_localInvalidMessage != null) ...[
+                    const SizedBox(height: 16),
+                    _InvalidRollCard(message: _localInvalidMessage),
+                  ] else if (examId != null && state.belongsTo(examId)) ...[
                     if (state.phase == ResultPhase.done &&
                         state.result != null &&
                         !state.result!.isFound) ...[
@@ -508,7 +615,10 @@ class _InstantResultCheckerScreenState
 
     await showDialog<void>(
       context: context,
-      barrierColor: Colors.black.withValues(alpha: 0.72),
+      // The purpose-built theme token, not a hardcoded black at 0.72: `scrim`
+      // is tuned per palette (light mode dims with a lighter navy veil), and
+      // the dialog ignored all of it.
+      barrierColor: context.scrim,
       builder: (context) => _SelectedDialog(
         result: result,
         card: card,
@@ -738,7 +848,15 @@ class _MirrorCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final p = context.ev;
 
-    final hasIndex = (indexSource?.isReal ?? false) || publishedForExam;
+    // The observed source wins over the feed's claim. `indexSource` is what
+    // this session actually saw on the wire; `publishedForExam` is only what
+    // the (up to 60s stale) feed believes. The old `||` let the feed override
+    // an observed `IndexSource.unavailable`, painting a green READY
+    // "published" row directly above a card saying the index could not be
+    // reached or was not published — two contradictory answers on one screen.
+    // The feed flag is now a fallback for "nothing observed yet".
+    final hasIndex =
+        indexSource?.isReal ?? (publishedForExam && indexSource == null);
     final unavailable = indexSource == IndexSource.unavailable;
 
     final rows = <_MirrorRow>[
@@ -799,7 +917,6 @@ class _MirrorCard extends StatelessWidget {
                   textAlign: TextAlign.end,
                   style: context.type.statusPill.copyWith(
                     color: p.successText,
-                    fontSize: 11,
                     letterSpacing: 0.9,
                   ),
                 ),
@@ -915,10 +1032,7 @@ class _MirrorRowView extends StatelessWidget {
                 row.state,
                 maxLines: 1,
                 softWrap: false,
-                style: context.type.statusPill.copyWith(
-                  color: row.textColor,
-                  fontSize: 11,
-                ),
+                style: context.type.statusPill.copyWith(color: row.textColor),
               ),
             ),
           ),
@@ -952,6 +1066,17 @@ class _RetryNote extends StatelessWidget {
   /// exam in the feed.
   final int? rollCount;
 
+  /// True when the failure was transport, not absence. Mirrors the vocabulary
+  /// of `_UnavailableCard._describe`: every connection-flavoured reason the
+  /// repository, the CDN client and the notifier can emit contains one of
+  /// these ('Could not reach…', '…connection…', 'Request timed out').
+  static bool _isConnectionError(String? error) {
+    final e = (error ?? '').toLowerCase();
+    return e.contains('reach') ||
+        e.contains('connection') ||
+        e.contains('timed out');
+  }
+
   @override
   Widget build(BuildContext context) {
     final p = context.ev;
@@ -970,8 +1095,15 @@ class _RetryNote extends StatelessWidget {
             : 'Checked against the published list. Your roll number was never '
                   'sent anywhere.',
       // The card below says why in full. Repeating it here as a one-liner made
-      // the screen state the same sentence twice, ten pixels apart.
-      ResultPhase.unavailable => 'No index to search yet.',
+      // the screen state the same sentence twice, ten pixels apart — but the
+      // one-liner must not *contradict* the card either: it claimed "No index
+      // to search yet." even for a pure transport failure whose card says
+      // "Could not reach the result index". Nothing-published and
+      // cannot-reach are different faults with different remedies.
+      ResultPhase.unavailable =>
+        _isConnectionError(state.error)
+            ? 'Retry when you are back online.'
+            : 'No index to search yet.',
       ResultPhase.idle =>
         count == null
             ? 'One small index instead of a multi-megabyte PDF.'
@@ -1050,6 +1182,20 @@ class _RollField extends StatelessWidget {
                     onSubmitted: (_) {
                       if (!busy) onSubmitted?.call();
                     },
+                    // Hard cap at the engine's plausibility ceiling. Without it
+                    // a 40-char paste was accepted, and the rejection only
+                    // arrived *after* the index (up to 12 MB) had been
+                    // downloaded and gunzipped. The counter is suppressed:
+                    // "n/24" is chrome noise inside this 56px field, and the
+                    // pre-flight card in _check explains any rejection.
+                    maxLength: 24,
+                    buildCounter:
+                        (
+                          _, {
+                          required int currentLength,
+                          required bool isFocused,
+                          int? maxLength,
+                        }) => null,
                     inputFormatters: [
                       FilteringTextInputFormatter.allow(
                         RegExp(r'[A-Za-z0-9\-/]'),
@@ -1242,7 +1388,14 @@ class _UnavailableCard extends StatelessWidget {
         retryable: true,
       );
     }
+    // 'not been published' is not a typo-variant of 'not published' — it is
+    // what the repository actually emits for a 404 ('The result for this exam
+    // has not been published yet.'), and `contains('not published')` does not
+    // match it. The honest branch was therefore unreachable: a genuinely
+    // unpublished exam fell through to the generic 'Could not check this exam'
+    // plus a 'Try again' that just 404'd again.
     if (reason.contains('not published') ||
+        reason.contains('not been published') ||
         reason.contains('not found') ||
         reason.isEmpty) {
       return (
@@ -1334,10 +1487,20 @@ class _RecentChecks extends StatelessWidget {
     final result = lastResult;
     final aboutThisRoll =
         result != null &&
-        result.rollNumber == card!.rollNumber &&
+        // The engine returns the *normalised* roll; compare the card's number
+        // through the same normalisation so a lowercase-stored card does not
+        // lose its badge to a case mismatch.
+        result.rollNumber == normaliseRoll(card!.rollNumber) &&
         result.state != RollLookupState.invalidInput;
     final notFound = aboutThisRoll && result.state == RollLookupState.notFound;
-    final verified = card!.rollNumberVerified || (result?.isFound ?? false);
+    // FOUND must respect roll identity exactly like the NOT FOUND arm does:
+    // `verified` used to OR-in *any* found result, so checking a sibling's
+    // roll printed FOUND on this card — a claim about a number that was never
+    // searched. Only the durable flag (stamped by markVerified under strict
+    // roll + exam identity) or a found verdict about this card's own roll
+    // earns the badge.
+    final verified =
+        card!.rollNumberVerified || (aboutThisRoll && result.isFound);
 
     final badgeFg = verified
         ? p.success
@@ -1579,7 +1742,6 @@ class _SelectedDialog extends StatelessWidget {
                           'MERIT RANK ${result.meritRank}',
                           style: context.type.statusPill.copyWith(
                             color: p.successText,
-                            fontSize: 11,
                             letterSpacing: 1.1,
                           ),
                         ),

@@ -1114,6 +1114,15 @@ class _ActionDock extends ConsumerWidget {
                 label: 'Check my result',
                 icon: Icons.bolt_rounded,
                 onPressed: () {
+                  // Opening a card must clear a previously tapped radar exam —
+                  // the checker prioritises `resultExamIdProvider` over the
+                  // chosen card everywhere (header, examId, stale-roll guard).
+                  // Without this reset, a radar row tapped any time earlier in
+                  // the session hijacked this card's check: the roll field was
+                  // wiped as "stale" and a retyped roll was searched against
+                  // the *other* exam's index — a confident wrong verdict.
+                  // Home's card-open path already did this; the dock didn't.
+                  ref.read(resultExamIdProvider.notifier).select(null);
                   ref.read(selectedCardIdProvider.notifier).select(card.id);
                   ref.read(tabIndexProvider.notifier).select(EvTab.radar);
                 },

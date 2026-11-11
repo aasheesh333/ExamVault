@@ -41,7 +41,6 @@ void main() {
     env = await MatrixEnv.open();
   });
 
-
   tearDownAll(() async {
     // No `env.close()`: Hive waits on pending compaction there and the widget-test
     // clock never advances it, so the suite hangs after a green run. The boxes live
@@ -79,7 +78,8 @@ void main() {
       cards: [
         matrixCard(
           id: 'long',
-          examName: 'Combined Higher Secondary Level Examination Tier 2 '
+          examName:
+              'Combined Higher Secondary Level Examination Tier 2 '
               'Regional Office Recruitment 2026',
           conductingBody: 'Staff Selection Commission, North Eastern Region',
           centerAddress:

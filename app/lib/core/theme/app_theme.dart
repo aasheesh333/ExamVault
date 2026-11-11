@@ -106,8 +106,11 @@ abstract final class AppTheme {
         shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
-        showDragHandle: true,
-        dragHandleColor: p.borderStrong,
+        // Off, deliberately: every sheet in this app draws its own rounded
+        // surface (transparent `backgroundColor` + an inner Container with its
+        // own grabber). The theme-level handle then floated on the dimmed scrim
+        // *above* the sheet — a stray pill 48px over a second handle inside.
+        showDragHandle: false,
       ),
       dialogTheme: DialogThemeData(
         backgroundColor: p.surface,

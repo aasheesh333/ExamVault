@@ -126,6 +126,10 @@ class EvTabBar extends ConsumerWidget {
               ),
             ),
             child: Row(
+              // Stretch, not the default center: the buttons then fill the bar's
+              // ~48px interior and every tab clears the 44px tap-target floor.
+              // Centered, a button hugs its content (~42px at scale 1.0).
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 for (final t in EvTab.values)
                   Expanded(
@@ -151,18 +155,24 @@ class EvTabBar extends ConsumerWidget {
   }
 }
 
-/// The floating chrome's total footprint, measured once.
+/// The floating chrome's total footprint, measured by the framework.
 ///
 /// Screens used to end their scroll views with a guessed `SizedBox(height: 120)`
 /// (or 130) to clear the tab bar. When the bar's height was made text-aware those
-/// constants became wrong, and content disappeared underneath it. Everything that
-/// needs to clear the bar now asks for this instead of guessing.
+/// constants became wrong, and content disappeared underneath it.
+///
+/// The first replacement formula (`tabBar + 12 + padding.bottom + 12`) was also
+/// wrong, in the opposite direction: under `extendBody: true` the Scaffold
+/// already rewrites the body's `MediaQuery.padding.bottom` to
+/// `max(deviceInset, bottomNavigationBarHeight)` (see `_BodyBuilder` in
+/// scaffold.dart), so adding the bar's height again reserved ~82px of dead
+/// space at the end of every scroll view. `padding.bottom` *is* the bar's real
+/// footprint — including its text-scale growth and its own bottom margin — so
+/// the correct inset is that value plus breathing room.
 abstract final class EvChrome {
-  /// Vertical space the floating tab bar occupies, including its margins and the
-  /// device's bottom safe-area inset.
+  /// Vertical space the floating tab bar occupies, plus a little clearance.
   static double bottomInset(BuildContext context) {
-    final media = MediaQuery.of(context);
-    return EvSize.tabBar + 12 + media.padding.bottom + 12;
+    return MediaQuery.paddingOf(context).bottom + 12;
   }
 }
 
@@ -208,49 +218,52 @@ class _TabButton extends StatelessWidget {
                 : Colors.transparent,
             borderRadius: BorderRadius.circular(EvRadius.button),
           ),
-          // `clipBehavior` + a fixed-height box: a Column inside an Expanded
-          // receives a *loose* width, and the label was allowed to paint outside
-          // it ("HomeVaultRadarShare"). Clipping the pill means an oversized label
-          // is cut at its own edge instead of bleeding over its neighbour, and the
-          // FittedBox below shrinks it to fit before that ever happens.
+          // The label used to paint outside the pill and over its neighbour
+          // ("HomeVaultRadarShare"): a Column inside an Expanded receives a
+          // *loose* width, and children size to their intrinsic width. `stretch`
+          // below pins every child to the tab's real width, and the FittedBox
+          // around the label shrinks it to fit before it can ever bleed.
           padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
-            // `stretch` is the fix: a Column's default cross-axis alignment sizes
-            // children to their intrinsic width, so the label painted outside the
-            // pill and over its neighbour ("HomeVaultRadarShare"). Stretching makes
-            // every child exactly as wide as the tab.
             crossAxisAlignment: CrossAxisAlignment.stretch,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  Icon(
-                    tab.icon,
-                    size: 19,
-                    color: selected ? p.accentText : p.textTertiary,
-                  ),
-                  if (badge != null)
-                    Positioned(
-                      top: -4,
-                      right: -6,
-                      child: Container(
-                        width: 6,
-                        height: 6,
-                        decoration: BoxDecoration(
-                          color: p.danger,
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: p.danger.withValues(alpha: 0.8),
-                              blurRadius: 6,
-                            ),
-                          ],
+              // Centered explicitly: `stretch` hands the Stack a *tight* full-width
+              // constraint, and a Stack with the default topStart alignment then
+              // pinned the icon to the pill's left edge while the badge floated at
+              // its far right. Center lets the Stack hug the icon, so the badge
+              // sits on the icon's corner again.
+              Center(
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Icon(
+                      tab.icon,
+                      size: 19,
+                      color: selected ? p.accentText : p.textTertiary,
+                    ),
+                    if (badge != null)
+                      Positioned(
+                        top: -4,
+                        right: -6,
+                        child: Container(
+                          width: 6,
+                          height: 6,
+                          decoration: BoxDecoration(
+                            color: p.danger,
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: p.danger.withValues(alpha: 0.8),
+                                blurRadius: 6,
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                    ),
-                ],
+                  ],
+                ),
               ),
               const SizedBox(height: 3),
               // At 2.0x on a 320px screen each column is ~80px wide and four
@@ -285,10 +298,22 @@ class _TabButton extends StatelessWidget {
   }
 }
 
-/// Cross-fades between tab bodies while keeping all of them mounted.
+/// Cross-fades between tab bodies while keeping all of them mounted — and,
+/// critically, while keeping every tab's `State` alive.
 ///
-/// Only the incoming and outgoing tabs are painted, so the cost is one fade rather
-/// than four always-visible layers.
+/// The previous implementation wrapped each visible tab in a
+/// `TweenAnimationBuilder(key: ValueKey(i == _current))`. Those keys *swap* on
+/// every switch, so `updateChildren` moved the elements between slots and
+/// swapped their `child:` — which unmounted the outgoing screen and inflated
+/// the incoming one fresh. Every tab switch silently destroyed both screens'
+/// state: scroll offsets, the checker's typed roll number, the share screen's
+/// caption edits and its privacy switch. The file's own contract ("each tab
+/// keeps its scroll offset") was violated by its own animation.
+///
+/// The rebuild keeps a *stable* slot per tab: the same widget type at the same
+/// position with the same key on every frame, only `offstage`/`opacity` values
+/// change. State can then never be lost, and the fade is driven by one
+/// AnimationController instead of re-keyed tweens.
 class _TabSwitcher extends StatefulWidget {
   const _TabSwitcher({required this.index, required this.children});
 
@@ -299,9 +324,17 @@ class _TabSwitcher extends StatefulWidget {
   State<_TabSwitcher> createState() => _TabSwitcherState();
 }
 
-class _TabSwitcherState extends State<_TabSwitcher> {
+class _TabSwitcherState extends State<_TabSwitcher>
+    with SingleTickerProviderStateMixin {
   late int _current = widget.index;
   late int _previous = widget.index;
+
+  /// Starts completed: the initial tab is fully visible, nothing animates.
+  late final AnimationController _fade = AnimationController(
+    vsync: this,
+    duration: EvMotion.paneIn,
+    value: 1,
+  );
 
   @override
   void didUpdateWidget(_TabSwitcher old) {
@@ -309,44 +342,62 @@ class _TabSwitcherState extends State<_TabSwitcher> {
     if (widget.index != _current) {
       _previous = _current;
       _current = widget.index;
+      final duration = EvMotion.of(context, EvMotion.paneIn);
+      if (duration == Duration.zero) {
+        // Reduced motion: instant swap, same tree shape.
+        _fade.value = 1;
+      } else {
+        _fade
+          ..duration = duration
+          ..forward(from: 0);
+      }
     }
   }
 
   @override
+  void dispose() {
+    _fade.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final duration = EvMotion.of(context, EvMotion.paneIn);
+    return AnimatedBuilder(
+      animation: _fade,
+      builder: (context, _) {
+        final animating = _fade.isAnimating;
+        final tIn = EvMotion.curveOf(
+          context,
+          EvMotion.enter,
+        ).transform(_fade.value);
+        final tOut = EvMotion.curveOf(
+          context,
+          EvMotion.exit,
+        ).transform(_fade.value);
 
-    // Reduced motion (or a zero duration) collapses to the plain stack.
-    if (duration == Duration.zero) {
-      return IndexedStack(index: _current, children: widget.children);
-    }
-
-    return Stack(
-      children: [
-        for (var i = 0; i < widget.children.length; i++)
-          if (i == _current || i == _previous)
-            TweenAnimationBuilder<double>(
-              key: ValueKey(i == _current),
-              tween: Tween(
-                begin: i == _current ? 0 : 1,
-                end: i == _current ? 1 : 0,
+        return Stack(
+          children: [
+            for (var i = 0; i < widget.children.length; i++)
+              // Stable identity per slot — this key never changes, so the
+              // element (and its screen's State) survives every switch.
+              Offstage(
+                key: ValueKey('tab-$i'),
+                // Only the current tab and the one fading out are on stage.
+                offstage: !(i == _current || (i == _previous && animating)),
+                child: IgnorePointer(
+                  // The outgoing tab must not accept taps while it fades.
+                  ignoring: i != _current,
+                  child: Opacity(
+                    opacity: !animating
+                        ? (i == _current ? 1 : 0)
+                        : (i == _current ? tIn : 1 - tOut).clamp(0.0, 1.0),
+                    child: widget.children[i],
+                  ),
+                ),
               ),
-              duration: duration,
-              curve: EvMotion.curveOf(
-                context,
-                i == _current ? EvMotion.enter : EvMotion.exit,
-              ),
-              builder: (context, t, child) => IgnorePointer(
-                // The outgoing tab must not accept taps while it fades.
-                ignoring: i != _current,
-                child: Opacity(opacity: t, child: child),
-              ),
-              child: widget.children[i],
-            )
-          else
-            // Off-stage tabs stay mounted but unsized.
-            Offstage(offstage: true, child: widget.children[i]),
-      ],
+          ],
+        );
+      },
     );
   }
 }

@@ -114,7 +114,8 @@ void main() {
         expect(
           error,
           isNull,
-          reason: 'Tapping ${at.dx.toInt()},${at.dy.toInt()} on $tab threw: '
+          reason:
+              'Tapping ${at.dx.toInt()},${at.dy.toInt()} on $tab threw: '
               '$error',
         );
 
@@ -136,7 +137,9 @@ void main() {
     });
   }
 
-  testWidgets('back from every tab returns to Home, never exits', (tester) async {
+  testWidgets('back from every tab returns to Home, never exits', (
+    tester,
+  ) async {
     await pumpApp(tester);
 
     for (final tab in ['Vault', 'Radar', 'Share']) {

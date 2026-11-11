@@ -65,20 +65,72 @@ class MatrixPoint {
 /// 320 is the smallest Android phone still in use; 430 is a large iPhone. 0.9 and
 /// 2.0 are the clamp's endpoints, so both are reachable by a real user.
 const matrixPoints = <MatrixPoint>[
-  MatrixPoint(name: 'small', width: 320, height: 568, textScale: 1.0, dark: true),
-  MatrixPoint(name: 'default', width: 393, height: 852, textScale: 1.0, dark: true),
-  MatrixPoint(name: 'large', width: 430, height: 932, textScale: 1.0, dark: true),
-  MatrixPoint(name: 'scaled135', width: 393, height: 852, textScale: 1.35, dark: true),
-  MatrixPoint(name: 'scaled200', width: 393, height: 852, textScale: 2.0, dark: true),
-  MatrixPoint(name: 'scaled200small', width: 320, height: 568, textScale: 2.0, dark: true),
-  MatrixPoint(name: 'light', width: 393, height: 852, textScale: 1.0, dark: false),
-  MatrixPoint(name: 'shrunk', width: 393, height: 852, textScale: 0.9, dark: true),
+  MatrixPoint(
+    name: 'small',
+    width: 320,
+    height: 568,
+    textScale: 1.0,
+    dark: true,
+  ),
+  MatrixPoint(
+    name: 'default',
+    width: 393,
+    height: 852,
+    textScale: 1.0,
+    dark: true,
+  ),
+  MatrixPoint(
+    name: 'large',
+    width: 430,
+    height: 932,
+    textScale: 1.0,
+    dark: true,
+  ),
+  MatrixPoint(
+    name: 'scaled135',
+    width: 393,
+    height: 852,
+    textScale: 1.35,
+    dark: true,
+  ),
+  MatrixPoint(
+    name: 'scaled200',
+    width: 393,
+    height: 852,
+    textScale: 2.0,
+    dark: true,
+  ),
+  MatrixPoint(
+    name: 'scaled200small',
+    width: 320,
+    height: 568,
+    textScale: 2.0,
+    dark: true,
+  ),
+  MatrixPoint(
+    name: 'light',
+    width: 393,
+    height: 852,
+    textScale: 1.0,
+    dark: false,
+  ),
+  MatrixPoint(
+    name: 'shrunk',
+    width: 393,
+    height: 852,
+    textScale: 0.9,
+    dark: true,
+  ),
 ];
 
 /// An in-memory vault. `hang` reproduces the platform-channel stall;
 /// `fail` reproduces a Keystore reset.
 class MatrixVaultStore implements SecureVaultStore {
-  MatrixVaultStore({this.cards = const [], this.hang = false, this.fail = false});
+  MatrixVaultStore({
+    this.cards = const [],
+    this.hang = false,
+    this.fail = false,
+  });
 
   final List<AdmitCard> cards;
   final bool hang;
@@ -142,7 +194,8 @@ String matrixFeedJson({int rows = 4, bool empty = false}) {
         'context': 'Railway Recruitment Board · 9 Nov 2026',
       },
       {
-        'exam_name': 'Identity Verification (IV) for the candidates '
+        'exam_name':
+            'Identity Verification (IV) for the candidates '
             'shortlisted in FRTA of Combined Hindi Translators Examination',
         'category': 'ssc',
         'status': 'result_out',
@@ -152,7 +205,8 @@ String matrixFeedJson({int rows = 4, bool empty = false}) {
         'roll_count': 2526,
       },
       {
-        'exam_name': 'Final Result: Combined Section Officers (Grade B) LDCE-2025',
+        'exam_name':
+            'Final Result: Combined Section Officers (Grade B) LDCE-2025',
         'category': 'upsc',
         'status': 'result_out',
         'context': 'Official PDF · upsc.gov.in',
@@ -300,9 +354,8 @@ Future<void> pumpMatrix(
   if (hangVault) {
     cardsAsync = () => Completer<List<AdmitCard>>().future;
   } else if (failVault) {
-    cardsAsync = () => Future<List<AdmitCard>>.error(
-      StateError('keystore unavailable'),
-    );
+    cardsAsync = () =>
+        Future<List<AdmitCard>>.error(StateError('keystore unavailable'));
   }
   tester.view.physicalSize = Size(point.width, point.height);
   tester.view.devicePixelRatio = 1.0;
@@ -332,11 +385,7 @@ Future<void> pumpMatrix(
         if (cardsAsync != null)
           admitCardsProvider.overrideWith(() => _InjectedCards(cardsAsync!)),
         cdnClientProvider.overrideWithValue(
-          CdnClient(
-            cache: cacheBox,
-            client: mock,
-            baseUrl: 'https://cdn.test',
-          ),
+          CdnClient(cache: cacheBox, client: mock, baseUrl: 'https://cdn.test'),
         ),
       ],
       child: MaterialApp(
@@ -397,8 +446,8 @@ void expectClean(WidgetTester tester, {String? because}) {
   if (detail != null) {
     final lib = detail.library;
     if (lib != null) where.add(lib);
-    for (final line in detail.informationCollector?.call() ??
-        const <DiagnosticsNode>[]) {
+    for (final line
+        in detail.informationCollector?.call() ?? const <DiagnosticsNode>[]) {
       final text = line.toStringDeep().trim();
       if (text.contains('.dart:')) where.add(text);
     }
@@ -596,8 +645,7 @@ void expectTapTargets(WidgetTester tester, MatrixPoint point) {
         final target = box;
         final reached = result.path.any((entry) {
           final t = entry.target;
-          return t == target ||
-              (t is RenderObject && _isAncestorOf(t, target));
+          return t == target || (t is RenderObject && _isAncestorOf(t, target));
         });
         if (!reached) {
           problems.add(

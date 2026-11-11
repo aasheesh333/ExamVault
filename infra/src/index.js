@@ -101,19 +101,18 @@ const routes = [
  * own PDF or notice page. When the exam is not in the feed the answer is a
  * plain-text 404 — a dead end beats an invented redirect.
  *
- * Cached for 60 s: long enough to absorb a share burst, short enough that a
- * freshly published official link goes live within a minute.
+ * Clients cache the redirect for 60 s (cache-control below): long enough to
+ * absorb a share burst, short enough that a freshly published official link
+ * goes live within a minute. The worker itself re-reads the feed each time —
+ * see the note in resultRedirect on why there is no Cache-API layer here.
  */
-async function resultRedirect(examId, { env, ctx, request, url }) {
-  const cache = caches.default;
-  const cacheKey = new Request(url.toString(), request);
-  const cached = await cache.match(cacheKey);
-  if (cached) {
-    const hit = new Response(cached.body, cached);
-    hit.headers.set('x-examvault-cache', 'HIT');
-    return hit;
-  }
-
+async function resultRedirect(examId, { env, request }) {
+  // No Cache-API layer here, deliberately: the Cache API only stores 200s, so
+  // caching a 302 (or the 404) never hit and every put rejected into the
+  // waitUntil catch — log noise per request for zero benefit. The R2 feed
+  // object this reads is itself ~1 KB and edge-cached; the cache-control
+  // header below is what actually absorbs a share burst, in the recipient's
+  // browser.
   const shared = {
     ...CORS,
     'cache-control': 'public, max-age=60, s-maxage=60',
@@ -143,13 +142,6 @@ async function resultRedirect(examId, { env, ctx, request, url }) {
         headers: { ...shared, 'content-type': 'text/plain; charset=utf-8' },
       });
 
-  // Same discipline as the object routes: a failed put must never fail the
-  // request — the next caller simply takes the R2 path again.
-  ctx.waitUntil(
-    cache.put(cacheKey, response.clone()).catch((err) => {
-      console.error('cache.put failed (/r/)', err?.message ?? err);
-    }),
-  );
   return response;
 }
 

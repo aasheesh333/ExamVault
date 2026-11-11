@@ -24,6 +24,15 @@ abstract final class AppConfig {
     defaultValue: '',
   );
 
+  /// App version, injected at build time (`--dart-define=EV_APP_VERSION=…`);
+  /// CI derives it from pubspec.yaml so it cannot drift.
+  ///
+  /// Deliberately empty by default: the About sheet used to hardcode
+  /// 'Version 1.0.0', which silently lied from the first version bump onward.
+  /// With nothing injected (local ad-hoc builds) the sheet omits the version
+  /// clause instead of guessing one.
+  static const appVersion = String.fromEnvironment('EV_APP_VERSION');
+
   // -------------------------------------------------------------------- edge
   /// Cloudflare R2 custom domain. Requests hit the nearest PoP and are served
   /// from cache — origin (R2) sees one request per object per TTL window, which

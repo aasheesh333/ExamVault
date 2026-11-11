@@ -148,6 +148,8 @@ jobs:
             echo "::error::EV_CDN_BASE secret is empty or missing — refusing to build. An empty --dart-define would override the compiled-in worker URL with '' and ship a silent 'no feed' app. See .github/SECRETS.md."
             exit 1
           fi
+          # EV_APP_VERSION feeds the About sheet; derived from pubspec so the
+          # displayed version can never drift from the shipped one.
           flutter build apk --release --split-per-abi \
             --dart-define=EV_CDN_BASE="${EV_CDN_BASE}" \
             --dart-define=EV_WEB_BASE="${EV_WEB_BASE:-}" \
@@ -156,11 +158,13 @@ jobs:
             --dart-define=EV_FIREBASE_SENDER_ID="$EV_FIREBASE_SENDER_ID" \
             --dart-define=EV_FIREBASE_PROJECT_ID="$EV_FIREBASE_PROJECT_ID" \
             --dart-define=EV_FIREBASE_STORAGE_BUCKET="$EV_FIREBASE_STORAGE_BUCKET" \
-            --dart-define=EV_ONESIGNAL_APP_ID="$EV_ONESIGNAL_APP_ID"
+            --dart-define=EV_ONESIGNAL_APP_ID="$EV_ONESIGNAL_APP_ID" \
+            --dart-define=EV_APP_VERSION="$(grep -m1 '^version:' app/pubspec.yaml | awk '{print $2}')"
 
           # Play Console only accepts an App Bundle. Building only an APK meant
           # the pipeline could never produce something uploadable, which is the
           # difference between "a release build exists" and "a release exists".
+          # EV_APP_VERSION as above (About sheet).
           flutter build appbundle --release \
             --dart-define=EV_CDN_BASE="${EV_CDN_BASE}" \
             --dart-define=EV_WEB_BASE="${EV_WEB_BASE:-}" \
@@ -169,7 +173,8 @@ jobs:
             --dart-define=EV_FIREBASE_SENDER_ID="$EV_FIREBASE_SENDER_ID" \
             --dart-define=EV_FIREBASE_PROJECT_ID="$EV_FIREBASE_PROJECT_ID" \
             --dart-define=EV_FIREBASE_STORAGE_BUCKET="$EV_FIREBASE_STORAGE_BUCKET" \
-            --dart-define=EV_ONESIGNAL_APP_ID="$EV_ONESIGNAL_APP_ID"
+            --dart-define=EV_ONESIGNAL_APP_ID="$EV_ONESIGNAL_APP_ID" \
+            --dart-define=EV_APP_VERSION="$(grep -m1 '^version:' app/pubspec.yaml | awk '{print $2}')"
 
       - name: Upload APKs
         uses: actions/upload-artifact@v4

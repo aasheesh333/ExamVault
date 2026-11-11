@@ -48,7 +48,11 @@ class AdmitCardDetailScreen extends ConsumerWidget {
     if (cardsAsync.isLoading) {
       return Scaffold(
         backgroundColor: context.ev.bg,
-        body: const SafeArea(child: _VaultLoading()),
+        body: SafeArea(
+          child: _VaultLoading(
+            onRetry: () => ref.invalidate(admitCardsProvider),
+          ),
+        ),
       );
     }
 
@@ -1264,7 +1268,13 @@ class _ActionDock extends ConsumerWidget {
 /// Keystore read is in flight told users with saved cards that their data was
 /// gone, and offered an Add CTA on top of it.
 class _VaultLoading extends StatelessWidget {
-  const _VaultLoading();
+  const _VaultLoading({required this.onRetry});
+
+  /// A hung Keystore read is bounded (10s) but not instantaneous; the user
+  /// must never be stranded on a bare spinner with no escape or explanation.
+  /// The retry also satisfies the matrix's rendered-something floor, which
+  /// exists because a blank-or-stuck cell used to pass every assertion.
+  final VoidCallback onRetry;
 
   @override
   Widget build(BuildContext context) {
@@ -1283,6 +1293,18 @@ class _VaultLoading extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text('Reading your vault…', style: context.type.bodyMuted),
+          const SizedBox(height: 6),
+          Text(
+            'Encrypted on this device — this can take a moment on some phones.',
+            textAlign: TextAlign.center,
+            style: context.type.microLabel.copyWith(fontSize: 11),
+          ),
+          const SizedBox(height: 16),
+          EvTextAction(
+            label: 'Retry',
+            icon: Icons.refresh_rounded,
+            onPressed: onRetry,
+          ),
         ],
       ),
     );

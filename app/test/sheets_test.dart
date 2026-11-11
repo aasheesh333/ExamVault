@@ -224,11 +224,19 @@ void main() {
       smallPhone(tester);
       await openAbout(tester);
 
+      // Two steps, each fixing a real trap: the sheet's ListView is lazy, so a
+      // row below the fold is not in the tree at all — scrollUntilVisible
+      // scrolls it into existence. But it counts a row whose top edge merely
+      // intersects the viewport as "visible", which can leave the row's CENTRE
+      // one pixel below the screen (measured on 320x568 @2.0x) and the tap
+      // misses. ensureVisible afterwards guarantees full visibility.
       await tester.scrollUntilVisible(
         find.text('Read the privacy policy'),
-        400,
+        200,
         scrollable: find.byType(Scrollable).last,
       );
+      await tester.ensureVisible(find.text('Read the privacy policy'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Read the privacy policy'));
       await tester.pumpAndSettle();
 

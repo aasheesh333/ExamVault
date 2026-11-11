@@ -760,6 +760,15 @@ class _EmptyVault extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final p = context.ev;
 
+    // On a short viewport (320x568) this card's CTA rested UNDER the floating
+    // tab bar: its centre (y≈495) sat inside the bar's band (from y≈474), so
+    // the first tap on "Add admit card" switched tabs instead of opening the
+    // form — caught by the harness's corrected covered-control check. The
+    // decorative tile and the subtitle are the only compressible content;
+    // dropping them on short screens lifts the CTA ~100px, clear of the bar.
+    // Tall screens keep the full onboarding layout.
+    final short = MediaQuery.sizeOf(context).height < 700;
+
     // A query that matched nothing outranks the category as the explanation —
     // but only when there *are* cards to see; an empty vault keeps its
     // first-run onboarding copy whatever is typed in the search field.
@@ -775,22 +784,24 @@ class _EmptyVault extends ConsumerWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
         child: Column(
           children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: p.accent.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(EvRadius.tile),
+            if (!short) ...[
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: p.accent.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(EvRadius.tile),
+                ),
+                child: Icon(
+                  blamingSearch
+                      ? Icons.search_off_rounded
+                      : Icons.add_card_rounded,
+                  color: p.accentText,
+                  size: 22,
+                ),
               ),
-              child: Icon(
-                blamingSearch
-                    ? Icons.search_off_rounded
-                    : Icons.add_card_rounded,
-                color: p.accentText,
-                size: 22,
-              ),
-            ),
-            const SizedBox(height: 12),
+              const SizedBox(height: 12),
+            ],
             Text(
               blamingSearch
                   ? 'No cards match “$query”'
@@ -800,18 +811,20 @@ class _EmptyVault extends ConsumerWidget {
               textAlign: TextAlign.center,
               style: context.type.sectionTitle.copyWith(fontSize: 13),
             ),
-            const SizedBox(height: 4),
-            Text(
-              blamingSearch
-                  ? totalCards == 1
-                        ? 'Clear the search to see your saved card.'
-                        : 'Clear the search to see all $totalCards.'
-                  : hasAnyCard
-                  ? 'Try “All Exams” or save a new card.'
-                  : 'Roll number, centre and password — one tap away on exam day.',
-              textAlign: TextAlign.center,
-              style: context.type.bodyMuted,
-            ),
+            if (!short) ...[
+              const SizedBox(height: 4),
+              Text(
+                blamingSearch
+                    ? totalCards == 1
+                          ? 'Clear the search to see your saved card.'
+                          : 'Clear the search to see all $totalCards.'
+                    : hasAnyCard
+                    ? 'Try “All Exams” or save a new card.'
+                    : 'Roll number, centre and password — one tap away on exam day.',
+                textAlign: TextAlign.center,
+                style: context.type.bodyMuted,
+              ),
+            ],
             const SizedBox(height: 14),
             EvSecondaryButton(
               label: 'Add admit card',

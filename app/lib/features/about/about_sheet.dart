@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../core/config/app_config.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/theme_tokens.dart';
 import '../../data/services/app_logger.dart';
@@ -77,9 +78,13 @@ class _AboutSheet extends ConsumerWidget {
                 controller: controller,
                 padding: const EdgeInsets.fromLTRB(20, EvSpace.x4, 20, 32),
                 children: [
-                  const _SheetHeader(
+                  // Not const: the subtitle embeds the build-injected version.
+                  _SheetHeader(
                     title: 'About ExamVault',
-                    subtitle: 'Version 1.0.0 · free · no account required',
+                    subtitle: AppConfig.appVersion.isEmpty
+                        ? 'Free · no account required'
+                        : 'Version ${AppConfig.appVersion} · free · no account '
+                              'required',
                   ),
                   const SizedBox(height: 16),
 

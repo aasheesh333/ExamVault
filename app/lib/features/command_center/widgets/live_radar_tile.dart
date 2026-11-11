@@ -32,11 +32,9 @@ class LiveRadarTile extends StatelessWidget {
 
     return Semantics(
       button: true,
-      // `relativeAge()` already returns "now"/"2h"/"1d", so the old string read
-      // "now ago" — and a date was more useful than a day count anyway.
-      label:
-          '${update.examName}. ${update.status.label}. '
-          '${update.contextLine}. ${update.ageLabel()}.',
+      // No explicit `label`: the tile's own texts (headline, status pill,
+      // context, age) merge into this button node, so a composed label made
+      // TalkBack read every row twice — once as prose, once as raw text.
       child: InkWell(
         onTap: onTap,
         child: Container(

@@ -224,7 +224,12 @@ class _TabButton extends StatelessWidget {
           // *loose* width, and children size to their intrinsic width. `stretch`
           // below pins every child to the tab's real width, and the FittedBox
           // around the label shrinks it to fit before it can ever bleed.
-          padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
+          // Horizontal breathing room: at 2.0x on a 320px screen each column is
+          // ~72px and the FittedBox-scaled label fills it exactly, so adjacent
+          // labels touched and read as one word ("HomeVaultRadarShare"). The
+          // padding both separates them and gives the FittedBox a slightly
+          // smaller box, so it scales the label down a touch more.
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.stretch,

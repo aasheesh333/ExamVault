@@ -45,8 +45,11 @@ class WalletPassCard extends StatelessWidget {
 
     return Semantics(
       button: true,
-      label:
-          '${card.examName}. Roll number ${card.rollNumber}. ${_countdownLabel(days)}. Tap to open.',
+      // No explicit `label`: the descendant texts (exam name, roll group,
+      // countdown, badges) merge into this button node anyway, so a composed
+      // label was announced *and then* the raw texts again — "…Tap to open.
+      // SSC CGL 2026 Tier I 24 NOV 2026 SAVED OFFLINE". The children are the
+      // name; the container-owned copy pill stays its own node.
       child: GestureDetector(
         onTap: onOpen,
         child: Container(

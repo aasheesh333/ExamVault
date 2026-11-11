@@ -308,7 +308,16 @@ class EvIconButton extends StatelessWidget {
       child: AnimatedOpacity(
         duration: EvMotion.of(context, EvMotion.micro),
         opacity: enabled ? 1 : 0.55,
-        child: tooltip == null ? hit : Tooltip(message: tooltip!, child: hit),
+        child: tooltip == null
+            ? hit
+            : Tooltip(
+                message: tooltip!,
+                // The Semantics label above already carries the tooltip text
+                // (plus the unread badge); letting the Tooltip contribute its
+                // message as well announced "Notifications, Notifications".
+                excludeFromSemantics: true,
+                child: hit,
+              ),
       ),
     );
   }

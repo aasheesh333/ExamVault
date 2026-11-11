@@ -343,14 +343,14 @@ class _Hero extends StatelessWidget {
                   style: context.type.body.copyWith(color: p.textSecondary),
                 ),
                 TextSpan(
-                  text: '   ·   ',
-                  style: context.type.body.copyWith(color: p.textTertiary),
-                ),
-                TextSpan(
+                  // The separator travels *with* the live count: rendered as its
+                  // own span it wrapped to the end of the first line at large
+                  // text ("2 exams tracked ·" / "18 live updates"), leaving a
+                  // dangling dot.
                   text: switch (liveCount) {
-                    null => 'Syncing radar…',
-                    1 => '1 live update',
-                    final n => '$n live updates',
+                    null => ' · Syncing radar…',
+                    1 => ' · 1 live update',
+                    final n => ' · $n live updates',
                   },
                   style: context.type.body.copyWith(
                     color: (liveCount ?? 0) > 0

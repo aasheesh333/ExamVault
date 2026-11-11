@@ -281,7 +281,21 @@ class _SheetHeader extends StatelessWidget {
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(child: Text(title, style: context.type.sectionTitle)),
+            // Container boundary: without it the title (and the subtitle
+            // below) merged into the Close button's semantics node, so
+            // TalkBack announced the whole header as one button named
+            // "About ExamVault Close Version …".
+            Expanded(
+              // Semantics INSIDE Expanded: ParentData widgets must sit
+              // directly under their Flex, so the container boundary that
+              // keeps the title out of the Close button's node goes on the
+              // inner side.
+              child: Semantics(
+                container: true,
+                header: true,
+                child: Text(title, style: context.type.sectionTitle),
+              ),
+            ),
             Semantics(
               button: true,
               label: 'Close',
@@ -317,7 +331,10 @@ class _SheetHeader extends StatelessWidget {
         ),
         if (subtitle != null) ...[
           const SizedBox(height: 4),
-          Text(subtitle!, style: context.type.microLabel.copyWith()),
+          Semantics(
+            container: true,
+            child: Text(subtitle!, style: context.type.microLabel.copyWith()),
+          ),
         ],
       ],
     );

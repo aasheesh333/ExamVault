@@ -108,25 +108,38 @@ class _AlertsSheet extends ConsumerWidget {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Container boundary: without it the title and subtitle
+                  // merged into the Close button's semantics node, announcing
+                  // the whole header as one button (same family as the About
+                  // header fix).
                   Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Alerts', style: context.type.sectionTitle),
-                        const SizedBox(height: 2),
-                        Text(
-                          switch (alerts.length) {
-                            0 => 'Nothing needs your attention.',
-                            1 => '1 update needs a look',
-                            final n => '$n updates need a look',
-                          },
-                          // Two lines maximum, so a long subtitle can never push
-                          // the list out of the sheet.
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: context.type.microLabel.copyWith(fontSize: 11),
-                        ),
-                      ],
+                    // Semantics INSIDE Expanded (ParentData must sit directly
+                    // under its Flex): the container boundary keeps title and
+                    // subtitle out of the Close button's semantics node.
+                    child: Semantics(
+                      container: true,
+                      header: true,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Alerts', style: context.type.sectionTitle),
+                          const SizedBox(height: 2),
+                          Text(
+                            switch (alerts.length) {
+                              0 => 'Nothing needs your attention.',
+                              1 => '1 update needs a look',
+                              final n => '$n updates need a look',
+                            },
+                            // Two lines maximum, so a long subtitle can never push
+                            // the list out of the sheet.
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: context.type.microLabel.copyWith(
+                              fontSize: 11,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                   Semantics(

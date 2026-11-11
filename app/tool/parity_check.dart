@@ -37,7 +37,9 @@ void _check(String what, Object? actual, Object? expected) {
 void main(List<String> args) {
   if (args.length != 1) {
     stderr.writeln('usage: dart run tool/parity_check.dart <vectors.json>');
-    stderr.writeln('  generate with: python3 tools/hashed_index.py --emit-vectors');
+    stderr.writeln(
+      '  generate with: python3 tools/hashed_index.py --emit-vectors',
+    );
     exit(2);
   }
 
@@ -72,7 +74,11 @@ void main(List<String> args) {
     exit(2);
   }
   digests.forEach((roll, expected) {
-    _check('digest(${jsonEncode(roll)})', HashedRollIndex.digest(roll, salt), expected);
+    _check(
+      'digest(${jsonEncode(roll)})',
+      HashedRollIndex.digest(roll, salt),
+      expected,
+    );
   });
 
   final normalise = vectors['normalise'];
@@ -81,7 +87,11 @@ void main(List<String> args) {
     exit(2);
   }
   normalise.forEach((input, expected) {
-    _check('normalise(${jsonEncode(input)})', HashedRollIndex.normalise(input), expected);
+    _check(
+      'normalise(${jsonEncode(input)})',
+      HashedRollIndex.normalise(input),
+      expected,
+    );
   });
 
   // End-to-end through the real search path: an index built from the PYTHON
@@ -95,7 +105,11 @@ void main(List<String> args) {
     sorted: true,
   );
   for (final roll in digests.keys) {
-    _check('contains(${jsonEncode(roll)}) in python-built index', index.contains(roll), true);
+    _check(
+      'contains(${jsonEncode(roll)}) in python-built index',
+      index.contains(roll),
+      true,
+    );
   }
   _check('absent roll stays absent', index.contains('125130000999'), false);
 
@@ -106,5 +120,7 @@ void main(List<String> args) {
     );
     exit(1);
   }
-  stdout.writeln('parity OK: $_checks checks — python producer and dart engine agree');
+  stdout.writeln(
+    'parity OK: $_checks checks — python producer and dart engine agree',
+  );
 }

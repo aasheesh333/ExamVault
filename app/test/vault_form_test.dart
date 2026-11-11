@@ -10,6 +10,7 @@ import 'package:examvault/domain/entities/exam_category.dart';
 import 'package:examvault/domain/entities/live_update.dart';
 import 'package:examvault/features/vault/vault_form_sheet.dart';
 import 'package:examvault/providers/app_providers.dart';
+import 'package:examvault/shared/widgets/ev_controls.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -295,6 +296,145 @@ void main() {
 
       expect(find.textContaining('already saved this card'), findsNothing);
       expect(find.text('Edit admit card'), findsNothing);
+    });
+  });
+
+  group('save with an off-screen error', () {
+    testWidgets('says why Save refused and scrolls to the offender', (
+      tester,
+    ) async {
+      // A phone-sized viewport, not the tall one: the point is that the
+      // invalid field (exam name, first in the sheet) is scrolled out of
+      // view when the thumb reaches Save at the bottom.
+      tester.view.physicalSize = const Size(400, 700);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      await tester.pumpWidget(harness(const _FormHost()));
+      await tester.tap(find.text('Open form'));
+      await tester.pumpAndSettle();
+
+      // Roll valid, exam name empty: validate() fails on the first field.
+      await tester.enterText(find.byType(TextFormField).at(3), 'A1234567');
+      await tester.pump();
+
+      await tester.drag(
+        find.byType(SingleChildScrollView),
+        const Offset(0, -2000),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Save to vault').hitTestable(), findsOneWidget);
+      // Precondition: the offender is off-screen — its error would paint
+      // where nobody can see it, and Save used to be a silent no-op.
+      expect(find.text('EXAM NAME').hitTestable(), findsNothing);
+
+      await tester.tap(find.text('Save to vault'));
+      await tester.pumpAndSettle();
+
+      // A near-button notice explains the refusal…
+      expect(find.text('Fix the highlighted field above'), findsOneWidget);
+      // …and the sheet scrolled back so the offender and its error are
+      // actually on screen.
+      expect(find.text('EXAM NAME').hitTestable(), findsOneWidget);
+      expect(find.text('Enter the exam name').hitTestable(), findsOneWidget);
+      // Nothing was saved.
+      expect(store.raw['__index'], isNull);
+    });
+  });
+
+  group('the VERIFIED claim', () {
+    testWidgets('editing the roll number drops a stale VERIFIED badge', (
+      tester,
+    ) async {
+      useTallViewport(tester);
+      final verified = card().copyWith(rollNumberVerified: true);
+      await seed(verified);
+
+      await tester.pumpWidget(harness(_FormHost(existing: verified)));
+      await tester.tap(find.text('Open form'));
+      await tester.pumpAndSettle();
+
+      // Fixing a roll typo: VERIFIED was a claim about the *old* roll being
+      // found in a published index — the new one never matched anything.
+      await tester.enterText(find.byType(TextFormField).at(3), 'A9999999');
+      await tester.pump();
+
+      await tester.tap(find.text('Save to vault'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Edit admit card'), findsNothing); // saved and closed
+      final saved = AdmitCardCodec.decode(store.raw['chsl']!);
+      expect(saved?.rollNumber, 'A9999999');
+      expect(saved?.rollNumberVerified, isFalse);
+    });
+
+    testWidgets('an edit that keeps roll and exam keeps VERIFIED', (
+      tester,
+    ) async {
+      useTallViewport(tester);
+      final verified = card().copyWith(rollNumberVerified: true);
+      await seed(verified);
+
+      await tester.pumpWidget(harness(_FormHost(existing: verified)));
+      await tester.tap(find.text('Open form'));
+      await tester.pumpAndSettle();
+
+      // The gate field (last in the sheet) touches neither the roll nor the
+      // resolved exam id, so the hard-earned badge must survive.
+      await tester.enterText(find.byType(TextFormField).at(10), 'Gate 5');
+      await tester.pump();
+
+      await tester.tap(find.text('Save to vault'));
+      await tester.pumpAndSettle();
+
+      final saved = AdmitCardCodec.decode(store.raw['chsl']!);
+      expect(saved?.gate, 'Gate 5');
+      expect(saved?.rollNumberVerified, isTrue);
+    });
+  });
+
+  group('category seeding on edit', () {
+    List<String> selectedChips(WidgetTester tester) => tester
+        .widgetList<EvChip>(find.byType(EvChip))
+        .where((c) => c.selected)
+        .map((c) => c.label)
+        .toList();
+
+    testWidgets('retyping the name never re-files an existing card', (
+      tester,
+    ) async {
+      useTallViewport(tester);
+      final existing = card(); // filed under SSC
+      await seed(existing);
+
+      await tester.pumpWidget(harness(_FormHost(existing: existing)));
+      await tester.tap(find.text('Open form'));
+      await tester.pumpAndSettle();
+
+      // Fixing a typo in the name with UPSC-sounding words must not override
+      // what the card's category chip already deliberately said.
+      await tester.enterText(find.byType(TextFormField).first, 'UPSC CSE 2026');
+      await tester.pump();
+      expect(selectedChips(tester), ['SSC']);
+
+      await tester.tap(find.text('Save to vault'));
+      await tester.pumpAndSettle();
+
+      final saved = AdmitCardCodec.decode(store.raw['chsl']!);
+      expect(saved?.category, ExamCategory.ssc);
+    });
+
+    testWidgets('a new card still infers the category from the typed name', (
+      tester,
+    ) async {
+      useTallViewport(tester);
+      await tester.pumpWidget(harness(const _FormHost()));
+      await tester.tap(find.text('Open form'));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byType(TextFormField).first, 'UPSC CSE 2026');
+      await tester.pump();
+      expect(selectedChips(tester), ['UPSC']);
     });
   });
 

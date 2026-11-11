@@ -46,170 +46,197 @@ class _AboutSheet extends ConsumerWidget {
       // The sheet's own messenger: a SnackBar shown through the root one
       // renders *under* the modal barrier and the 90%-tall sheet, so a failed
       // link tap gave zero feedback — the row looked dead.
-      child: Container(
-        decoration: BoxDecoration(
-          color: p.surface,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-          border: Border.all(color: p.border),
-        ),
-        // A rounded decoration does not clip its child, so scrolled text painted
-        // over the dimmed page outside the sheet's corners.
-        clipBehavior: Clip.antiAlias,
-        child: DraggableScrollableSheet(
-          expand: false,
-          initialChildSize: 0.9,
-          minChildSize: 0.5,
-          maxChildSize: 0.95,
-          builder: (context, controller) => ListView(
-            controller: controller,
-            padding: const EdgeInsets.fromLTRB(20, EvSpace.x4, 20, 32),
-            children: [
-              const _SheetHeader(
-                title: 'About ExamVault',
-                subtitle: 'Version 1.0.0 · free · no account required',
-              ),
-              const SizedBox(height: 16),
-
-              // --- Appearance ---------------------------------------------------
-              const EvSectionHeader(
-                label: 'Appearance',
-                padding: EdgeInsets.zero,
-              ),
-              const SizedBox(height: 8),
-              _ThemePicker(),
-
-              const SizedBox(height: 20),
-
-              // --- Where the data comes from -----------------------------------
-              const EvSectionHeader(
-                label: 'Where the data comes from',
-                padding: EdgeInsets.zero,
-              ),
-              const SizedBox(height: 8),
-              _Paragraph(
-                'Every result, notice and date in this app is copied from the '
-                'commission that published it. Nothing is written by hand and '
-                'nothing is invented. If a source does not answer, the app shows '
-                'nothing rather than a guess.',
-              ),
-              const SizedBox(height: 10),
-              if (sources.isEmpty)
-                _Paragraph('Source status is unavailable until the feed loads.')
-              else
-                for (final source in sources) _SourceRow(source: source),
-
-              const SizedBox(height: 20),
-
-              // --- The copyright stance ----------------------------------------
-              const EvSectionHeader(
-                label: 'Why we never host the PDF',
-                padding: EdgeInsets.zero,
-              ),
-              const SizedBox(height: 8),
-              _Paragraph(
-                'The official result documents belong to the commissions, so this '
-                'app links to them on the commission\u2019s own website. It does '
-                'not keep a copy of any government document.',
-              ),
-              const SizedBox(height: 8),
-              _Paragraph(
-                'To answer \u201cis my roll number in the list?\u201d quickly, the '
-                'list is reduced to one-way hashes. Your phone hashes the number '
-                'you type and looks for a match, so the actual candidate list never '
-                'reaches your device \u2014 and nobody can use what we publish to '
-                'rebuild it.',
-              ),
-
-              const SizedBox(height: 20),
-
-              // --- Privacy ------------------------------------------------------
-              const EvSectionHeader(
-                label: 'What we store',
-                padding: EdgeInsets.zero,
-              ),
-              const SizedBox(height: 8),
-              _Bullet(
-                'Admit cards, roll numbers and passwords are encrypted with '
-                'your device\u2019s Keystore. They never leave the phone.',
-              ),
-              _Bullet(
-                'There is no account, so there is nothing to sign in to and '
-                'nothing to leak from a server.',
-              ),
-              _Bullet(
-                'Roll numbers you type are checked on your device and are not '
-                'sent to us.',
-              ),
-
-              const SizedBox(height: 20),
-              const EvSectionHeader(
-                label: 'Official sources',
-                padding: EdgeInsets.zero,
-              ),
-              const SizedBox(height: 8),
-              _Link(
-                label: 'SSC \u2014 Staff Selection Commission',
-                url: 'https://ssc.gov.in/',
-              ),
-              _Link(
-                label: 'UPSC \u2014 Union Public Service Commission',
-                url: 'https://www.upsc.gov.in/',
-              ),
-              _Link(label: 'IBPS', url: 'https://www.ibps.in/'),
-              _Link(label: 'RRB Chennai', url: 'https://rrbchennai.gov.in/'),
-              _Link(
-                label: 'TNPSC \u2014 Tamil Nadu Public Service Commission',
-                url: 'https://www.tnpsc.gov.in/',
-              ),
-
-              const SizedBox(height: 16),
-              const EvSectionHeader(
-                label: 'Privacy policy',
-                padding: EdgeInsets.zero,
-              ),
-              const SizedBox(height: 8),
-              _Paragraph(
-                'The full policy ships inside the app and states exactly what is '
-                'stored, what leaves the phone and what does not.',
-              ),
-              const SizedBox(height: 4),
-              InkWell(
-                borderRadius: BorderRadius.circular(EvRadius.inner),
-                onTap: () => _showPolicy(context),
-                // Same 44px floor as the commission links.
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(
-                    minHeight: EvSize.minTapTarget,
+      child: Scaffold(
+        // A messenger with no descendant Scaffold has nothing to present to:
+        // showSnackBar asserted in debug and was a *silent no-op* in release —
+        // the failed-link feedback this messenger exists for never rendered.
+        // Transparent so the sheet surface below keeps its own colour and
+        // rounded corners.
+        backgroundColor: Colors.transparent,
+        body: Container(
+          decoration: BoxDecoration(
+            color: p.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            border: Border.all(color: p.border),
+          ),
+          // A rounded decoration does not clip its child, so scrolled text painted
+          // over the dimmed page outside the sheet's corners.
+          clipBehavior: Clip.antiAlias,
+          child: DraggableScrollableSheet(
+            expand: false,
+            initialChildSize: 0.9,
+            minChildSize: 0.5,
+            maxChildSize: 0.95,
+            // Ink canvas above the sheet's opaque surface: the link rows'
+            // InkWell splashes painted on the bottom-sheet route's Material
+            // *underneath* the Container, so presses gave no feedback
+            // (pattern: command_center radar rows).
+            builder: (context, controller) => Material(
+              type: MaterialType.transparency,
+              child: ListView(
+                controller: controller,
+                padding: const EdgeInsets.fromLTRB(20, EvSpace.x4, 20, 32),
+                children: [
+                  const _SheetHeader(
+                    title: 'About ExamVault',
+                    subtitle: 'Version 1.0.0 · free · no account required',
                   ),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 9),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            'Read the privacy policy',
-                            style: context.type.bodyMuted.copyWith(),
+                  const SizedBox(height: 16),
+
+                  // --- Appearance ---------------------------------------------------
+                  const EvSectionHeader(
+                    label: 'Appearance',
+                    padding: EdgeInsets.zero,
+                  ),
+                  const SizedBox(height: 8),
+                  _ThemePicker(),
+
+                  const SizedBox(height: 20),
+
+                  // --- Where the data comes from -----------------------------------
+                  const EvSectionHeader(
+                    label: 'Where the data comes from',
+                    padding: EdgeInsets.zero,
+                  ),
+                  const SizedBox(height: 8),
+                  _Paragraph(
+                    'Every result, notice and date in this app is copied from the '
+                    'commission that published it. Nothing is written by hand and '
+                    'nothing is invented. If a source does not answer, the app shows '
+                    'nothing rather than a guess.',
+                  ),
+                  const SizedBox(height: 10),
+                  if (sources.isEmpty)
+                    _Paragraph(
+                      'Source status is unavailable until the feed loads.',
+                    )
+                  else
+                    for (final source in sources) _SourceRow(source: source),
+
+                  const SizedBox(height: 20),
+
+                  // --- The copyright stance ----------------------------------------
+                  const EvSectionHeader(
+                    label: 'Why we never host the PDF',
+                    padding: EdgeInsets.zero,
+                  ),
+                  const SizedBox(height: 8),
+                  _Paragraph(
+                    'The official result documents belong to the commissions, so this '
+                    'app links to them on the commission\u2019s own website. It does '
+                    'not keep a copy of any government document.',
+                  ),
+                  const SizedBox(height: 8),
+                  _Paragraph(
+                    'To answer \u201cis my roll number in the list?\u201d quickly, the '
+                    'list is reduced to one-way hashes. Your phone hashes the number '
+                    'you type and looks for a match, so the actual candidate list never '
+                    'reaches your device \u2014 and nobody can use what we publish to '
+                    'rebuild it.',
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  // --- Privacy ------------------------------------------------------
+                  const EvSectionHeader(
+                    label: 'What we store',
+                    padding: EdgeInsets.zero,
+                  ),
+                  const SizedBox(height: 8),
+                  _Bullet(
+                    'Admit cards, roll numbers and passwords are encrypted with '
+                    'your device\u2019s Keystore. They never leave the phone.',
+                  ),
+                  _Bullet(
+                    'There is no account, so there is nothing to sign in to and '
+                    'nothing to leak from a server.',
+                  ),
+                  _Bullet(
+                    'Roll numbers you type are checked on your device and are not '
+                    'sent to us.',
+                  ),
+
+                  const SizedBox(height: 20),
+                  const EvSectionHeader(
+                    label: 'Official sources',
+                    padding: EdgeInsets.zero,
+                  ),
+                  const SizedBox(height: 8),
+                  _Link(
+                    label: 'SSC \u2014 Staff Selection Commission',
+                    url: 'https://ssc.gov.in/',
+                  ),
+                  _Link(
+                    label: 'UPSC \u2014 Union Public Service Commission',
+                    url: 'https://www.upsc.gov.in/',
+                  ),
+                  _Link(label: 'IBPS', url: 'https://www.ibps.in/'),
+                  _Link(
+                    label: 'RRB Chennai',
+                    url: 'https://rrbchennai.gov.in/',
+                  ),
+                  _Link(
+                    label: 'TNPSC \u2014 Tamil Nadu Public Service Commission',
+                    url: 'https://www.tnpsc.gov.in/',
+                  ),
+
+                  const SizedBox(height: 16),
+                  const EvSectionHeader(
+                    label: 'Privacy policy',
+                    padding: EdgeInsets.zero,
+                  ),
+                  const SizedBox(height: 8),
+                  _Paragraph(
+                    'The full policy ships inside the app and states exactly what is '
+                    'stored, what leaves the phone and what does not.',
+                  ),
+                  const SizedBox(height: 4),
+                  Semantics(
+                    // The bare InkWell exposed no trait at all: TalkBack read a
+                    // flat text run with no hint it was tappable. The child Text is
+                    // the name (codebase rule — a composed label plus un-excluded
+                    // children double-announces).
+                    button: true,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(EvRadius.inner),
+                      onTap: () => _showPolicy(context),
+                      // Same 44px floor as the commission links.
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(
+                          minHeight: EvSize.minTapTarget,
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 9),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  'Read the privacy policy',
+                                  style: context.type.bodyMuted.copyWith(),
+                                ),
+                              ),
+                              Icon(
+                                Icons.chevron_right_rounded,
+                                size: 14,
+                                color: p.textTertiary,
+                              ),
+                            ],
                           ),
                         ),
-                        Icon(
-                          Icons.chevron_right_rounded,
-                          size: 14,
-                          color: p.textTertiary,
-                        ),
-                      ],
+                      ),
                     ),
                   ),
-                ),
-              ),
 
-              const SizedBox(height: 16),
-              Text(
-                'ExamVault is not affiliated with, endorsed by, or acting on behalf '
-                'of any of these commissions. Always verify against the official '
-                'notice before acting on a result.',
-                style: context.type.bodyMuted.copyWith(height: 1.5),
+                  const SizedBox(height: 16),
+                  Text(
+                    'ExamVault is not affiliated with, endorsed by, or acting on behalf '
+                    'of any of these commissions. Always verify against the official '
+                    'notice before acting on a result.',
+                    style: context.type.bodyMuted.copyWith(height: 1.5),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),
@@ -410,44 +437,55 @@ class _Link extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = context.ev;
-    return InkWell(
-      borderRadius: BorderRadius.circular(EvRadius.inner),
-      onTap: () async {
-        final uri = Uri.parse(url);
-        bool ok;
-        try {
-          ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
-        } catch (e) {
-          // url_launcher *throws* PlatformException when no activity can
-          // handle the URL (Android Go, de-Googled devices) instead of
-          // returning false — unhandled, the tap looked completely dead.
-          AppLogger.w('about', 'launchUrl failed for $url: $e');
-          ok = false;
-        }
-        if (!ok && context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'Could not open the link. $url',
-                style: context.type.label.copyWith(color: Colors.white),
+    return Semantics(
+      // Opens in a browser, so the honest trait is `link`, not `button` —
+      // TalkBack then says "double tap to visit link" and the child Text is
+      // the name (a composed label here would double-announce, the failure
+      // the whole codebase's semantics rule exists to prevent).
+      link: true,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(EvRadius.inner),
+        onTap: () async {
+          final uri = Uri.parse(url);
+          bool ok;
+          try {
+            ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+          } catch (e) {
+            // url_launcher *throws* PlatformException when no activity can
+            // handle the URL (Android Go, de-Googled devices) instead of
+            // returning false — unhandled, the tap looked completely dead.
+            AppLogger.w('about', 'launchUrl failed for $url: $e');
+            ok = false;
+          }
+          if (!ok && context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'Could not open the link. $url',
+                  style: context.type.label.copyWith(color: Colors.white),
+                ),
               ),
+            );
+          }
+        },
+        // 44px floor: the row was ~35.5px tall — under the app's own
+        // EvSize.minTapTarget — on the primary way users reach commission sites.
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: EvSize.minTapTarget),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 9),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(label, style: context.type.bodyMuted.copyWith()),
+                ),
+                Icon(
+                  Icons.open_in_new_rounded,
+                  size: 12,
+                  color: p.textTertiary,
+                ),
+              ],
             ),
-          );
-        }
-      },
-      // 44px floor: the row was ~35.5px tall — under the app's own
-      // EvSize.minTapTarget — on the primary way users reach commission sites.
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(minHeight: EvSize.minTapTarget),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 9),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(label, style: context.type.bodyMuted.copyWith()),
-              ),
-              Icon(Icons.open_in_new_rounded, size: 12, color: p.textTertiary),
-            ],
           ),
         ),
       ),

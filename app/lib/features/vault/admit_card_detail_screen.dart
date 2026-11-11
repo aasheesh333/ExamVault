@@ -574,25 +574,36 @@ class _FieldGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final fields = <({String label, String value, String copyLabel})>[
-      (
-        // Short labels: the full words ellipsised at 1.0× on a 393px screen.
-        label: 'REG. ID',
-        value: card.registrationId,
-        copyLabel: 'Registration ID',
-      ),
-      (
-        label: 'DOB / PASSWORD',
-        value: card.dobOrPortalPassword,
-        copyLabel: 'Password',
-      ),
-      (label: 'CENTRE', value: card.centerCode, copyLabel: 'Centre code'),
-      (
-        label: 'EXAM DATE',
-        value: _formatDate(card.examDate),
-        copyLabel: 'Exam date',
-      ),
-    ];
+    final fields =
+        <({String label, String value, String copyLabel, bool sensitive})>[
+          (
+            // Short labels: the full words ellipsised at 1.0× on a 393px screen.
+            label: 'REG. ID',
+            value: card.registrationId,
+            copyLabel: 'Registration ID',
+            sensitive: false,
+          ),
+          (
+            label: 'DOB / PASSWORD',
+            value: card.dobOrPortalPassword,
+            copyLabel: 'Password',
+            // The vault's most sensitive value: left on the system clipboard it
+            // stays readable by every other app until manually cleared.
+            sensitive: true,
+          ),
+          (
+            label: 'CENTRE',
+            value: card.centerCode,
+            copyLabel: 'Centre code',
+            sensitive: false,
+          ),
+          (
+            label: 'EXAM DATE',
+            value: _formatDate(card.examDate),
+            copyLabel: 'Exam date',
+            sensitive: false,
+          ),
+        ];
 
     return Column(
       children: [
@@ -622,7 +633,7 @@ class _FieldGrid extends StatelessWidget {
 class _CopyField extends StatelessWidget {
   const _CopyField({required this.field});
 
-  final ({String label, String value, String copyLabel}) field;
+  final ({String label, String value, String copyLabel, bool sensitive}) field;
 
   @override
   Widget build(BuildContext context) {
@@ -631,18 +642,24 @@ class _CopyField extends StatelessWidget {
 
     return Semantics(
       button: hasValue,
-      // The old label promised "Tap to copy." even for empty optional fields,
-      // where onTap is null and the row shows "—" — an instruction for an
-      // interaction that does not exist.
-      label: hasValue
-          ? '${field.label}: ${field.value}. Tap to copy.'
-          : '${field.label}: not provided.',
+      // Children are the name (see WalletPassCard / EvPrimaryButton): the
+      // composed label was announced and then the raw child texts (label,
+      // value) announced again — every filled field read twice. The hint
+      // keeps the copy affordance without duplicating content, and only
+      // while the field is actually tappable.
+      hint: hasValue ? 'Tap to copy.' : null,
+      // An empty field is not a button: exclude the "—" placeholder and
+      // announce the whole state as one label, exactly once. The old label
+      // promised "Tap to copy." even here, where onTap is null.
+      label: hasValue ? null : '${field.label}: not provided.',
+      excludeSemantics: !hasValue,
       child: InkWell(
         onTap: hasValue
             ? () => ClipboardService.copy(
                 context,
                 value: field.value,
                 label: field.copyLabel,
+                sensitive: field.sensitive,
               )
             : null,
         borderRadius: BorderRadius.circular(6),
@@ -833,6 +850,22 @@ class _BarcodePainter extends CustomPainter {
 // Countdown + checklist + centre
 // ---------------------------------------------------------------------------
 
+/// Countdown-pill wording, singular forms included.
+///
+/// "IN 1 DAYS" the day before the exam — while the wallet pass already said
+/// TOMORROW — made the two surfaces contradict each other on the busiest day
+/// of the app's year. Twin of `WalletPassCard._countdownLabel` in
+/// command_center/widgets/wallet_pass_card.dart, which is private to that
+/// file's workstream; keep the two tables in sync.
+@visibleForTesting
+String countdownLabel(int daysFromNow) {
+  if (daysFromNow == 0) return 'TODAY';
+  if (daysFromNow == 1) return 'TOMORROW';
+  if (daysFromNow == -1) return 'YESTERDAY';
+  if (daysFromNow < 0) return '${-daysFromNow} DAYS AGO';
+  return 'IN $daysFromNow DAYS';
+}
+
 class _CountdownCard extends StatelessWidget {
   const _CountdownCard({required this.card});
 
@@ -883,11 +916,7 @@ class _CountdownCard extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  days < 0
-                      ? 'PAST'
-                      : days == 0
-                      ? 'TODAY'
-                      : 'IN $days DAYS',
+                  countdownLabel(days),
                   maxLines: 1,
                   style: context.type.statusPill.copyWith(
                     color: urgent ? p.dangerText : p.accentText,
@@ -969,7 +998,11 @@ class _CheckRow extends StatelessWidget {
 
     return Semantics(
       checked: checked,
-      label: item.title,
+      // No explicit `label`: the row's own texts (title, subtitle, TAP/DONE)
+      // merge into this checked node and *are* its name. `label: item.title`
+      // was announced and then the same title announced again from the
+      // un-excluded child Text — TalkBack read every checklist row twice.
+      // Same rule as EvPrimaryButton and WalletPassCard.
       child: InkWell(
         onTap: onToggle,
         borderRadius: BorderRadius.circular(8),
@@ -1175,25 +1208,39 @@ class _ActionDock extends ConsumerWidget {
               ),
             ),
             const SizedBox(width: 9),
-            SizedBox(
-              width: EvSize.primaryButton,
-              height: EvSize.primaryButton,
-              // Icon-only secondary action: the icon button exposes a real name
-              // ("Share pass"), where `EvSecondaryButton(label: '')` announced a
-              // bare button with no label at all.
-              child: EvIconButton(
-                icon: Icons.ios_share_rounded,
-                tooltip: 'Share pass',
-                size: EvSize.primaryButton,
-                iconSize: 17,
-                onPressed: () async {
-                  final service = ref.read(shareServiceProvider);
-                  await service.shareText(
-                    caption:
-                        '${card.examName} — roll ${card.rollNumber}. ${card.centerAddress}.',
-                    subject: card.examName,
-                  );
-                },
+            Builder(
+              // The Builder's context is the button's own render box — the
+              // share sheet on iPad anchors its popover to `origin` and
+              // share_plus asserts without it.
+              builder: (buttonContext) => SizedBox(
+                width: EvSize.primaryButton,
+                height: EvSize.primaryButton,
+                // Icon-only secondary action: the icon button exposes a real name
+                // ("Share pass"), where `EvSecondaryButton(label: '')` announced a
+                // bare button with no label at all.
+                child: EvIconButton(
+                  icon: Icons.ios_share_rounded,
+                  tooltip: 'Share pass',
+                  size: EvSize.primaryButton,
+                  iconSize: 17,
+                  onPressed: () async {
+                    final service = ref.read(shareServiceProvider);
+                    final box = buttonContext.findRenderObject() as RenderBox?;
+                    await service.shareText(
+                      // Never the roll number or the home address: the caption
+                      // leaves as plaintext through another app's servers, and
+                      // the Share tab gates exactly these fields behind its
+                      // privacy switch — the vault dock must not bypass that
+                      // posture with a hardcoded leak.
+                      caption:
+                          '${card.examName} — my admit card is saved on ExamVault.',
+                      subject: card.examName,
+                      origin: box == null
+                          ? null
+                          : box.localToGlobal(Offset.zero) & box.size,
+                    );
+                  },
+                ),
               ),
             ),
           ],

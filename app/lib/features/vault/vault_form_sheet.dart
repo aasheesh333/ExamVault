@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_theme.dart';
+import '../../core/theme/motion.dart';
 import '../../core/theme/theme_tokens.dart';
 import '../../data/services/app_logger.dart';
 import '../../domain/entities/admit_card.dart';
@@ -69,6 +70,11 @@ class _VaultFormSheet extends ConsumerStatefulWidget {
 class _VaultFormSheetState extends ConsumerState<_VaultFormSheet> {
   final _formKey = GlobalKey<FormState>();
 
+  /// Anchors for the fields that carry a validator, so a failed Save can scroll
+  /// to the first offender instead of painting its error somewhere off-screen.
+  final _examNameFieldKey = GlobalKey(debugLabel: 'field-exam-name');
+  final _rollFieldKey = GlobalKey(debugLabel: 'field-roll-number');
+
   late final _examName = TextEditingController(text: widget.existing?.examName);
   late final _body = TextEditingController(
     text: widget.existing?.conductingBody,
@@ -117,6 +123,7 @@ class _VaultFormSheetState extends ConsumerState<_VaultFormSheet> {
     // Capture eagerly: a lazy `late final` would baseline after the first edit.
     _initialCategory = _category;
     _initialDate = _examDate;
+    _categoryPicked = widget.existing != null;
     _baseline = {
       for (final c in [
         _examName,
@@ -195,7 +202,11 @@ class _VaultFormSheetState extends ConsumerState<_VaultFormSheet> {
 
   /// True once the user taps a category chip, so inference never overrides a
   /// deliberate choice.
-  bool _categoryPicked = false;
+  ///
+  /// Editing an existing card counts as picked: its chip was already a
+  /// deliberate (or accepted) choice, and retyping the exam name to fix a
+  /// typo must not silently re-file the card under an inferred category.
+  late bool _categoryPicked;
 
   /// Mirrors the typed name into the category chip so a "UPSC CSE" card is not
   /// filed under SSC.
@@ -207,6 +218,14 @@ class _VaultFormSheetState extends ConsumerState<_VaultFormSheet> {
       return;
     }
     setState(() => _category = inferred);
+  }
+
+  /// True only during the first feed load with nothing cached: [_match]
+  /// returning null is then indistinguishable from "nothing published", and
+  /// the banner must not claim the latter while the former is possible.
+  bool _feedLoading() {
+    final state = ref.watch(liveFeedProvider);
+    return state.isLoading && state.value == null;
   }
 
   /// The published result this card belongs to, if one is close enough.
@@ -243,8 +262,58 @@ class _VaultFormSheetState extends ConsumerState<_VaultFormSheet> {
     super.dispose();
   }
 
+  /// The field validators as members rather than inline closures, so [_save]
+  /// can re-run them to find the first offender and scroll it into view.
+  String? _validateExamName(String? v) =>
+      (v == null || v.trim().length < 3) ? 'Enter the exam name' : null;
+
+  String? _validateRoll(String? v) {
+    final t = v?.trim() ?? '';
+    if (t.length < 4) return 'Roll number looks too short';
+    return null;
+  }
+
+  /// Scrolls the first field that still fails validation into view.
+  ///
+  /// Runs after the frame completes: validate() has just inserted error text
+  /// under the fields, changing content heights, so the scroll target computed
+  /// against the old layout would land off by the error line's height.
+  void _revealFirstInvalidField() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      for (final (key, validate, controller) in [
+        (_examNameFieldKey, _validateExamName, _examName),
+        (_rollFieldKey, _validateRoll, _roll),
+      ]) {
+        if (validate(controller.text) != null) {
+          final fieldContext = key.currentContext;
+          if (fieldContext != null) {
+            Scrollable.ensureVisible(
+              fieldContext,
+              duration: EvMotion.of(context, EvMotion.inline),
+              curve: EvMotion.curveOf(context, EvMotion.enter),
+              alignment: 0.1,
+            );
+          }
+          return;
+        }
+      }
+    });
+  }
+
   Future<void> _save() async {
-    if (!(_formKey.currentState?.validate() ?? false)) return;
+    if (!(_formKey.currentState?.validate() ?? false)) {
+      // validate() paints each error at its field, but Save sits at the bottom
+      // of a ten-field scrollable form — when the offender is scrolled out of
+      // view, nothing on screen changes and the button looks dead. Say why
+      // Save refused (next to the button) and scroll to the field to fix.
+      setState(() {
+        _validationNotice = 'Fix the highlighted field above';
+        _error = null;
+      });
+      _revealFirstInvalidField();
+      return;
+    }
 
     final date = _examDate;
     if (date == null) {
@@ -290,6 +359,16 @@ class _VaultFormSheetState extends ConsumerState<_VaultFormSheet> {
       _validationNotice = null;
     });
 
+    // VERIFIED is a claim about one exact roll number against one exact
+    // published index — the checker only stamps it when the card's *own* roll
+    // was found. Editing either invalidates the old claim: fixing a roll typo
+    // must not carry a permanent VERIFIED badge for a roll never matched.
+    final keepsVerification =
+        base != null &&
+        base.rollNumberVerified &&
+        base.rollNumber == roll &&
+        base.examId == examId;
+
     final card = AdmitCard(
       id:
           base?.id ??
@@ -310,7 +389,7 @@ class _VaultFormSheetState extends ConsumerState<_VaultFormSheet> {
       shift: _shift.text.trim(),
       createdAt: base?.createdAt ?? now,
       updatedAt: now,
-      rollNumberVerified: base?.rollNumberVerified ?? false,
+      rollNumberVerified: keepsVerification,
       checklist: base?.checklist ?? const {},
     );
 
@@ -439,13 +518,12 @@ class _VaultFormSheetState extends ConsumerState<_VaultFormSheet> {
                     ),
                     const SizedBox(height: 20),
                     _Field(
+                      fieldKey: _examNameFieldKey,
                       controller: _examName,
                       label: 'Exam name',
                       hint: 'As printed on your admit card',
                       onChanged: _onExamNameChanged,
-                      validator: (v) => (v == null || v.trim().length < 3)
-                          ? 'Enter the exam name'
-                          : null,
+                      validator: _validateExamName,
                     ),
                     _CategoryPicker(
                       value: _category,
@@ -456,6 +534,13 @@ class _VaultFormSheetState extends ConsumerState<_VaultFormSheet> {
                     ),
                     if (_match(watch: true) case final match?)
                       _LinkedResult(match: match)
+                    else if (_examName.text.trim().length >= 3 &&
+                        _feedLoading())
+                      // While the feed is still loading, a null match means
+                      // "not known yet" — claiming "no published result" at
+                      // that moment is a false statement a student could read
+                      // as "I was not selected".
+                      const _CheckingResults()
                     else if (_examName.text.trim().length >= 3)
                       // Say plainly that no published result is linked, so a student
                       // does not read "no index" later as "I was not selected".
@@ -473,6 +558,7 @@ class _VaultFormSheetState extends ConsumerState<_VaultFormSheet> {
                       caps: TextCapitalization.characters,
                     ),
                     _Field(
+                      fieldKey: _rollFieldKey,
                       controller: _roll,
                       label: 'Roll number',
                       // Several boards and state PSCs issue alphanumeric rolls;
@@ -484,11 +570,7 @@ class _VaultFormSheetState extends ConsumerState<_VaultFormSheet> {
                       rollChars: true,
                       upperCase: true,
                       maxLength: 24,
-                      validator: (v) {
-                        final t = v?.trim() ?? '';
-                        if (t.length < 4) return 'Roll number looks too short';
-                        return null;
-                      },
+                      validator: _validateRoll,
                     ),
                     _Field(
                       controller: _regId,
@@ -693,6 +775,7 @@ class _FormHeader extends StatelessWidget {
 
 class _Field extends StatelessWidget {
   const _Field({
+    this.fieldKey,
     required this.controller,
     required this.label,
     this.hint,
@@ -706,6 +789,10 @@ class _Field extends StatelessWidget {
     this.maxLength,
     this.onChanged,
   });
+
+  /// Attached to the field's outer box so a failed Save can scroll the field
+  /// into view via `Scrollable.ensureVisible`.
+  final GlobalKey? fieldKey;
 
   final TextEditingController controller;
   final String label;
@@ -737,6 +824,7 @@ class _Field extends StatelessWidget {
     ];
 
     return Padding(
+      key: fieldKey,
       padding: const EdgeInsets.only(bottom: 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -834,42 +922,57 @@ class _DateField extends StatelessWidget {
             padding: const EdgeInsets.only(left: 2, bottom: 6),
             child: Text('EXAM DATE', style: context.type.microLabel),
           ),
-          InkWell(
-            onTap: onTap,
-            borderRadius: BorderRadius.circular(EvRadius.button),
-            child: Container(
-              // Min height, not a fixed 52px: the placeholder wraps at 2.0x.
-              constraints: const BoxConstraints(minHeight: 52),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              decoration: BoxDecoration(
-                color: p.surfaceSunken,
-                borderRadius: BorderRadius.circular(EvRadius.button),
-                border: Border.all(color: p.borderStrong),
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      // An untouched date must read as missing, never as a
-                      // confident exam-day countdown.
-                      selected == null
-                          ? 'Not set — tap to choose'
-                          : '${selected.day.toString().padLeft(2, '0')} '
-                                '${months[selected.month - 1]} ${selected.year}',
-                      style: selected == null
-                          ? context.type.fieldValue.copyWith(
-                              color: p.textTertiary,
-                            )
-                          : context.type.fieldValue,
-                    ),
+          // The sheet paints its own opaque surface and this field paints an
+          // opaque sunken box, so the InkWell's splash used to render on the
+          // route's Material *underneath* both — tapping the date field gave
+          // zero press feedback (pattern: command_center radar rows). The
+          // transparent Material adds an ink canvas above the sheet surface,
+          // and `Ink` paints the field's decoration onto that same canvas,
+          // *below* the splash, so the ripple is visible on the field itself.
+          Material(
+            type: MaterialType.transparency,
+            child: InkWell(
+              onTap: onTap,
+              borderRadius: BorderRadius.circular(EvRadius.button),
+              child: Ink(
+                decoration: BoxDecoration(
+                  color: p.surfaceSunken,
+                  borderRadius: BorderRadius.circular(EvRadius.button),
+                  border: Border.all(color: p.borderStrong),
+                ),
+                child: Container(
+                  // Min height, not a fixed 52px: the placeholder wraps at 2.0x.
+                  constraints: const BoxConstraints(minHeight: 52),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 8,
                   ),
-                  const SizedBox(width: 8),
-                  Icon(
-                    Icons.calendar_today_rounded,
-                    size: 16,
-                    color: p.textTertiary,
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          // An untouched date must read as missing, never as a
+                          // confident exam-day countdown.
+                          selected == null
+                              ? 'Not set — tap to choose'
+                              : '${selected.day.toString().padLeft(2, '0')} '
+                                    '${months[selected.month - 1]} ${selected.year}',
+                          style: selected == null
+                              ? context.type.fieldValue.copyWith(
+                                  color: p.textTertiary,
+                                )
+                              : context.type.fieldValue,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Icon(
+                        Icons.calendar_today_rounded,
+                        size: 16,
+                        color: p.textTertiary,
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
             ),
           ),
@@ -990,6 +1093,43 @@ class _NoLinkedResult extends StatelessWidget {
               'No published result matches this name yet. The card still works '
               'for exam-day details; result checking starts when the commission '
               'publishes a list.',
+              style: context.type.bodyMuted.copyWith(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Shown while the feed itself is still loading.
+///
+/// Neutral wording is the point: `_match` returns null both for "nothing
+/// published" and for "the feed has not arrived yet", and only the second one
+/// is honest here — the app cannot claim no result exists before it has
+/// looked.
+class _CheckingResults extends StatelessWidget {
+  const _CheckingResults();
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.ev;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12, left: 2),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 12,
+            height: 12,
+            child: CircularProgressIndicator(
+              strokeWidth: 1.5,
+              valueColor: AlwaysStoppedAnimation(p.textTertiary),
+            ),
+          ),
+          const SizedBox(width: 7),
+          Expanded(
+            child: Text(
+              'Checking published results…',
               style: context.type.bodyMuted.copyWith(),
             ),
           ),

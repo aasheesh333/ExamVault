@@ -7,6 +7,7 @@ import 'package:examvault/domain/entities/live_update.dart';
 import 'package:examvault/features/about/about_sheet.dart';
 import 'package:examvault/features/command_center/widgets/alerts_sheet.dart';
 import 'package:examvault/providers/app_providers.dart';
+import 'package:examvault/shared/widgets/ev_controls.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -250,6 +251,104 @@ void main() {
     });
   });
 
+  group('About theme picker', () {
+    setUp(() async {
+      // Start from dark so flipping to Light is an observable change.
+      await settingsBox.put('theme', 'dark');
+    });
+
+    /// A theme-reactive host: unlike [host] (fixed dark for layout checks),
+    /// this one derives `themeMode` from the provider the About chips write.
+    Widget themeHost(Box<dynamic> box) => ProviderScope(
+      overrides: [
+        settingsBoxProvider.overrideWithValue(box),
+        liveFeedProvider.overrideWith(
+          () => _StaticLiveFeed(
+            LiveFeedSnapshot(
+              feed: feed(),
+              source: FeedSource.network,
+              fetchedAt: DateTime.now(),
+            ),
+          ),
+        ),
+      ],
+      child: Consumer(
+        builder: (context, ref, _) {
+          final pref = ref.watch(themePreferenceProvider);
+          return MaterialApp(
+            theme: AppTheme.light(),
+            darkTheme: AppTheme.dark(),
+            themeMode: pref.mode,
+            home: Scaffold(
+              body: Builder(
+                builder: (context) => TextButton(
+                  onPressed: () => showAboutSheet(context),
+                  child: const Text('open about'),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+
+    Future<void> openAboutOn(WidgetTester tester, Widget hostWidget) async {
+      await tester.pumpWidget(hostWidget);
+      await tester.pump();
+      await tester.tap(find.text('open about'));
+      await tester.pumpAndSettle();
+    }
+
+    List<String> selectedChips(WidgetTester tester) => tester
+        .widgetList<EvChip>(find.byType(EvChip))
+        .where((c) => c.selected)
+        .map((c) => c.label)
+        .toList();
+
+    testWidgets('tapping Light flips the host theme and persists it', (
+      tester,
+    ) async {
+      await openAboutOn(tester, themeHost(settingsBox));
+      expect(
+        Theme.of(tester.element(find.text('About ExamVault'))).brightness,
+        Brightness.dark,
+      );
+
+      await tester.tap(find.text('Light'));
+      await tester.pumpAndSettle();
+
+      // The whole app follows the chip, and the choice survives a relaunch.
+      expect(
+        Theme.of(tester.element(find.text('About ExamVault'))).brightness,
+        Brightness.light,
+      );
+      expect(settingsBox.get('theme'), 'light');
+      expect(selectedChips(tester), ['Light']);
+    });
+
+    testWidgets('a failed write rolls the chips back to the persisted value', (
+      tester,
+    ) async {
+      // A box whose writes fail (full disk, locked file) with 'light' as the
+      // last persisted preference. Swapping providers mid-test rebuilds the
+      // Riverpod container and tears down the open sheet route, so this test
+      // starts on the broken box instead — the rollback is what is under test.
+      final broken = _FailingSettingsBox({'theme': 'light'});
+      await openAboutOn(tester, themeHost(broken));
+      expect(selectedChips(tester), ['Light']);
+
+      await tester.tap(find.text('Dark'));
+      await tester.pumpAndSettle();
+
+      // An optimistic chip must not keep claiming a preference that will be
+      // gone on next launch.
+      expect(selectedChips(tester), [
+        'Light',
+      ], reason: 'the chip must roll back to the persisted value');
+      expect(broken.get('theme'), 'light');
+    });
+  });
+
   group('Alerts sheet at 320px', () {
     for (final scale in [1.0, 2.0]) {
       testWidgets('header never overlaps the first row at ${scale}x', (
@@ -325,4 +424,25 @@ class _StaticLiveFeed extends LiveFeedNotifier {
 
   @override
   Future<LiveFeedSnapshot> build() async => snapshot;
+}
+
+/// A settings box whose every write fails; reads answer from a fixed snapshot
+/// of what "the last successful launch" persisted.
+class _FailingSettingsBox implements Box<dynamic> {
+  _FailingSettingsBox(this._persisted);
+
+  final Map<dynamic, dynamic> _persisted;
+
+  @override
+  dynamic get(dynamic key, {dynamic defaultValue}) =>
+      _persisted[key] ?? defaultValue;
+
+  @override
+  Future<void> put(dynamic key, dynamic value) =>
+      Future<void>.error(StateError('settings write failed'));
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError(
+    '${invocation.memberName} is not exercised by this test',
+  );
 }

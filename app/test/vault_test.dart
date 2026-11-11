@@ -453,6 +453,53 @@ void main() {
     });
   });
 
+  group('countdown pill wording', () {
+    test('the day table reads like a human, not a format string', () {
+      // Injected "now" distances: the pill used to read "IN 1 DAYS" the day
+      // before the exam (and a flat "PAST" after it) while the wallet pass
+      // already said TOMORROW/YESTERDAY — two surfaces of the same app
+      // contradicting each other on the busiest week of the year.
+      const cases = <int, String>{
+        -2: '2 DAYS AGO',
+        -1: 'YESTERDAY',
+        0: 'TODAY',
+        1: 'TOMORROW',
+        9: 'IN 9 DAYS',
+      };
+      cases.forEach((daysFromNow, expected) {
+        expect(
+          countdownLabel(daysFromNow),
+          expected,
+          reason: '$daysFromNow days from now',
+        );
+      });
+    });
+
+    testWidgets('the pill reads TOMORROW the day before the exam', (
+      tester,
+    ) async {
+      // daysUntilExam() computes from DateTime.now() at build time; seeding
+      // the exam date exactly one day out injects "now" without a clock hook.
+      await seed(card(daysFromNow: 1));
+      await tester.pumpWidget(harness(const AdmitCardDetailScreen()));
+      await tester.pumpAndSettle();
+
+      expect(find.text('TOMORROW'), findsOneWidget);
+      expect(find.text('IN 1 DAYS'), findsNothing);
+    });
+
+    testWidgets('the pill reads YESTERDAY the day after the exam', (
+      tester,
+    ) async {
+      await seed(card(daysFromNow: -1));
+      await tester.pumpWidget(harness(const AdmitCardDetailScreen()));
+      await tester.pumpAndSettle();
+
+      expect(find.text('YESTERDAY'), findsOneWidget);
+      expect(find.text('PAST'), findsNothing);
+    });
+  });
+
   group('vault form', () {
     testWidgets('validates the exam name and the roll number', (tester) async {
       useTallViewport(tester);

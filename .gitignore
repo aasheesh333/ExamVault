@@ -71,8 +71,9 @@ secrets.json
 *.log
 .DS_Store
 
-# web build output (created for smoke testing only)
-app/web/
+# web build output. NOTE: app/web/ itself is handcrafted SOURCE (boot splash in
+# index.html, branded manifest.json, icons/, favicon) and must stay tracked —
+# `flutter build web` writes to app/build/, never into app/web/.
 app/build/
 
 # generated roll indexes (built from official PDFs, published to R2)

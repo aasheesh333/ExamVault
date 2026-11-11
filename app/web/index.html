@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en-IN">
+<head>
+  <!--
+    If you are serving your web app in a path other than the root, change the
+    href value below to reflect the base path you are serving from.
+
+    The path provided below has to start and end with a slash "/" in order for
+    it to work correctly.
+
+    For more details:
+    * https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
+
+    This is a placeholder for base href that will be replaced by the value of
+    the `--base-href` argument provided to `flutter build`.
+  -->
+  <base href="$FLUTTER_BASE_HREF">
+
+  <meta charset="UTF-8">
+  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <!-- These were Flutter's scaffold strings ("A new Flutter project",
+       "examvault"), which is what a search result and a share preview would have
+       shown. -->
+  <meta name="description" content="Admit cards, exam-day details and instant roll-number result checks for SSC, UPSC, Banking, Railways and State PSC — checked on your device.">
+  <!-- The app follows the system theme, so the browser chrome must too. A single
+       dark-only theme-color painted the tab bar navy for light-scheme users.
+       Chromium resolves these media-scoped metas against prefers-color-scheme
+       (and prefers them over the manifest's static value at runtime — the
+       manifest format itself cannot express a per-scheme colour). -->
+  <meta name="theme-color" content="#F6F8FB" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0B0F19" media="(prefers-color-scheme: dark)">
+  <!-- Was "dark", which forced UA-drawn scrollbars and form controls dark even
+       while the Flutter side rendered the light palette. -->
+  <meta name="color-scheme" content="light dark">
+
+  <!-- iOS meta tags & icons -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="ExamVault">
+  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="favicon.png"/>
+
+  <title>ExamVault — Admit cards &amp; instant results</title>
+  <link rel="manifest" href="manifest.json">
+
+  <!-- The Flutter loader paints a blank page until the first frame. On a slow
+       connection that is several seconds of white; this keeps it on-brand and
+       tells the user something is happening. Removed by the engine on boot. -->
+  <style>
+    /* Dark first: it is the app's default scheme, and an unstyled flash of
+       white before boot is exactly what the loader exists to prevent. */
+    html, body { margin: 0; height: 100%; background: #0B0F19; }
+    #ev-boot {
+      position: fixed; inset: 0; display: grid; place-items: center;
+      background: #0B0F19; color: #3B82F6;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      font-size: 11px; letter-spacing: 2.4px; font-weight: 600;
+    }
+    /* The boot screen followed only the dark palette while the app itself
+       follows the system theme — a light-scheme user got a navy splash and
+       then a white app. These are the light palette's own tokens: bg
+       #F6F8FB and accentDeep #2563EB (4.86:1 against it, AA even at 11px). */
+    @media (prefers-color-scheme: light) {
+      html, body { background: #F6F8FB; }
+      #ev-boot { background: #F6F8FB; color: #2563EB; }
+    }
+  </style>
+</head>
+<body>
+  <div id="ev-boot">EXAMVAULT</div>
+  <script src="flutter_bootstrap.js" async></script>
+  <script>
+    // Hide the placeholder once Flutter has taken over, without depending on
+    // engine internals: the canvas appears when the first frame paints.
+    window.addEventListener('flutter-first-frame', function () {
+      var el = document.getElementById('ev-boot');
+      if (el) el.remove();
+    });
+  </script>
+</body>
+</html>

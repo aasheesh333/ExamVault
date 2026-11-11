@@ -130,7 +130,7 @@ flutter run \
 ```sh
 cd app
 flutter analyze --fatal-infos   # 0 issues
-flutter test                    # 115 tests
+flutter test                    # the whole suite in app/test — CI runs it on every push
 ```
 
 The suite covers the parts that are expensive to get wrong: cross-language hash
@@ -162,8 +162,15 @@ npx wrangler deploy
 ## CI/CD
 
 `.github/workflows/ci.yml` runs analyze + test on every push, then builds a
-**signed App Bundle and split APKs**. Release signing comes from four repository
-secrets; no credential is ever in the repository.
+**signed App Bundle and split APKs** (the build step refuses to run when the
+`EV_CDN_BASE` secret is empty, so a schemeless "no feed" artefact can never be
+green), and deploys the edge worker only on pushes to `master`/`main` that touch
+`infra/**`. Release signing comes from four repository secrets; no credential is
+ever in the repository.
+
+The live-network suite (`app/test/live_edge_integration_test.dart`) is opt-in:
+CI never sets `EV_LIVE`, so those tests skip there. Run them deliberately with
+`EV_LIVE=1 flutter test test/live_edge_integration_test.dart`.
 
 ---
 

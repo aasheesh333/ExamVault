@@ -19,12 +19,23 @@ import 'package:http/http.dart' as http;
 /// It also asserts the copyright guarantee against the real wire bytes: the
 /// object must not contain the candidate list in recoverable form.
 ///
-/// Skipped automatically when the network is unavailable, because a CI runner
-/// without egress must not report a product bug.
+/// Gating: every test here is opt-in via `EV_LIVE=1`, because the default suite
+/// (and CI) must not depend on network egress or on the live edge being up.
+/// Even when enabled, a runner that cannot reach the edge skips instead of
+/// failing, because unreachable infrastructure is not a product bug:
+///
+/// ```sh
+/// EV_LIVE=1 flutter test test/live_edge_integration_test.dart
+/// ```
 void main() {
   const edge = 'https://examvault-edge.aasheeshkatheriya.workers.dev';
+  final liveNetwork = Platform.environment['EV_LIVE'] == '1';
 
   test('the live feed offers a searchable result and its index is hashed', () async {
+    if (!liveNetwork) {
+      markTestSkipped('live-network test — set EV_LIVE=1 to run it');
+      return;
+    }
     late http.Response feedRes;
     try {
       feedRes = await http
@@ -142,9 +153,24 @@ void main() {
   }, timeout: const Timeout(Duration(seconds: 120)));
 
   test('an unpublished exam is reported honestly, never guessed', () async {
-    final res = await http
-        .get(Uri.parse('$edge/v1/rolls/this_exam_does_not_exist_rolls.json.gz'))
-        .timeout(const Duration(seconds: 30));
+    if (!liveNetwork) {
+      markTestSkipped('live-network test — set EV_LIVE=1 to run it');
+      return;
+    }
+    // Same egress guard as the first test: a runner without network must skip,
+    // not fail — this used to be the only test that reported an infrastructure
+    // outage as a product bug.
+    late http.Response res;
+    try {
+      res = await http
+          .get(
+            Uri.parse('$edge/v1/rolls/this_exam_does_not_exist_rolls.json.gz'),
+          )
+          .timeout(const Duration(seconds: 30));
+    } catch (e) {
+      markTestSkipped('edge unreachable: $e');
+      return;
+    }
 
     expect(res.statusCode, 404);
 

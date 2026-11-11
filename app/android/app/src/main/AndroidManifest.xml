@@ -17,9 +17,6 @@
     <!-- Android 13+ runtime permission for FCM notifications. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
-    <!-- Only used if the user enables the optional biometric unlock of the vault. -->
-    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
-
     <application
         android:label="ExamVault"
         android:name="${applicationName}"

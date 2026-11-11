@@ -11,6 +11,28 @@
 </head>
 <body>
 
+<!-- ======================================================================
+     ARCHIVED — NOT SPEC.
+     This deck predates the shipped app and is kept only for its visual
+     language (tokens, pass cards, layout geometry). Where it disagrees with
+     app/lib, THE CODE WINS. Known drift, deliberately not re-drawn here:
+     the shipped tabs are Home / Vault / Radar / Share; the app mirrors no
+     PDFs and runs no "mirror status" probes (it links the commission's own
+     site); the share card never fabricates cut-offs, stats or a web URL —
+     the project owns no domain; the result checker is hash-based (no PDF
+     pages to "jump to"). The four outright false claims this file used to
+     carry — an `examvault.in` link, an invented CUT-OFF grid, a
+     "JOIN 12,480 ASPIRANTS" counter and a "Groups" tab — have been
+     corrected in place; treat everything else as mood, not spec.
+     ====================================================================== -->
+<div role="note" style="margin:16px 24px;padding:14px 18px;border-radius:12px;background:#7C2D12;border:2px solid #F59E0B;color:#FED7AA;font-family:'IBM Plex Mono',monospace;font-size:13px;line-height:1.55;">
+  <strong style="color:#FBBF24;letter-spacing:1.4px;">⚠ ARCHIVED — NOT SPEC.</strong>
+  Early exploratory deck. The shipped app (<code>app/lib</code>) is the only
+  source of truth: tabs are <strong>Home / Vault / Radar / Share</strong>, no
+  PDFs are mirrored, no cut-offs or counters are ever invented, and the project
+  owns no domain. Kept for visual language only.
+</div>
+
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
   <defs>
     <symbol id="i-vault" viewBox="0 0 24 24"><path d="M12 3l7 3v5.5c0 4.3-2.9 7.6-7 9.5-4.1-1.9-7-5.2-7-9.5V6l7-3z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><circle cx="12" cy="11" r="2.4" stroke="currentColor" stroke-width="1.6"/><path d="M12 13.4V16" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
@@ -188,7 +210,10 @@
           <button class="tab tab--active"><svg class="ic"><use href="#i-home"/></svg><span>Home</span></button>
           <button class="tab"><svg class="ic"><use href="#i-lock"/></svg><span>Vault</span></button>
           <button class="tab"><span class="tab-dot-wrap"><svg class="ic"><use href="#i-radar"/></svg><i class="tab-dot"></i></span><span>Radar</span></button>
-          <button class="tab"><svg class="ic"><use href="#i-users"/></svg><span>Groups</span></button>
+          <!-- Shipped tabs are Home / Vault / Radar / Share (EvTab in
+               app/lib/features/shell/root_shell.dart). This used to say
+               "Groups" — a tab that was never built. -->
+          <button class="tab"><svg class="ic"><use href="#i-share"/></svg><span>Share</span></button>
         </nav>
         <div class="home-indicator"></div>
       </div>
@@ -470,25 +495,26 @@
               <div class="sc-body">
                 <div class="sc-brandrow">
                   <div class="sc-brand"><span class="sc-mark"><svg class="ic"><use href="#i-vault"/></svg></span>EXAMVAULT</div>
-                  <span class="sc-link">examvault.in</span>
+                  <!-- The app's real CTA line (share_infographic.dart shows it
+                       when no public link exists — the project owns no domain,
+                       so it never prints a URL like the fictional one that
+                       used to sit here). -->
+                  <span class="sc-link">Ask in your study group</span>
                 </div>
                 <div class="sc-exam">SSC CGL · TIER-1 2026</div>
                 <div class="sc-headline">RESULT<br/>IS <span class="sc-mark-word">LIVE</span></div>
-                <div class="sc-sub">Cut-off &amp; direct PDF link inside</div>
-                <div class="sc-cutoff">
-                  <div class="sc-cutoff-label">CUT-OFF · TIER-1</div>
-                  <div class="sc-cutoff-grid">
-                    <div><span>UR</span><b>152.5</b></div>
-                    <div><span>OBC</span><b>149.0</b></div>
-                    <div><span>SC</span><b>141.0</b></div>
-                    <div><span>ST</span><b>138.5</b></div>
-                  </div>
-                </div>
+                <!-- Real subline for a published result (whatsapp_share_card_screen.dart). -->
+                <div class="sc-sub">Official link &amp; instant roll-number check</div>
+                <!-- The invented CUT-OFF grid that used to sit here is gone:
+                     the shipped card renders cut-offs ONLY when a publisher
+                     actually released them, and never with made-up numbers. -->
                 <div class="sc-cta">
                   <span>Check your roll no.</span>
                   <span class="sc-cta-arrow">→</span>
                 </div>
-                <div class="sc-foot">JOIN 12,480 ASPIRANTS <span>·</span> VERIFIED SOURCE <span>·</span> FREE</div>
+                <!-- Real footer (share_infographic.dart): always-true claims only.
+                     "JOIN 12,480 ASPIRANTS · VERIFIED SOURCE" were both invented. -->
+                <div class="sc-foot">FREE <span>·</span> NO ACCOUNT <span>·</span> CHECKED ON YOUR DEVICE</div>
               </div>
             </div>
           </div>
@@ -525,8 +551,10 @@
 
           <div class="attach">
             <div class="attach-main">
-              <div class="attach-title">Attach cut-off PDF</div>
-              <div class="attach-sub">4.2 MB · mirrors included</div>
+              <!-- "Attach cut-off PDF · mirrors included" promised two things
+                   the app does not do (it has no cut-off PDFs and no mirrors). -->
+              <div class="attach-title">Attach PDF to message</div>
+              <div class="attach-sub">Off = a direct link is sent instead</div>
             </div>
             <span class="switch switch--on"><i></i></span>
           </div>

@@ -710,7 +710,9 @@ function buildHome(x) {
   tab.layoutPositioning = "ABSOLUTE";
   tab.x = 16; tab.y = 770;
 
-  const tabs = [["home", "Home", true, false], ["lock", "Vault", false, false], ["radar", "Radar", false, true], ["users", "Groups", false, false]];
+  // Shipped tabs are Home / Vault / Radar / Share (EvTab in root_shell.dart).
+  // "Groups" was never built.
+  const tabs = [["home", "Home", true, false], ["lock", "Vault", false, false], ["radar", "Radar", false, true], ["share", "Share", false, false]];
   tabs.forEach(([ic, label, active, dotOn]) => {
     const t = col("Tab · " + label, 80, {
       h: 48, gap: 3, align: "CENTER", justify: "CENTER",
@@ -1360,7 +1362,10 @@ function buildShare(x) {
   bl.appendChild(bm);
   addT(bl, "EXAMVAULT", { mono: true, size: 8.5, weight: "SemiBold", ls: 1.9, color: "#64748B", lh: 11 });
   brand.appendChild(bl);
-  addT(brand, "examvault.in", { mono: true, size: 8, weight: "Regular", ls: 0.3, color: "#94A3B8", lh: 10 });
+  // The app's real CTA line (share_infographic.dart). The project owns no
+  // domain, so the card never prints a URL — the fictional one that used to
+  // sit here was never registered by anyone.
+  addT(brand, "Ask in your study group", { mono: true, size: 8, weight: "Regular", ls: 0.3, color: "#94A3B8", lh: 10 });
   body.appendChild(brand);
 
   vspace(body, 14);
@@ -1396,27 +1401,17 @@ function buildShare(x) {
   line2.appendChild(liveWrap);
   body.appendChild(line2);
   vspace(body, 9);
-  addT(body, "Cut-off & direct PDF link inside", {
+  // Real subline for a published result (whatsapp_share_card_screen.dart).
+  // "Cut-off & direct PDF link inside" promised data the app never fabricates.
+  addT(body, "Official link & instant roll-number check", {
     size: 11, weight: "SemiBold", ls: -0.1, color: "#475569", lh: 14,
   });
   vspace(body, 13);
 
-  const cutoff = col("Cut-off", 309, {
-    fill: solid(C.ink), r: 12, pl: 13, pr: 13, pt: 10, pb: 10,
-  });
-  body.appendChild(cutoff);
-  addT(cutoff, "CUT-OFF · TIER-1", { mono: true, size: 7, weight: "Medium", ls: 1.3, color: "#8CA0BA", lh: 9 });
-  vspace(cutoff, 6);
-  const cg = row("Cut-off Values", 283, 15, { gap: 0, justify: "SPACE_BETWEEN" });
-  [["UR", "152.5"], ["OBC", "149.0"], ["SC", "141.0"], ["ST", "138.5"]].forEach(([k, v]) => {
-    const g = hug("Value", 15, { gap: 4 });
-    addT(g, k, { mono: true, size: 7, weight: "Regular", color: "#7E90A8", lh: 9 });
-    addT(g, v, { mono: true, size: 12.5, weight: "SemiBold", ls: 0.2, color: "#F8FAFC", lh: 15 });
-    cg.appendChild(g);
-  });
-  cutoff.appendChild(cg);
-
-  vspace(body, 12);
+  // The invented CUT-OFF grid (UR 152.5 / OBC 149.0 / SC 141.0 / ST 138.5)
+  // was removed: the shipped card renders cut-offs ONLY when a publisher
+  // actually released them (_CutoffBlock in share_infographic.dart), and the
+  // numbers above were made up for the mock.
 
   const cta = row("Share CTA", 309, 40, {
     fill: solid(C.blueDeep), r: 10, pl: 13, pr: 13, justify: "SPACE_BETWEEN",
@@ -1427,7 +1422,11 @@ function buildShare(x) {
   body.appendChild(cta);
 
   vspace(body, 10);
-  fixedT(body, "JOIN 12,480 ASPIRANTS · VERIFIED SOURCE · FREE", {
+  // Real footer (share_infographic.dart): always-true claims only. The shipped
+  // code even documents why "VERIFIED SOURCE" was dropped — it is a promise
+  // the app cannot keep for a card the user typed in themselves — and
+  // "JOIN 12,480 ASPIRANTS" was an invented counter.
+  fixedT(body, "FREE · NO ACCOUNT · CHECKED ON YOUR DEVICE", {
     mono: true, size: 6.5, weight: "Regular", ls: 0.8, color: "#94A3B8", lh: 9, align: "CENTER",
   }, 309, 9);
 
@@ -1491,8 +1490,8 @@ function buildShare(x) {
     fill: solid(C.surface), stroke: solid(C.border), r: 14, pl: 14, pr: 14, justify: "SPACE_BETWEEN",
   });
   const am = col("Attach Copy", 240, { gap: 2 });
-  addT(am, "Attach cut-off PDF", { size: 11.5, weight: "SemiBold", color: "#E4E9F1", lh: 14 });
-  addT(am, "4.2 MB · mirrors included", { size: 9, weight: "Regular", color: "#718097", lh: 11 });
+  addT(am, "Attach PDF to message", { size: 11.5, weight: "SemiBold", color: "#E4E9F1", lh: 14 });
+  addT(am, "Off = a direct link is sent instead", { size: 9, weight: "Regular", color: "#718097", lh: 11 });
   attach.appendChild(am);
   const sw = box("Switch", 0, 0, 38, 22, { fill: solid(C.green, 0.9), r: 999 });
   const knob = figma.createEllipse();

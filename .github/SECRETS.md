@@ -36,12 +36,29 @@ or: **Settings → Secrets and variables → Actions → New repository secret**
 
 ## Edge endpoint overrides
 
-`EV_CDN_BASE` is **required for a usable build** — there is no fallback. A build
-pointed at a domain nobody registered shows a permanent "no feed" that looks like
-an outage rather than a misconfiguration, so the CI step fails loudly instead.
+`EV_CDN_BASE` is **required for a usable build** — there is no fallback. An
+*empty* secret is the dangerous case: `--dart-define=EV_CDN_BASE=""` overrides
+the worker URL compiled into `AppConfig.cdnBase` as its default, every request
+becomes a schemeless path, and the result is a permanent "no feed" that looks
+like an outage rather than a misconfiguration — with green CI. The `Build APK`
+step in `.github/workflows/ci.yml` therefore refuses to build when the secret is
+empty or missing (`::error::` + exit 1), which is the loud failure this section
+used to only promise.
 
-`EV_WEB_BASE` is optional: it only feeds the share card's deep link, and when unset
-the card shows the commission's own URL instead of a dead `examvault.in/r/...`.
+`EV_WEB_BASE` feeds the share card's deep link (`result_index_repository.dart`
+→ `shareUrl()` → `<base>/r/<examId>`). Set it to the worker origin:
+
+```
+EV_WEB_BASE=https://examvault-edge.aasheeshkatheriya.workers.dev
+```
+
+The worker's `GET /r/<examId>` route resolves that link against the live feed
+and 302s to the commission's own result PDF/page (plain-text 404 when the exam
+is not in the feed), so the printed deep link is real. **The project owns no
+domain** — never point this at a name nobody registered (e.g. the
+never-owned `examvault.in` from early mockups). When `EV_WEB_BASE` is unset,
+`shareUrl()` returns null and the card shows the commission's own URL instead of
+a dead link.
 
 ## Android release signing
 
@@ -103,8 +120,8 @@ git log -p | grep -nE 'AIza[0-9A-Za-z_-]{35}|cfoat_|ghp_[A-Za-z0-9]{36}|-----BEG
 | `EV_FIREBASE_PROJECT_ID` | set — `examvault-49b1a` |
 | `EV_FIREBASE_STORAGE_BUCKET` | set |
 | `EV_ONESIGNAL_APP_ID` | set — `062ce6a9-a47e-48d8-bb4d-dfee88b60026` |
-| `EV_CDN_BASE` | set — worker URL |
-| `EV_WEB_BASE` | set (no public site yet; the share card falls back to the official link) |
+| `EV_CDN_BASE` | set — worker origin `https://examvault-edge.aasheeshkatheriya.workers.dev` |
+| `EV_WEB_BASE` | set to the same worker origin — since the `/r/<examId>` route shipped, `shareUrl()` deep links resolve there (the project owns no domain; there is no public site) |
 | `CLOUDFLARE_API_TOKEN` | set |
 | `CLOUDFLARE_ACCOUNT_ID` | set |
 | `ANDROID_KEYSTORE_BASE64` | set — upload keystore, `CN=ExamVault` |
@@ -114,6 +131,12 @@ git log -p | grep -nE 'AIza[0-9A-Za-z_-]{35}|cfoat_|ghp_[A-Za-z0-9]{36}|-----BEG
 
 Verified: the AAB built by CI is signed with
 `SHA-256 F4:D8:1E:BC:8C:DF:91:D7:15:52:01:CB:4F:77:46:C1:87:1E:32:E4:50:E5:6C:D4:17:53:A3:47:EA:34:E0:EB`.
+
+> The `EV_WEB_BASE` row states the **required** value. If the stored secret
+> predates the worker's `/r/<examId>` route, re-set it once:
+> `gh secret set EV_WEB_BASE --repo <owner>/ExamVault --body "https://examvault-edge.aasheeshkatheriya.workers.dev"`.
+> The route itself deploys automatically on the next push to `master` that
+> touches `infra/**` (CI job `deploy-edge`).
 
 ### OneSignal notes
 

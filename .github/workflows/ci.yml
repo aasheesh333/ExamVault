@@ -49,6 +49,11 @@ jobs:
         run: flutter analyze --fatal-infos
 
       - name: Tests
+        # The live-network suite (test/live_edge_integration_test.dart) is gated
+        # behind EV_LIVE=1, which CI deliberately does NOT set — the default run
+        # must never depend on runner egress or on the live edge being up. To
+        # exercise the real published objects, run locally:
+        #   EV_LIVE=1 flutter test test/live_edge_integration_test.dart
         run: flutter test --reporter expanded
 
   # ---------------------------------------------------------------------------
@@ -132,6 +137,17 @@ jobs:
           # reach its data is bad, but a build that silently points at a domain
           # nobody registered is worse — the app would show a permanent "no feed"
           # that looks like an outage rather than a misconfiguration.
+          #
+          # Guard, because the failure mode is silent: an *empty* secret still
+          # passes `--dart-define=EV_CDN_BASE=""`, and an explicit empty define
+          # OVERRIDES the worker URL compiled into AppConfig.cdnBase as its
+          # default. Every request then becomes a schemeless path, the app ships
+          # showing "no feed" forever, and CI reports green. Fail loudly here —
+          # .github/SECRETS.md promises this behaviour.
+          if [ -z "${EV_CDN_BASE:-}" ]; then
+            echo "::error::EV_CDN_BASE secret is empty or missing — refusing to build. An empty --dart-define would override the compiled-in worker URL with '' and ship a silent 'no feed' app. See .github/SECRETS.md."
+            exit 1
+          fi
           flutter build apk --release --split-per-abi \
             --dart-define=EV_CDN_BASE="${EV_CDN_BASE}" \
             --dart-define=EV_WEB_BASE="${EV_WEB_BASE:-}" \
@@ -172,12 +188,36 @@ jobs:
           if-no-files-found: error
 
   # ---------------------------------------------------------------------------
-  # Edge deploy. Only on main, only when infra/ changed.
+  # Path filter for deploy-edge. `on.push.paths` would gate the whole workflow
+  # (verify/build must run on every push), so the "only when infra/ changed"
+  # contract is implemented per-job: this detector turns the push's diff into a
+  # boolean that deploy-edge's `if` consumes.
+  # ---------------------------------------------------------------------------
+  changes:
+    name: Detect infra changes
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      infra: ${{ steps.filter.outputs.infra }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            infra:
+              - 'infra/**'
+
+  # ---------------------------------------------------------------------------
+  # Edge deploy. Only on master/main pushes, only when infra/ changed (the
+  # `changes` job above computes the infra/** filter).
   # ---------------------------------------------------------------------------
   deploy-edge:
     name: Deploy Cloudflare worker
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main')
-    needs: verify
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main') && needs.changes.outputs.infra == 'true'
+    needs: [verify, changes]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     defaults:

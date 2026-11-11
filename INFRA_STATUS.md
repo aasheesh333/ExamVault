@@ -12,7 +12,7 @@ Verified 2026-11-10 against the live services.
 | **Firebase Android app** | ✅ Registered | package `app.examvault` |
 | **OneSignal** | ✅ Created | app id `062ce6a9-a47e-48d8-bb4d-dfee88b60026` (Android/iOS; web-push intentionally off) |
 | **Release signing** | ✅ Working | AAB signed with `CN=ExamVault` upload key, SHA-256 `F4:D8:1E:…:E0:EB` |
-| **CI** | ✅ Green | analyze + 115 tests · signed AAB (54 MB) + 3 split APKs · edge deploy |
+| **CI** | ✅ Green | analyze + the full suite in `app/test` (live-network tests gated behind `EV_LIVE=1`, skipped in CI) · signed AAB (54 MB) + 3 split APKs · edge deploy, which runs only on pushes that touch `infra/**` |
 
 Repository secrets: Cloudflare (2), Firebase (5), OneSignal (1), Android signing (4),
 edge base (2). Listed in `.github/SECRETS.md`.
@@ -23,7 +23,7 @@ Every line below was produced by driving the built app, not by asserting intent.
 
 | Claim | How it was checked |
 |---|---|
-| Five categories carry real rows | feed's `sources` block: ssc 17, upsc 12, ibps 5, tnpsc 10, railways 25 |
+| Five categories carry real rows | feed's `sources` block: ssc 17, upsc 12, ibps 5, tnpsc 10, railways 25 — 69 raw adapter rows, which become the 60 published `updates` after `fetch_official_feeds.mjs` dedupes by `exam_id` (UPSC 12→8) and caps each source at 20 rows (Railways 25→20) |
 | Published indexes are hashed | fetched all 17 from the edge; each is `v:2`, `sha256-8-salted`, counts match the feed, and **zero** 7- or 12-digit roll numbers appear in the payload |
 | A real roll is found | UPSC CDSE-II index (8,956 rolls) → `2100058` found in **93 µs**; a fabricated roll rejected |
 | A saved card resolves its index | typed a UPSC card → matcher linked the published row → checker fetched 2,526 rolls → roll `0801786` found in 13.4 ms |

@@ -579,11 +579,12 @@ def frame1():
         pill(364, ry + 12, 19, status, color, tc, anchor="end")
         txt(364, ry + 45, t, 8, "#8B98AC", 400, mono=True, ls=0.6, anchor="end")
 
-    # tab bar
+    # tab bar — shipped tabs are Home / Vault / Radar / Share (EvTab in
+    # root_shell.dart); "Groups" was never built.
     tb = 770
     rect(16, tb, 361, 58, SURF, rx=19, stroke=BORDER2, sw=1, opacity=1, shadow="cardShadow")
     tabs = [("home", "Home", True, False), ("lock", "Vault", False, False),
-            ("radar", "Radar", False, True), ("users", "Groups", False, False)]
+            ("radar", "Radar", False, True), ("share", "Share", False, False)]
     for i, (ic, label, active, dot) in enumerate(tabs):
         tx = 21 + i * 88.5
         if active:
@@ -845,9 +846,11 @@ def frame4():
     rect(316, 60, 61, 24, "none", rx=12, stroke=BORDER, sw=1)
     txt(346.5, 72.5, "PREVIEW", 8, "#7C8AA3", 600, mono=True, anchor="middle", ls=1.2)
 
-    # share card
+    # share card — height 284 since the invented cut-off grid was removed
+    # (the shipped card only renders cut-offs when a publisher actually
+    # released them; these numbers were fiction).
     cx, cy, cw = 24, 100, 345
-    rect(cx, cy, cw, 372, ALABASTER, rx=20, shadow="cardShadow")
+    rect(cx, cy, cw, 284, ALABASTER, rx=20, shadow="cardShadow")
     rect(cx, cy, cw, 38, "url(#alertRed)", rx=20)
     rect(cx, cy + 20, cw, 18, "url(#alertRed)")
     icon("bell", cx + 15, cy + 12, 13, "#FFFFFF")
@@ -857,7 +860,10 @@ def frame4():
     rect(cx + 18, cy + 53, 17, 17, "url(#markBlue)", rx=5)
     icon("vault", cx + 21, cy + 56, 10, "#FFFFFF", sw=1.6)
     txt(cx + 41, cy + 61, "EXAMVAULT", 8.5, "#64748B", 600, mono=True, ls=1.9)
-    txt(cx + cw - 18, cy + 61, "examvault.in", 8, "#64748B", 400, mono=True, ls=0.3, anchor="end")
+    # The app's real CTA line (share_infographic.dart). The project owns no
+    # domain, so the card never prints a URL; the fictional host that used to
+    # sit here was never registered by anyone.
+    txt(cx + cw - 18, cy + 61, "Ask in your study group", 8, "#64748B", 400, mono=True, ls=0.3, anchor="end")
 
     txt(cx + 18, cy + 92, "SSC CGL · TIER-1 2026", 8.5, "#2563EB", 600, mono=True, ls=1.5)
     txt(cx + 18, cy + 124, "RESULT", 39, "#0B0F19", 800, ls=-1.9)
@@ -870,25 +876,19 @@ def frame4():
     rect(live_x, cy + 148, _lw, 14, BLUE, opacity=0.24)
     rect(live_x, cy + 159, _lw, 3, BLUE, opacity=0.9)
     txt(live_x, cy + 161, _live, 39, "#0B0F19", 800, ls=-1.9)
-    txt(cx + 18, cy + 186, "Cut-off, PDF & official link inside", 11, "#475569", 600)
+    # Real subline for a published result (whatsapp_share_card_screen.dart).
+    txt(cx + 18, cy + 186, "Official link & instant roll-number check", 11, "#475569", 600)
 
-    # cut-off
+    # The invented CUT-OFF grid (UR 152.5 / OBC 149.0 / SC 141.0 / ST 138.5)
+    # was removed — the app never fabricates cut-offs. CTA moves up to where
+    # the grid used to be.
     ry = cy + 200
-    rect(cx + 18, ry, 309, 76, "#0B0F19", rx=12)
-    txt(cx + 31, ry + 18, "CUT-OFF · TIER-1", 7, "#8CA0BA", 500, mono=True, ls=1.3)
-    cuts = [("UR", "152.5"), ("OBC", "149.0"), ("SC", "141.0"), ("ST", "138.5")]
-    _cx = cx + 31
-    for k, v in cuts:
-        txt(_cx, ry + 42, k, 7, "#7E90A8", 400, mono=True)
-        kw = tw(k, 7, 400, mono=True)
-        txt(_cx + kw + 4, ry + 42, v, 12.5, "#F8FAFC", 600, mono=True, ls=0.2)
-        _cx += kw + 4 + tw(v, 12.5, 600, mono=True, ls=0.2) + 18
+    rect(cx + 18, ry, 309, 40, BLUE, rx=10)
+    txt(cx + 31, ry + 20, "Check your roll no.", 11, "#FFFFFF", 700)
+    txt(cx + 314, ry + 20, "→", 15, "#FFFFFF", 500, anchor="end")
 
-    rect(cx + 18, ry + 88, 309, 40, BLUE, rx=10)
-    txt(cx + 31, ry + 108, "Check your roll no.", 11, "#FFFFFF", 700)
-    txt(cx + 314, ry + 108, "→", 15, "#FFFFFF", 500, anchor="end")
-
-    txt(cx + 172.5, ry + 145, "VERIFIED SOURCE · FREE · DIRECT PDF", 8, "#64748B", 500, mono=True, anchor="middle", ls=0.7)
+    # Real footer (share_infographic.dart): always-true claims only.
+    txt(cx + 172.5, ry + 57, "FREE · NO ACCOUNT · CHECKED ON YOUR DEVICE", 8, "#64748B", 500, mono=True, anchor="middle", ls=0.7)
 
     # targets
     ty = cy + 390
@@ -922,7 +922,10 @@ def frame4():
     ky = gy + 62
     rect(16, ky, 361, 48, SURF, rx=12, stroke=BORDER, sw=1)
     txt(30, ky + 16, "MESSAGE CAPTION", 8, TXT3, 500, mono=True, ls=1.2)
-    txt(30, ky + 32, "SSC CGL 2026 RESULT IS LIVE — cut-off & PDF inside", 9.5, "#C7D0DD", 500)
+    # caption echoes the real format: "🚨 <EXAM> <HEADLINE> — <subline>."
+    # (whatsapp_share_card_screen.dart); shortened here to fit the mock row.
+    # The old "cut-off & PDF inside" claimed data the app never fabricates.
+    txt(30, ky + 32, "SSC CGL 2026 RESULT IS LIVE — official link & roll check", 9.5, "#C7D0DD", 500)
     txt(365, ky + 24, "EDIT", 8, BLUE_TEXT, 600, mono=True, ls=0.9, anchor="end")
 
     # green cta

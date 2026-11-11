@@ -6,16 +6,20 @@
  * here that can fall over.
  *
  * Routes
- *   GET /v1/live_feed_v1.json          radar document      s-maxage=3600
- *   GET /v1/rolls/:examId_rolls.json.gz sorted roll index  s-maxage=86400, immutable
- *   GET /v1/pdf/:examId_result.pdf     mirrored result PDF s-maxage=86400
- *   GET /health                        liveness            no-store
+ *   GET /v1/live_feed_v1.json           radar document      s-maxage=0 (deliberately not edge-cached)
+ *   GET /v1/rolls/:examId_rolls.json.gz sorted roll index   s-maxage=86400, immutable
+ *   GET /v1/pdf/:examId_result.pdf      mirrored result PDF s-maxage=86400
+ *   GET /r/:examId                      302 → the exam's official result link, 60 s cache
+ *   GET /health                         liveness            no-store
  *
  * Why the cache headers matter more than the code:
  *   Cloudflare collapses every concurrent request for the same cache key into a
- *   single origin fetch ("request collapsing"). With s-maxage=3600 the R2 bucket
- *   is read once per hour per PoP no matter whether 10 users or 10 million ask.
- *   That is what turns a free-tier account into a 10M-CCU CDN.
+ *   single origin fetch ("request collapsing"). For the content-addressed roll
+ *   indexes (s-maxage=86400) the R2 bucket is read once per day per PoP no
+ *   matter whether 10 users or 10 million ask. The 1 KB feed is deliberately
+ *   NOT edge-cached (see its route) so a publish is visible immediately;
+ *   request collapsing still turns a burst into a handful of R2 reads. That
+ *   combination is what turns a free-tier account into a 10M-CCU CDN.
  */
 
 const CORS = {
@@ -25,11 +29,20 @@ const CORS = {
   'access-control-max-age': '86400',
 };
 
+const FEED_KEY = 'v1/live_feed_v1.json';
+
 /** Attach the headers that make the edge do the work. */
 function withCache(headers, { maxAge, sMaxAge, immutable = false, contentType }) {
   const out = new Headers(headers);
-  out.set('cache-control', `public, max-age=${maxAge}, s-maxage=${sMaxAge}`);
-  if (immutable) out.set('immutable', 'true');
+  // `immutable` is a Cache-Control *directive*, not a standalone header. It was
+  // previously emitted as `immutable: true`, which every client ignores — so
+  // the content-addressed roll routes never actually got "don't revalidate for
+  // max-age" behaviour. Only the rolls route sets the flag, and only there is
+  // it correct: the URL carries a content hash, so new content always arrives
+  // at a new URL.
+  const directives = ['public', `max-age=${maxAge}`, `s-maxage=${sMaxAge}`];
+  if (immutable) directives.push('immutable');
+  out.set('cache-control', directives.join(', '));
   if (contentType) out.set('content-type', contentType);
   for (const [k, v] of Object.entries(CORS)) out.set(k, v);
   // Roll indexes change rarely; let the browser keep them for a day too.
@@ -62,7 +75,7 @@ const routes = [
   },
   {
     pattern: /^\/v1\/live_feed_v1\.json$/,
-    key: () => 'v1/live_feed_v1.json',
+    key: () => FEED_KEY,
     contentType: 'application/json; charset=utf-8',
     // The radar document is ~1 KB and changes the moment a result drops.
     //
@@ -78,6 +91,67 @@ const routes = [
     noEdgeCache: true,
   },
 ];
+
+/**
+ * GET /r/:examId — the deep link printed on the share card.
+ *
+ * The project owns no domain, so EV_WEB_BASE points at this worker and /r/ is
+ * the route that makes the printed link real: it looks the exam up in the live
+ * feed (the same 1 KB R2 object the app reads) and 302s to the commission's
+ * own PDF or notice page. When the exam is not in the feed the answer is a
+ * plain-text 404 — a dead end beats an invented redirect.
+ *
+ * Cached for 60 s: long enough to absorb a share burst, short enough that a
+ * freshly published official link goes live within a minute.
+ */
+async function resultRedirect(examId, { env, ctx, request, url }) {
+  const cache = caches.default;
+  const cacheKey = new Request(url.toString(), request);
+  const cached = await cache.match(cacheKey);
+  if (cached) {
+    const hit = new Response(cached.body, cached);
+    hit.headers.set('x-examvault-cache', 'HIT');
+    return hit;
+  }
+
+  const shared = {
+    ...CORS,
+    'cache-control': 'public, max-age=60, s-maxage=60',
+  };
+
+  let target = null;
+  try {
+    const feedObject = await env.EXAMVAULT_BUCKET.get(FEED_KEY);
+    if (feedObject) {
+      const feed = JSON.parse(await feedObject.text());
+      const row = (feed.updates ?? []).find((u) => u && u.exam_id === examId);
+      // Prefer the PDF, fall back to the notice page. Never invent a URL:
+      // the feed's official_* fields are the only sources of truth.
+      target = row?.official_pdf || row?.official_page || null;
+    }
+  } catch (err) {
+    return new Response('Origin unavailable', { status: 502, headers: CORS });
+  }
+
+  const response = target
+    ? new Response(null, {
+        status: 302,
+        headers: { ...shared, location: target },
+      })
+    : new Response('This result link is no longer active.', {
+        status: 404,
+        headers: { ...shared, 'content-type': 'text/plain; charset=utf-8' },
+      });
+
+  // Same discipline as the object routes: a failed put must never fail the
+  // request — the next caller simply takes the R2 path again.
+  ctx.waitUntil(
+    cache.put(cacheKey, response.clone()).catch((err) => {
+      console.error('cache.put failed (/r/)', err?.message ?? err);
+    }),
+  );
+  return response;
+}
 
 export default {
   async fetch(request, env, ctx) {
@@ -102,6 +176,12 @@ export default {
           'cache-control': 'no-store',
         },
       });
+    }
+
+    // /r/:examId — share-card deep link; see resultRedirect().
+    const redirectMatch = url.pathname.match(/^\/r\/([a-z0-9_]+)$/);
+    if (redirectMatch) {
+      return resultRedirect(redirectMatch[1], { env, ctx, request, url });
     }
 
     const route = routes.find((r) => r.pattern.test(url.pathname));
@@ -138,8 +218,11 @@ export default {
 
     if (!object) {
       // 404 is a *valid* answer before a result drops. The app treats it as
-      // "not published yet" and falls back to its local demo index, so this path
-      // must stay cheap and must not be cached for long.
+      // "not published yet" and tells the user exactly that. There is no local
+      // demo index to fall back to — the repository deliberately has no type
+      // for one ("Fabricating an exam outcome is unacceptable", see
+      // IndexSource in app/lib/data/repositories/result_index_repository.dart),
+      // so this path must stay cheap and must not be cached for long.
       return new Response('Not published yet', {
         status: 404,
         headers: { ...CORS, 'cache-control': 'public, max-age=15, s-maxage=15' },

@@ -34,8 +34,8 @@ dependencies:
   share_plus: ^13.3.1
 
   # --- misc ---
-  intl: ^0.20.3
-  collection: ^1.19.0
+  # `intl` and `collection` were dropped: grep proved zero imports across
+  # lib/ and test/ — both only ever arrived as transitive deps anyway.
   meta: ^1.16.0
   url_launcher: ^6.3.3
   onesignal_flutter: ^5.7.3

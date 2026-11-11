@@ -16,23 +16,40 @@ import '../../shell/root_shell.dart';
 /// badge — so the app trained users to ignore the one signal that has to work on
 /// result day. This is the inbox it was always implying: the actionable rows,
 /// newest first, with the badge clearing once it has been read.
-Future<void> showAlertsSheet(BuildContext context, WidgetRef ref) {
-  return showModalBottomSheet<void>(
+///
+/// Completes with whether the sheet actually rendered a **loaded, non-empty**
+/// alert list. The caller gates `markSeen` on this: while the feed is loading
+/// the sheet shows "Nothing needs your attention.", and opening the bell in
+/// that window used to stamp every already-published alert as seen — the badge
+/// could never come back for them.
+Future<bool> showAlertsSheet(BuildContext context, WidgetRef ref) async {
+  var renderedLoadedAlerts = false;
+  await showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     useSafeArea: true,
     backgroundColor: Colors.transparent,
-    builder: (_) => const _AlertsSheet(),
+    builder: (_) =>
+        _AlertsSheet(onLoadedAlertsRendered: () => renderedLoadedAlerts = true),
   );
+  return renderedLoadedAlerts;
 }
 
 class _AlertsSheet extends ConsumerWidget {
-  const _AlertsSheet();
+  const _AlertsSheet({this.onLoadedAlertsRendered});
+
+  /// Fired from build when a loaded, non-empty list reaches the screen. The
+  /// callback only sets a captured bool — safe and idempotent to call on every
+  /// rebuild, and deliberately *not* routed through Navigator.pop: the sheet
+  /// can also be dismissed by drag, barrier tap or back gesture, and reading
+  /// the alerts must count however the user leaves.
+  final VoidCallback? onLoadedAlertsRendered;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final p = context.ev;
-    final feed = ref.watch(liveFeedProvider).value?.feed;
+    final feedAsync = ref.watch(liveFeedProvider);
+    final feed = feedAsync.value?.feed;
 
     final alerts =
         (feed?.activeAt(DateTime.now()) ?? const <LiveUpdate>[])
@@ -44,6 +61,13 @@ class _AlertsSheet extends ConsumerWidget {
             )
             .toList()
           ..sort((a, b) => b.publishedAt.compareTo(a.publishedAt));
+
+    // `isLoading` is part of the check: after an invalidate Riverpod keeps the
+    // previous value *inside* the loading state, and rows painted from a feed
+    // that is still resolving must not count as read.
+    if (alerts.isNotEmpty && feedAsync.hasValue && !feedAsync.isLoading) {
+      onLoadedAlertsRendered?.call();
+    }
 
     return Container(
       decoration: BoxDecoration(

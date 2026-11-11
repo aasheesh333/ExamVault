@@ -19,11 +19,21 @@ class WalletCardStack extends StatelessWidget {
     required this.cards,
     required this.onOpen,
     this.maxLayers = 3,
+    this.totalCount,
   });
 
   final List<AdmitCard> cards;
   final void Function(AdmitCard card) onOpen;
   final int maxLayers;
+
+  /// How many cards the vault actually holds, filter or no filter.
+  ///
+  /// Callers hand this widget the *filtered* list, so the large-text
+  /// "N cards total" line — which exists to reconcile the dropped deck with
+  /// the hero's "N exams tracked" — re-created the very contradiction it was
+  /// added to fix whenever a chip or a search narrowed the deck. Defaults to
+  /// the list length for callers that pass an unfiltered vault.
+  final int? totalCount;
 
   /// Vertical offset between stacked cards.
   static const _layer = 44.0;
@@ -46,6 +56,7 @@ class WalletCardStack extends StatelessWidget {
     // words instead.
     final largeText = MediaQuery.textScalerOf(context).scale(1) > 1.4;
     final layers = largeText ? 0 : visible.length - 1;
+    final total = totalCount ?? cards.length;
 
     if (largeText) {
       return Column(
@@ -53,13 +64,15 @@ class WalletCardStack extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           WalletPassCard(card: visible[0], onOpen: () => onOpen(visible[0])),
-          // cards.length, not visible.length: `visible` is capped at
-          // maxLayers (3), so a user with 5 saved cards read "3 cards total"
-          // here while the hero 300px above said "5 exams tracked".
-          if (cards.length > 1) ...[
+          // The unfiltered total, not visible.length and not cards.length:
+          // `visible` is capped at maxLayers (3), and `cards` is the filtered
+          // list — with a chip or search active this line said "3 cards total"
+          // while the hero 300px above counted the whole vault, the exact
+          // contradiction the line exists to prevent.
+          if (total > 1) ...[
             const SizedBox(height: 8),
             Text(
-              '${cards.length} cards total — tap to open all of them',
+              '$total cards total — tap to open all of them',
               style: context.type.bodyMuted,
             ),
           ],

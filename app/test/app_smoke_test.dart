@@ -1,9 +1,13 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
 import 'package:examvault/app.dart';
 import 'package:examvault/data/repositories/admit_card_repository.dart';
+import 'package:examvault/data/repositories/live_feed_repository.dart';
 import 'package:examvault/data/remote/cdn_client.dart';
+import 'package:examvault/domain/entities/exam_category.dart';
+import 'package:examvault/domain/entities/live_update.dart';
 import 'package:examvault/providers/app_providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -183,4 +187,199 @@ void main() {
       reason: 'sub-8px text is unreadable at arm length',
     );
   });
+
+  // ---------------------------------------------------------------------------
+  // Bell badge lifecycle
+  // ---------------------------------------------------------------------------
+
+  /// Six actionable rows — exactly the statuses the badge counts — published
+  /// minutes ago: new relative to the epoch-default seen stamp, but old
+  /// enough that any markSeen performed during a test would suppress them.
+  String sixRowFeedJson() {
+    final now = DateTime.now();
+    return jsonEncode({
+      'generated_at': now.toUtc().toIso8601String(),
+      'revision': 8,
+      'updates': [
+        for (var i = 0; i < 6; i++)
+          {
+            'exam_id': 'ssc_notice_$i',
+            'category': 'ssc',
+            'exam_name': 'SSC CGL Tier-1 2026 notice $i',
+            'context': 'Direct PDF · 18.4 MB',
+            'status': 'result_out',
+            'published_at': now
+                .subtract(Duration(minutes: 2 + i * 2))
+                .toUtc()
+                .toIso8601String(),
+          },
+      ],
+    });
+  }
+
+  /// The same six rows as an entity feed, all published at [published].
+  LiveFeed sixRowFeed(DateTime published) => LiveFeed(
+    generatedAt: published,
+    revision: 9,
+    updates: [
+      for (var i = 0; i < 6; i++)
+        LiveUpdate(
+          examId: 'ssc_notice_$i',
+          category: ExamCategory.ssc,
+          examName: 'SSC CGL Tier-1 2026 notice $i',
+          contextLine: 'Direct PDF · 18.4 MB',
+          status: UpdateStatus.resultOut,
+          publishedAt: published.add(Duration(seconds: i)),
+          expiresAt: published.add(const Duration(days: 2)),
+        ),
+    ],
+  );
+
+  Widget appWithFeed(String feedJson) {
+    final mock = MockClient((req) async {
+      if (req.url.path.contains('live_feed')) {
+        return http.Response(feedJson, 200);
+      }
+      return http.Response('', 404);
+    });
+    return ProviderScope(
+      overrides: [
+        httpCacheBoxProvider.overrideWithValue(cacheBox),
+        settingsBoxProvider.overrideWithValue(settingsBox),
+        admitCardRepositoryProvider.overrideWith(
+          (ref) => AdmitCardRepository(store: FakeVaultStore()),
+        ),
+        cdnClientProvider.overrideWithValue(
+          CdnClient(cache: cacheBox, client: mock, baseUrl: 'https://cdn.test'),
+        ),
+      ],
+      child: const ExamVaultApp(),
+    );
+  }
+
+  Widget appWithGatedFeed(Completer<LiveFeedSnapshot> gate) {
+    final mock = MockClient((_) async => http.Response('', 404));
+    return ProviderScope(
+      overrides: [
+        httpCacheBoxProvider.overrideWithValue(cacheBox),
+        settingsBoxProvider.overrideWithValue(settingsBox),
+        admitCardRepositoryProvider.overrideWith(
+          (ref) => AdmitCardRepository(store: FakeVaultStore()),
+        ),
+        cdnClientProvider.overrideWithValue(
+          CdnClient(cache: cacheBox, client: mock, baseUrl: 'https://cdn.test'),
+        ),
+        liveFeedProvider.overrideWith(() => _GatedLiveFeed(gate)),
+      ],
+      child: const ExamVaultApp(),
+    );
+  }
+
+  testWidgets('the bell badges actionable rows and clears once read', (
+    tester,
+  ) async {
+    await pumpPhone(tester, appWithFeed(sixRowFeedJson()));
+    // The MockClient's feed response only completes on the real event loop
+    // (the fake-clock limitation result_day_test documents); without this hop
+    // the badge would never see its six rows.
+    for (var i = 0; i < 3; i++) {
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 400)),
+      );
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    await tester.pump(const Duration(milliseconds: 300));
+
+    final bell = find.byTooltip('Notifications');
+    expect(
+      find.descendant(of: bell, matching: find.text('6')),
+      findsOneWidget,
+      reason: 'six actionable rows must badge the bell',
+    );
+
+    await tester.tap(bell);
+    await tester.pumpAndSettle();
+    expect(find.text('6 updates need a look'), findsOneWidget);
+
+    await tester.tap(find.byIcon(Icons.close_rounded));
+    await tester.pumpAndSettle();
+
+    // Reading a loaded inbox clears the badge and stamps the read time.
+    expect(find.descendant(of: bell, matching: find.text('6')), findsNothing);
+    final seen = settingsBox.get('alerts_seen_at');
+    expect(
+      seen,
+      isA<String>(),
+      reason: 'reading the inbox must record alerts_seen_at',
+    );
+    expect(DateTime.tryParse(seen as String), isNotNull);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('opening the bell while the feed loads suppresses nothing', (
+    tester,
+  ) async {
+    // Published long before anything the user can do in this test: if opening
+    // the bell stamped them seen while the feed was still loading — the old
+    // unconditional markSeen — they could never badge again.
+    final published = DateTime.now().subtract(const Duration(minutes: 10));
+    final gate = Completer<LiveFeedSnapshot>();
+
+    await pumpPhone(tester, appWithGatedFeed(gate));
+
+    final bell = find.byTooltip('Notifications');
+    expect(find.descendant(of: bell, matching: find.text('6')), findsNothing);
+
+    await tester.tap(bell);
+    await tester.pumpAndSettle();
+    // The loading feed renders as an empty inbox — the misleading copy that
+    // used to trigger the unconditional markSeen.
+    expect(find.text('Nothing needs your attention.'), findsOneWidget);
+
+    await tester.tap(find.byIcon(Icons.close_rounded));
+    await tester.pumpAndSettle();
+
+    expect(
+      settingsBox.get('alerts_seen_at'),
+      isNull,
+      reason: 'a sheet that never rendered loaded alerts must not mark seen',
+    );
+
+    // The feed lands. The six alerts published *before* the bell was opened
+    // must badge — proof the early open suppressed nothing.
+    gate.complete(
+      LiveFeedSnapshot(
+        feed: sixRowFeed(published),
+        source: FeedSource.network,
+        fetchedAt: DateTime.now(),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    expect(
+      find.descendant(of: bell, matching: find.text('6')),
+      findsOneWidget,
+      reason: 'the badge must appear once the loaded feed lands',
+    );
+    expect(tester.takeException(), isNull);
+  });
+}
+
+/// A feed notifier whose load is gated by the test.
+///
+/// The literal "invalidate + hanging HTTP client" recipe cannot hold
+/// `liveFeedProvider` in loading: `LiveFeedNotifier.build` deliberately
+/// answers from the repository cache *without awaiting* the network, so the
+/// provider resolves within a microtask even while the fetch hangs. The
+/// loading state is therefore injected directly — the same reason the matrix
+/// harness injects vault loading/error states instead of simulating them
+/// with hanging storage reads.
+class _GatedLiveFeed extends LiveFeedNotifier {
+  _GatedLiveFeed(this._gate);
+
+  final Completer<LiveFeedSnapshot> _gate;
+
+  @override
+  Future<LiveFeedSnapshot> build() => _gate.future;
 }

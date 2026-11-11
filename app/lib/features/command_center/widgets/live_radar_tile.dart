@@ -103,7 +103,17 @@ class LiveRadarTile extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    EvStatusPill.status(update.status, compact: true),
+                    // scaleDown, right-aligned: the pill's own Row lays its
+                    // label out unbounded, so its ellipsis never engages and
+                    // "ADMIT CARD LIVE" overflowed by 80px the first time rows
+                    // rendered on a 360px device. Scaling keeps the label whole
+                    // and inside the row until the shared pill gains a
+                    // Flexible-wrapped label (the root fix, tracked upstream).
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerRight,
+                      child: EvStatusPill.status(update.status, compact: true),
+                    ),
                     const SizedBox(height: 5),
                     Text(
                       update.ageLabel(),

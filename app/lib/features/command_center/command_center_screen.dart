@@ -35,6 +35,11 @@ class CommandCenterScreen extends ConsumerWidget {
     final updates = ref.watch(filteredUpdatesProvider);
     final filter = ref.watch(categoryFilterProvider);
     final searching = ref.watch(searchActiveProvider);
+    // The repository attaches a hard failure to the snapshot (dead edge with no
+    // cache, unreadable document) — and no widget ever read it. A failed fetch
+    // rendered exactly like a quiet feed: "Nothing live right now" plus a
+    // confident "0 live updates" in the hero, on result day.
+    final feedError = feed?.error;
     final p = context.ev;
 
     return Scaffold(
@@ -57,6 +62,7 @@ class CommandCenterScreen extends ConsumerWidget {
                 child: _Hero(
                   cardCount: cardsAsync.hasValue ? allCards.length : null,
                   liveCount: feed?.feed.liveCount,
+                  feedFailed: feedError != null,
                 ),
               ),
               const SliverToBoxAdapter(child: SizedBox(height: EvSpace.x3)),
@@ -100,7 +106,16 @@ class CommandCenterScreen extends ConsumerWidget {
                 child: _RadarHeader(
                   snapshot: feed,
                   shown: updates.length,
-                  total: feed?.feed.activeAt(DateTime.now()).length ?? 0,
+                  // The category-filtered active set, not the raw feed total.
+                  // Comparing the filtered `shown` against an unfiltered total
+                  // printed "3 of 60" while a category chip left only 12 rows
+                  // searchable — a fraction that could never reach 1 and read
+                  // as a broken search. The query still narrows only `shown`:
+                  // the gap between the two numbers is exactly the "did you
+                  // even look?" answer this header exists to give.
+                  total: feed == null
+                      ? 0
+                      : filterUpdates(feed.feed, filter).length,
                   searching: searching,
                 ),
               ),
@@ -109,6 +124,7 @@ class CommandCenterScreen extends ConsumerWidget {
                 updates: updates,
                 filter: filter,
                 searching: searching,
+                error: feedError,
               ),
               SliverToBoxAdapter(
                 // Chrome inset, not a guess: the tab bar's height now follows
@@ -127,11 +143,41 @@ class CommandCenterScreen extends ConsumerWidget {
 // Chrome
 // ---------------------------------------------------------------------------
 
-class _TopBar extends ConsumerWidget {
+class _TopBar extends ConsumerStatefulWidget {
   const _TopBar();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_TopBar> createState() => _TopBarState();
+}
+
+class _TopBarState extends ConsumerState<_TopBar> {
+  /// The modal barrier appears a frame after `showModalBottomSheet` is called,
+  /// so a double-tap on the bell used to stack a second sheet on the first —
+  /// and run the post-close bookkeeping twice. The flag is set synchronously
+  /// before the first await, which is the only window a second tap has.
+  bool _alertsOpen = false;
+
+  Future<void> _openAlerts() async {
+    if (_alertsOpen) return;
+    _alertsOpen = true;
+    try {
+      final renderedAlerts = await showAlertsSheet(context, ref);
+      // Mark seen only when the sheet actually rendered a loaded, non-empty
+      // list. The unconditional markSeen meant that opening the bell early in
+      // a cold start — while the feed was still loading and the sheet said
+      // "Nothing needs your attention." — permanently suppressed every alert
+      // published before that instant: the badge could never come back for
+      // them, which is the one signal that has to work on result day.
+      if (renderedAlerts && mounted) {
+        await ref.read(alertsSeenProvider.notifier).markSeen();
+      }
+    } finally {
+      _alertsOpen = false;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final p = context.ev;
     final liveCount = ref.watch(liveRadarBadgeProvider);
 
@@ -168,11 +214,7 @@ class _TopBar extends ConsumerWidget {
               badgeCount: liveCount,
               // Opened a SnackBar restating the badge count. Now it opens the
               // alerts inbox and clears the badge once read.
-              onPressed: () async {
-                await showAlertsSheet(context, ref);
-                if (!context.mounted) return;
-                await ref.read(alertsSeenProvider.notifier).markSeen();
-              },
+              onPressed: _openAlerts,
             ),
             const SizedBox(width: 8),
             _AboutButton(),
@@ -190,19 +232,23 @@ class _VaultMark extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Palette tokens, not literals: the ramp below was a hand-copied duplicate
+    // of accentBright/accentDeep/accentText (and the shadow of accent) — the
+    // exact drift tokens exist to prevent.
+    final p = context.ev;
     return Container(
       width: size,
       height: size,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(size * 0.3),
-        gradient: const LinearGradient(
+        gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFF60A5FA), Color(0xFF2563EB), Color(0xFF1D4ED8)],
+          colors: [p.accentBright, p.accentDeep, p.accentText],
         ),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF3B82F6).withValues(alpha: 0.5),
+            color: p.accent.withValues(alpha: 0.5),
             blurRadius: 16,
             offset: const Offset(0, 6),
             spreadRadius: -6,
@@ -265,7 +311,11 @@ class _AboutButton extends StatelessWidget {
 }
 
 class _Hero extends StatelessWidget {
-  const _Hero({required this.cardCount, required this.liveCount});
+  const _Hero({
+    required this.cardCount,
+    required this.liveCount,
+    this.feedFailed = false,
+  });
 
   /// Null while the encrypted vault is still being read. It used to be `0` in
   /// that window, so every cold start briefly told a returning user that they had
@@ -276,6 +326,12 @@ class _Hero extends StatelessWidget {
   /// confident "0 live updates" on every cold start — while the radar header
   /// ten pixels below honestly said "CONNECTING…". Same rule as [cardCount].
   final int? liveCount;
+
+  /// True when the snapshot carries a hard failure ([LiveFeedSnapshot.error]).
+  /// A dead edge with nothing cached used to render the same confident
+  /// "0 live updates" as a genuinely quiet radar — the two facts that matter
+  /// most on result day, wearing one face.
+  final bool feedFailed;
 
   @override
   Widget build(BuildContext context) {
@@ -307,6 +363,12 @@ class _Hero extends StatelessWidget {
     final dateLine =
         '${weekdays[now.weekday - 1]} · ${now.day.toString().padLeft(2, '0')} '
         '${months[now.month - 1]} ${now.year}';
+
+    // A zero from a failed fetch with nothing behind it is an absence, not a
+    // fact: say the radar is unreachable instead of claiming 0. When cached
+    // rows survive the failure the real count stays — the error strip down in
+    // the radar section explains their staleness.
+    final unreachable = feedFailed && (liveCount ?? 0) == 0;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(
@@ -349,11 +411,14 @@ class _Hero extends StatelessWidget {
                   // dangling dot.
                   text: switch (liveCount) {
                     null => ' · Syncing radar…',
+                    _ when unreachable => ' · radar unreachable',
                     1 => ' · 1 live update',
                     final n => ' · $n live updates',
                   },
                   style: context.type.body.copyWith(
-                    color: (liveCount ?? 0) > 0
+                    color: unreachable
+                        ? p.warningText
+                        : (liveCount ?? 0) > 0
                         ? p.successText
                         : p.textTertiary,
                     fontWeight: FontWeight.w600,
@@ -578,6 +643,7 @@ class _VaultSection extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final p = context.ev;
+    final query = ref.watch(searchQueryProvider);
 
     // Loading, failure and "genuinely empty" are three different facts, and the
     // screen used to collapse all of them into "Add your first admit card" — so a
@@ -617,13 +683,21 @@ class _VaultSection extends ConsumerWidget {
     }
 
     if (cards.isEmpty) {
-      return _EmptyVault(hasAnyCard: state.value?.isNotEmpty ?? false);
+      return _EmptyVault(
+        hasAnyCard: state.value?.isNotEmpty ?? false,
+        query: query,
+        totalCards: state.value?.length ?? 0,
+      );
     }
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: EvSpace.gutter),
       child: WalletCardStack(
         cards: cards,
+        // The unfiltered vault size: `cards` is the chip/search-filtered list,
+        // and the large-text "N cards total" line built from it contradicted
+        // the hero's "N exams tracked" whenever a filter was active.
+        totalCount: state.value?.length,
         onOpen: (card) {
           ref.read(selectedCardIdProvider.notifier).select(card.id);
           // Opening a card must clear a previously tapped radar exam, or the
@@ -665,13 +739,31 @@ class _VaultSkeleton extends StatelessWidget {
 }
 
 class _EmptyVault extends ConsumerWidget {
-  const _EmptyVault({required this.hasAnyCard});
+  const _EmptyVault({
+    required this.hasAnyCard,
+    required this.query,
+    required this.totalCards,
+  });
 
   final bool hasAnyCard;
+
+  /// The active search query ('' when none). With "All Exams" selected and a
+  /// query matching nothing, the card used to blame the *category* — advising
+  /// "Try All Exams" while All Exams was already the active filter.
+  final String query;
+
+  /// Cards in the vault before any filter, for the "clear the search to see
+  /// all N" way out.
+  final int totalCards;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final p = context.ev;
+
+    // A query that matched nothing outranks the category as the explanation —
+    // but only when there *are* cards to see; an empty vault keeps its
+    // first-run onboarding copy whatever is typed in the search field.
+    final blamingSearch = hasAnyCard && query.isNotEmpty;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: EvSpace.gutter),
@@ -691,14 +783,18 @@ class _EmptyVault extends ConsumerWidget {
                 borderRadius: BorderRadius.circular(EvRadius.tile),
               ),
               child: Icon(
-                Icons.add_card_rounded,
+                blamingSearch
+                    ? Icons.search_off_rounded
+                    : Icons.add_card_rounded,
                 color: p.accentText,
                 size: 22,
               ),
             ),
             const SizedBox(height: 12),
             Text(
-              hasAnyCard
+              blamingSearch
+                  ? 'No cards match “$query”'
+                  : hasAnyCard
                   ? 'No cards in this category'
                   : 'Add your first admit card',
               textAlign: TextAlign.center,
@@ -706,7 +802,11 @@ class _EmptyVault extends ConsumerWidget {
             ),
             const SizedBox(height: 4),
             Text(
-              hasAnyCard
+              blamingSearch
+                  ? totalCards == 1
+                        ? 'Clear the search to see your saved card.'
+                        : 'Clear the search to see all $totalCards.'
+                  : hasAnyCard
                   ? 'Try “All Exams” or save a new card.'
                   : 'Roll number, centre and password — one tap away on exam day.',
               textAlign: TextAlign.center,
@@ -817,17 +917,28 @@ class _RadarSliver extends ConsumerWidget {
     required this.updates,
     required this.filter,
     this.searching = false,
+    this.error,
   });
 
   final List<LiveUpdate> updates;
   final ExamCategory? filter;
   final bool searching;
 
+  /// The failure the repository attached to the snapshot, when there is one.
+  final String? error;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final p = context.ev;
 
     if (updates.isEmpty) {
+      // A hard failure with nothing behind it outranks every empty-state copy:
+      // "Nothing live right now" (and even "no radar result matches" — there
+      // was nothing to match *against*) told a comfortable lie while the edge
+      // was down and the repository's retry guidance went unread.
+      if (error != null) {
+        return SliverToBoxAdapter(child: _FeedErrorCard(error: error!));
+      }
       return SliverToBoxAdapter(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: EvSpace.gutter),
@@ -864,7 +975,7 @@ class _RadarSliver extends ConsumerWidget {
       );
     }
 
-    return SliverPadding(
+    final list = SliverPadding(
       padding: const EdgeInsets.symmetric(horizontal: EvSpace.gutter),
       sliver: SliverList.builder(
         itemCount: updates.length,
@@ -890,12 +1001,69 @@ class _RadarSliver extends ConsumerWidget {
         },
       ),
     );
+
+    if (error == null) return list;
+
+    // Cached rows survived the failure, so they stay — but the refresh that
+    // failed says so above them instead of hiding behind the CACHED label.
+    return SliverMainAxisGroup(
+      slivers: [
+        SliverToBoxAdapter(child: _FeedErrorCard(error: error!)),
+        const SliverToBoxAdapter(child: SizedBox(height: EvSpace.x2)),
+        list,
+      ],
+    );
   }
 
   void _openResult(BuildContext context, WidgetRef ref, LiveUpdate update) {
     EvHaptics.tap();
     ref.read(resultExamIdProvider.notifier).select(update);
     ref.read(tabIndexProvider.notifier).select(EvTab.radar);
+  }
+}
+
+/// The radar's honest failure surface.
+///
+/// `LiveFeedSnapshot.error` is attached by the repository on every hard
+/// failure — a dead edge with nothing cached, a document that will not parse —
+/// and no widget used to read it. This renders the failure verbatim, in a
+/// warning tint that cannot be mistaken for a quiet feed, with the retry the
+/// repository's own message asks for.
+class _FeedErrorCard extends ConsumerWidget {
+  const _FeedErrorCard({required this.error});
+
+  final String error;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final p = context.ev;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: EvSpace.gutter),
+      child: EvCard(
+        color: p.warning.withValues(alpha: 0.07),
+        borderColor: p.warning.withValues(alpha: 0.35),
+        child: Row(
+          children: [
+            Icon(Icons.cloud_off_rounded, color: p.warning, size: 20),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                error,
+                style: context.type.bodyMuted.copyWith(color: p.warningText),
+              ),
+            ),
+            const SizedBox(width: 8),
+            EvTextAction(
+              label: 'Retry',
+              icon: Icons.refresh_rounded,
+              color: p.warningText,
+              onPressed: () => ref.invalidate(liveFeedProvider),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

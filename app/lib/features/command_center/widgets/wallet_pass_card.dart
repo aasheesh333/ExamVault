@@ -50,90 +50,104 @@ class WalletPassCard extends StatelessWidget {
       // label was announced *and then* the raw texts again — "…Tap to open.
       // SSC CGL 2026 Tier I 24 NOV 2026 SAVED OFFLINE". The children are the
       // name; the container-owned copy pill stays its own node.
-      child: GestureDetector(
-        onTap: onOpen,
-        child: Container(
-          // A floor, not a cap: the raised type scale pushed the fixed 176px
-          // card into a RenderFlex overflow, so the pass sizes to its content.
-          constraints: BoxConstraints(
-            minHeight: compact ? 76 : EvSize.walletCard,
+      child: Container(
+        // A floor, not a cap: the raised type scale pushed the fixed 176px
+        // card into a RenderFlex overflow, so the pass sizes to its content.
+        constraints: BoxConstraints(
+          minHeight: compact ? 76 : EvSize.walletCard,
+        ),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(EvRadius.pass),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [p.walletTop, p.walletMid, p.walletBottom],
+            stops: const [0, 0.42, 1],
           ),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(EvRadius.pass),
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [p.walletTop, p.walletMid, p.walletBottom],
-              stops: const [0, 0.42, 1],
+          border: Border.all(color: p.walletBorder),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: p.isDark ? 0.55 : 0.22),
+              blurRadius: 34,
+              offset: const Offset(0, 18),
+              spreadRadius: -18,
             ),
-            border: Border.all(color: p.walletBorder),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: p.isDark ? 0.55 : 0.22),
-                blurRadius: 34,
-                offset: const Offset(0, 18),
-                spreadRadius: -18,
-              ),
-            ],
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(EvRadius.pass - 1),
-            child: Stack(
-              children: [
-                // corner glow
-                Positioned(
-                  top: -46,
-                  right: -28,
-                  child: Container(
-                    width: 168,
-                    height: 132,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: RadialGradient(
-                        colors: [
-                          p.accentBright.withValues(alpha: 0.24),
-                          p.accentBright.withValues(alpha: 0),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-                // diagonal sheen — 112° sweep at 7 % white
-                Positioned.fill(
-                  child: IgnorePointer(
-                    child: DecoratedBox(
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(EvRadius.pass - 1),
+          // Ink canvas *above* the opaque navy gradient. The pass used to be a
+          // GestureDetector over the decorated Container, so the nearest
+          // Material was the Scaffold's and both splashes — the whole-pass
+          // open and the roll-row copy — painted *under* the card: zero press
+          // feedback on the app's most important surface. Same pattern as the
+          // radar's row shells.
+          child: Material(
+            type: MaterialType.transparency,
+            // InkWell, not GestureDetector: with a Material finally above the
+            // gradient, the open action can give pressed feedback like every
+            // other tappable in the design system. The Semantics button and
+            // the full-card hit area are unchanged.
+            child: InkWell(
+              onTap: onOpen,
+              borderRadius: BorderRadius.circular(EvRadius.pass),
+              child: Stack(
+                children: [
+                  // corner glow
+                  Positioned(
+                    top: -46,
+                    right: -28,
+                    child: Container(
+                      width: 168,
+                      height: 132,
                       decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: const Alignment(-0.7, -1),
-                          end: const Alignment(0.7, 1),
+                        shape: BoxShape.circle,
+                        gradient: RadialGradient(
                           colors: [
-                            Colors.white.withValues(alpha: 0),
-                            Colors.white.withValues(alpha: 0.07),
-                            Colors.white.withValues(alpha: 0),
+                            p.accentBright.withValues(alpha: 0.24),
+                            p.accentBright.withValues(alpha: 0),
                           ],
-                          stops: const [0.34, 0.46, 0.58],
                         ),
                       ),
                     ),
                   ),
-                ),
-                // 1px inner top highlight — inset so it never breaks the radius
-                Positioned(
-                  top: 1,
-                  left: EvRadius.pass,
-                  right: EvRadius.pass,
-                  child: Container(
-                    height: 1,
-                    color: Colors.white.withValues(alpha: 0.15),
+                  // diagonal sheen — 112° sweep at 7 % white
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: const Alignment(-0.7, -1),
+                            end: const Alignment(0.7, 1),
+                            colors: [
+                              Colors.white.withValues(alpha: 0),
+                              Colors.white.withValues(alpha: 0.07),
+                              Colors.white.withValues(alpha: 0),
+                            ],
+                            stops: const [0.34, 0.46, 0.58],
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 15, 16, 14),
-                  child: compact
-                      ? _CompactBody(card: card, days: days)
-                      : _FullBody(card: card, days: days, onCopied: onCopied),
-                ),
-              ],
+                  // 1px inner top highlight — inset so it never breaks the radius
+                  Positioned(
+                    top: 1,
+                    left: EvRadius.pass,
+                    right: EvRadius.pass,
+                    child: Container(
+                      height: 1,
+                      color: Colors.white.withValues(alpha: 0.15),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 15, 16, 14),
+                    child: compact
+                        ? _CompactBody(card: card, days: days)
+                        : _FullBody(card: card, days: days, onCopied: onCopied),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -431,6 +445,7 @@ class _CopyPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final p = context.ev;
     return Semantics(
       // container + exclude: without them this control merged into the pass's
       // outer "Tap to open" button node — the codebase's own documented rule
@@ -464,7 +479,9 @@ class _CopyPill extends StatelessWidget {
                 gradient: EvGradient.primary,
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFF2563EB).withValues(alpha: 0.55),
+                    // Token, not a literal: 0xFF2563EB was a hand-copied
+                    // accentDeep that would silently drift from the palette.
+                    color: p.accentDeep.withValues(alpha: 0.55),
                     blurRadius: 16,
                     offset: const Offset(0, 6),
                     spreadRadius: -6,

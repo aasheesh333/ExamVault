@@ -72,7 +72,30 @@ class ResultIndexRepository {
   final CdnClient _cdn;
 
   /// examId -> bundle, so re-tapping "Check" never re-downloads.
+  ///
+  /// LRU-capped at [_memoCap]: every successful entry pins a full index
+  /// (~12 MB) in memory for the life of the process, and a student checking
+  /// exam after exam on result day used to accumulate all of them. Insertion
+  /// order doubles as recency order — a read re-inserts, an overflow drops
+  /// the front.
   final Map<String, IndexBundle> _memo = {};
+
+  static const _memoCap = 4;
+
+  IndexBundle? _memoRead(String key) {
+    final hit = _memo.remove(key);
+    if (hit == null) return null;
+    _memo[key] = hit; // refresh recency
+    return hit;
+  }
+
+  void _memoWrite(String key, IndexBundle bundle) {
+    _memo.remove(key);
+    _memo[key] = bundle;
+    while (_memo.length > _memoCap) {
+      _memo.remove(_memo.keys.first);
+    }
+  }
 
   Future<IndexBundle> load({
     required String examId,
@@ -84,7 +107,7 @@ class ResultIndexRepository {
     // id and version can never be confused with one another.
     final memoKey = '$examId\u0000${version ?? ''}';
     if (!force) {
-      final memo = _memo[memoKey];
+      final memo = _memoRead(memoKey);
       // Only successful bundles and genuine 404s live in the memo. A transport
       // failure is ephemeral: caching it made "tap again — nothing was lost"
       // impossible until the app was restarted.
@@ -104,7 +127,7 @@ class ResultIndexRepository {
         fetchedAt: payload.fetchedAt,
         etag: payload.etag,
       );
-      _memo[memoKey] = bundle;
+      _memoWrite(memoKey, bundle);
       return bundle;
     } on CdnException catch (e) {
       final reason = e.statusCode == 404
@@ -112,7 +135,7 @@ class ResultIndexRepository {
           : 'Could not reach the result index. Check your connection.';
       final bundle = IndexBundle.unavailable(reason);
       // A 404 is a stable fact worth remembering; a network error is not.
-      if (e.statusCode == 404) _memo[memoKey] = bundle;
+      if (e.statusCode == 404) _memoWrite(memoKey, bundle);
       return bundle;
     } catch (_) {
       // Read failures are not memoised either, so the next tap retries.

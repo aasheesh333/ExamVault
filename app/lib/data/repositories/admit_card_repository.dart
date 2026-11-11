@@ -21,6 +21,20 @@ class AdmitCardRepository {
   List<AdmitCard> _cache = const [];
   bool _loaded = false;
 
+  /// The one in-flight store read, shared by every concurrent `load()`.
+  ///
+  /// Without it, two callers (a boot load plus `save()`'s reload of an unread
+  /// vault, or two screens mounting at once) each ran their own Keystore read,
+  /// and whichever finished *last* published its snapshot — a load that
+  /// started before a save but resolved after it silently rolled the vault
+  /// back to its pre-save contents.
+  Future<List<AdmitCard>>? _loading;
+
+  /// Monotonic write counter, bumped by every mutation at the moment it
+  /// publishes. A load compares it across its store read and re-reads if a
+  /// write landed mid-flight, so a stale snapshot can never stomp newer data.
+  int _writeSeq = 0;
+
   /// Serialises mutations. Every write path funnels through this.
   Future<void> _writeQueue = Future<void>.value();
 
@@ -32,6 +46,21 @@ class AdmitCardRepository {
   Future<List<AdmitCard>> load({bool force = false}) async {
     if (_loaded && !force) return _cache;
 
+    // Single-flight: join the read already in progress instead of starting a
+    // second one that could resolve out of order.
+    final existing = _loading;
+    if (existing != null) return existing;
+
+    final future = _loadFromStore();
+    _loading = future;
+    try {
+      return await future;
+    } finally {
+      if (identical(_loading, future)) _loading = null;
+    }
+  }
+
+  Future<List<AdmitCard>> _loadFromStore() async {
     try {
       // A secure-storage read can hang outright on some OEMs (Keystore bugs,
       // device restores). Without a ceiling that hang becomes a permanent
@@ -39,7 +68,17 @@ class AdmitCardRepository {
       // treated as a failure. The *whole* load is bounded, not just the index
       // read: `readRaw` runs once per card, and a hang in that loop used to
       // escape the per-read timeout — booting the app waited on it forever.
-      final cards = await _readAllCards().timeout(_loadTimeout);
+      List<AdmitCard> cards;
+      var seq = _writeSeq;
+      while (true) {
+        cards = await _readAllCards().timeout(_loadTimeout);
+        if (seq == _writeSeq) break;
+        // A mutation published while this read was in flight: its write is
+        // already in the store but not in the snapshot just built. Publishing
+        // that snapshot would erase the write from `_cache` (and Riverpod's
+        // state) until the next boot, so re-read against the new sequence.
+        seq = _writeSeq;
+      }
 
       // Soonest exam first — the pass the user needs is always on top.
       cards.sort((a, b) => a.examDate.compareTo(b.examDate));
@@ -110,6 +149,11 @@ class AdmitCardRepository {
       }
       next.sort((a, b) => a.examDate.compareTo(b.examDate));
 
+      // Bumped in the same synchronous block as the publish below: an in-flight
+      // load either sees this and re-reads the store, or published before this
+      // block ran — in which case the rebase on `_cache` here already includes
+      // its snapshot. Either ordering ends with the saved card visible.
+      _writeSeq++;
       _cache = List.unmodifiable(next);
       _loaded = true;
       _emit();
@@ -123,6 +167,7 @@ class AdmitCardRepository {
       await _store.deleteRaw(id);
       await _store.writeIndex(index.where((e) => e != id).toList());
 
+      _writeSeq++;
       _cache = List.unmodifiable(_cache.where((c) => c.id != id));
       _emit();
     });
@@ -142,6 +187,7 @@ class AdmitCardRepository {
 
       final list = [..._cache];
       list[at] = updated;
+      _writeSeq++;
       _cache = List.unmodifiable(list);
       _emit();
       return updated;
@@ -167,6 +213,7 @@ class AdmitCardRepository {
 
       final list = [..._cache];
       list[at] = updated;
+      _writeSeq++;
       _cache = List.unmodifiable(list);
       _emit();
       return updated;
@@ -193,6 +240,7 @@ class AdmitCardRepository {
   Future<void> wipe() async {
     await _enqueue(() async {
       await _store.wipe();
+      _writeSeq++;
       _cache = const [];
       _emit();
     });

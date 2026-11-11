@@ -82,8 +82,13 @@ class AdmitCard {
   /// Days until the exam. Negative once it has passed.
   int daysUntilExam([DateTime? now]) {
     final today = now ?? DateTime.now();
-    final a = DateTime(today.year, today.month, today.day);
-    final b = DateTime(examDate.year, examDate.month, examDate.day);
+    // Calendar-date math in UTC. `Duration.inDays` between two *local*
+    // midnights truncates across a DST shift: a 23-hour day made the eve of
+    // the exam compute to 0, and the countdown read "TODAY" a day early —
+    // on the one screen where being wrong is catastrophic. UTC has no DST,
+    // so the difference is always an exact multiple of 24 h.
+    final a = DateTime.utc(today.year, today.month, today.day);
+    final b = DateTime.utc(examDate.year, examDate.month, examDate.day);
     return b.difference(a).inDays;
   }
 

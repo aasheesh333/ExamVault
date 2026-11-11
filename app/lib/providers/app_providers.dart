@@ -134,14 +134,24 @@ class AdmitCardsNotifier extends AsyncNotifier<List<AdmitCard>> {
   @override
   Future<List<AdmitCard>> build() async {
     final repo = ref.watch(admitCardRepositoryProvider);
-    final loaded = await repo.load();
 
+    // Subscribe BEFORE the first load resolves — `changes` is the source of
+    // truth for this state. Subscribing after `await repo.load()` missed every
+    // emit that fired while the Keystore read was in flight (a save landed
+    // during boot), and Riverpod applies this build future's value
+    // unconditionally when it resolves — the vault visibly rolled back to its
+    // pre-save snapshot until the next mutation.
     final sub = repo.changes.listen((cards) {
       state = AsyncData(cards);
     });
     ref.onDispose(sub.cancel);
 
-    return loaded;
+    await repo.load();
+
+    // Resolve with the cache read at *resolution time*, not the list `load()`
+    // returned: a write that landed mid-load has already updated `repo.cached`,
+    // and this future is applied after it.
+    return repo.cached;
   }
 
   Future<AdmitCard> save(AdmitCard card) async {

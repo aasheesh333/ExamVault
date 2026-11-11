@@ -63,7 +63,11 @@ abstract final class AdmitCardCodec {
       final checklist = <ChecklistItem>{};
       if (checklistRaw is List) {
         for (final item in checklistRaw) {
-          final parsed = ChecklistItem.fromId(item as String?);
+          // Per-item tolerance, like every other field above: `item as String?`
+          // threw a TypeError on a single non-string entry, and the outer catch
+          // then discarded the ENTIRE card — one malformed element in the array
+          // silently erased a student's saved credentials from the vault.
+          final parsed = ChecklistItem.fromId(item is String ? item : null);
           if (parsed != null) checklist.add(parsed);
         }
       }
@@ -109,7 +113,17 @@ class SecureVaultStore {
           const FlutterSecureStorage(
             // Hardware-backed AES-GCM with RSA-OAEP key wrapping; the default
             // in v11 and the strongest non-biometric option.
-            aOptions: AndroidOptions(resetOnError: true),
+            //
+            // resetOnError is explicitly OFF — and note the plugin defaults it
+            // to *true*, so removing the flag would not disable it. With it on,
+            // the Android side runs handleStorageError(deleteOnFailure) on a
+            // read failure: it deletes the key (or every key, on readAll),
+            // retries, and reports *success* with a null value. A transient
+            // Keystore fault therefore erased the user's admit cards and told
+            // Dart nothing had happened, which made the repository's documented
+            // rethrow-and-retry defence dead code. An honest error the UI can
+            // retry is recoverable; a silent wipe is not.
+            aOptions: AndroidOptions(resetOnError: false),
             iOptions: IOSOptions(
               accessibility: KeychainAccessibility.first_unlock,
             ),
@@ -121,14 +135,19 @@ class SecureVaultStore {
 
   Future<List<String>> readIndex() async {
     final raw = await _storage.read(key: AppConfig.secureIndexKey);
+    // A missing key is the only "empty" this method may report. Anything else
+    // that fails to decode is corruption and must THROW: returning `const []`
+    // on a decode failure made a damaged index indistinguishable from an empty
+    // vault, and the next save() then rewrote the index from that empty
+    // baseline — orphaning every card still sitting in the store. The
+    // repository rethrows the failure so Riverpod can publish AsyncError and
+    // the UI can offer a retry.
     if (raw == null || raw.isEmpty) return const [];
-    try {
-      final decoded = jsonDecode(raw);
-      if (decoded is! List) return const [];
-      return decoded.whereType<String>().toList(growable: false);
-    } catch (_) {
-      return const [];
+    final decoded = jsonDecode(raw);
+    if (decoded is! List) {
+      throw FormatException('vault index is not a JSON list: $decoded');
     }
+    return decoded.whereType<String>().toList(growable: false);
   }
 
   Future<void> writeIndex(List<String> ids) =>

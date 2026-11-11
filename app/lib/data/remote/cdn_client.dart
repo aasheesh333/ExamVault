@@ -146,6 +146,15 @@ class CdnClient {
       }
     }
 
+    // A definitive answer from the edge is not a transport failure. The loop
+    // breaks early on any non-transient error (404 "not published", unexpected
+    // status, download-budget violation), and this fallback used to run for
+    // those too — so a genuine 404 was answered with last month's cached
+    // index, and the result checker confidently searched stale bytes for an
+    // exam whose list had been pulled. Only *transport-exhausted* paths may
+    // serve stale data.
+    if (lastError != null && !lastError.isTransient) throw lastError;
+
     // Network exhausted: a 72-hour-old feed beats an error screen on result day.
     if (cached != null) {
       AppLogger.w(
@@ -199,7 +208,16 @@ class CdnClient {
         throw const CdnException('Request timed out');
       }
 
+      // Every early exit below must drain the body. An abandoned
+      // StreamedResponse strands its keep-alive socket — the pooled client is
+      // never closed between polls, so a 304/404/429/5xx on every tick leaked
+      // one socket per request, exactly the failure the timeout path above
+      // already guards against. Draining returns the socket to the pool.
+      void drainBody() =>
+          unawaited(streamed.stream.drain<void>().catchError((Object _) {}));
+
       if (streamed.statusCode == 304 && cached != null) {
+        drainBody();
         _writeCache(
           url,
           cached.bytes,
@@ -217,6 +235,7 @@ class CdnClient {
       }
 
       if (streamed.statusCode == 404) {
+        drainBody();
         throw const CdnException(
           'Not published yet',
           statusCode: 404,
@@ -225,6 +244,7 @@ class CdnClient {
       }
 
       if (streamed.statusCode == 429 || streamed.statusCode >= 500) {
+        drainBody();
         throw CdnException(
           'Edge returned ${streamed.statusCode}',
           statusCode: streamed.statusCode,
@@ -232,6 +252,7 @@ class CdnClient {
       }
 
       if (streamed.statusCode != 200) {
+        drainBody();
         throw CdnException(
           'Unexpected status ${streamed.statusCode}',
           statusCode: streamed.statusCode,
@@ -241,6 +262,7 @@ class CdnClient {
 
       final declared = streamed.contentLength;
       if (declared != null && declared > AppConfig.maxDownloadBytes) {
+        drainBody();
         throw const CdnException(
           'Object exceeds the download budget',
           isTransient: false,
@@ -323,6 +345,15 @@ class CdnClient {
     );
   }
 
+  /// Cap on the Hive http box.
+  ///
+  /// Roll indexes are content-addressed: every republished version lands at a
+  /// NEW url (~12 MB each) and nothing ever overwrote or evicted the previous
+  /// one, so the cache grew without bound for the life of the install. 24
+  /// entries covers several republish generations of every tracked exam —
+  /// far more than any fresh window needs.
+  static const _maxCacheEntries = 24;
+
   void _writeCache(
     String url,
     Uint8List bytes,
@@ -341,8 +372,35 @@ class CdnClient {
           })
           .catchError((Object e) {
             AppLogger.w('cdn', 'cache write failed: $e');
+          })
+          .then((_) => _pruneCache())
+          .catchError((Object e) {
+            AppLogger.w('cdn', 'cache prune failed: $e');
           }),
     );
+  }
+
+  /// Drops the oldest entries (by the fetch timestamp stored with each value)
+  /// once the box grows past [_maxCacheEntries]. Runs after the put completes,
+  /// so the entry just written is included in the count and can never be the
+  /// one evicted for being "old".
+  Future<void> _pruneCache() async {
+    // Only entries this client wrote are eviction candidates. The box is
+    // shared with LiveFeedStore's 'feed' snapshot, which carries no 't'
+    // timestamp and must survive pruning — the radar's instant cold-boot
+    // paint reads it.
+    final fetchedAt = <Object?, int>{};
+    for (final key in _cache.keys) {
+      final raw = _cache.get(key);
+      final at = raw is Map ? raw[_kAt] : null;
+      if (at is int) fetchedAt[key] = at;
+    }
+    final excess = fetchedAt.length - _maxCacheEntries;
+    if (excess <= 0) return;
+
+    final oldest = fetchedAt.keys.toList()
+      ..sort((a, b) => fetchedAt[a]!.compareTo(fetchedAt[b]!));
+    await _cache.deleteAll(oldest.take(excess));
   }
 
   /// Last-known payload with no freshness requirement — instant boot.

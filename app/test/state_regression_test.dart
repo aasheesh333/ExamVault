@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
+import 'package:examvault/core/config/app_config.dart';
 import 'package:examvault/data/models/live_feed_dto.dart';
 import 'package:examvault/data/remote/cdn_client.dart';
 import 'package:examvault/data/repositories/live_feed_repository.dart';
@@ -163,6 +165,24 @@ void main() {
       expect(feed.sources.single.note, isNull);
       expect(feed.sources.single.rows, 0);
     });
+
+    test('a 200 body without an "updates" array is a parse error', () {
+      // A rate-limit object or an error page shaped like JSON used to parse
+      // as a VALID EMPTY feed: the repository then overwrote the good Hive
+      // snapshot with nothing, and its error-attach catch never fired because
+      // parse did not throw. Row-level tolerance stays; the document's shape
+      // is not optional.
+      expect(
+        () => LiveFeedDto.parse(jsonEncode({'status': 'rate-limited'})),
+        throwsFormatException,
+      );
+      expect(
+        () => LiveFeedDto.parse(jsonEncode({'updates': 'not-a-list'})),
+        throwsFormatException,
+      );
+      // An explicitly empty array remains a valid — and empty — feed.
+      expect(LiveFeedDto.parse(jsonEncode({'updates': []})).updates, isEmpty);
+    });
   });
 
   group('result index retry', () {
@@ -215,6 +235,40 @@ void main() {
       await repo.load(examId: 'ssc_cgl_tier1_2026');
 
       expect(calls, 1);
+    });
+
+    test('a 404 never serves stale cache bytes', () async {
+      // Seed a stale cached index straight into the http box, mirroring
+      // CdnClient's private entry shape: 'b' bytes, 't' fetchedAt millis,
+      // 'e' etag, 'c' contentType. Old enough to be outside the fresh window,
+      // so the fetch actually reaches the (404ing) edge.
+      final url =
+          'https://cdn.test${AppConfig.rollIndexPath('ssc_cgl_tier1_2026')}';
+      await cacheBox.put(url, {
+        'b': Uint8List.fromList(gzip.encode(utf8.encode('["stale_roll"]'))),
+        't': DateTime.now()
+            .subtract(const Duration(days: 10))
+            .millisecondsSinceEpoch,
+        'e': null,
+        'c': null,
+      });
+
+      final repo = ResultIndexRepository(
+        cdn: CdnClient(
+          cache: cacheBox,
+          client: MockClient((_) async => http.Response('pulled', 404)),
+          baseUrl: 'https://cdn.test',
+        ),
+      );
+
+      // The retry loop breaks on the non-transient 404 and then fell into the
+      // transport-failure fallback, answering "not published" with last
+      // month's index — the checker confidently searched stale bytes. A
+      // definitive 404 must surface as unavailable, not as cached data.
+      final bundle = await repo.load(examId: 'ssc_cgl_tier1_2026');
+      expect(bundle.hasData, isFalse);
+      expect(bundle.source, IndexSource.unavailable);
+      expect(bundle.bytes, isEmpty);
     });
   });
 

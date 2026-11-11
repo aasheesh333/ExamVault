@@ -20,18 +20,27 @@ abstract final class LiveFeedDto {
     final revision = _tryInt(decoded['revision']) ?? 0;
     final rawUpdates = decoded['updates'];
 
+    // The document's *shape* is not optional. A 200 body without an `updates`
+    // array — a rate-limit object, an error page that happens to be JSON —
+    // used to parse as a VALID EMPTY feed: the repository then overwrote the
+    // good Hive snapshot with nothing, and its error-attach catch never fired
+    // because parse did not throw. Row-level tolerance below stays; a missing
+    // or non-list `updates` is a hard FormatException so the stale-but-real
+    // cache survives and the failure is reported.
+    if (rawUpdates is! List) {
+      throw const FormatException('Live feed has no "updates" array.');
+    }
+
     final updates = <LiveUpdate>[];
-    if (rawUpdates is List) {
-      for (final row in rawUpdates) {
-        if (row is! Map) continue;
-        // A single malformed row must be skipped, never allowed to abort the
-        // whole document: one bad record used to blank the entire radar.
-        try {
-          final update = _parseRow(row.cast<String, dynamic>());
-          if (update != null) updates.add(update);
-        } catch (_) {
-          continue;
-        }
+    for (final row in rawUpdates) {
+      if (row is! Map) continue;
+      // A single malformed row must be skipped, never allowed to abort the
+      // whole document: one bad record used to blank the entire radar.
+      try {
+        final update = _parseRow(row.cast<String, dynamic>());
+        if (update != null) updates.add(update);
+      } catch (_) {
+        continue;
       }
     }
 

@@ -56,6 +56,14 @@ class PushService {
   /// message arriving after close() used to throw inside a platform callback.
   StreamSubscription<RemoteMessage>? _onMessageSub;
 
+  /// Kept so [dispose] can remove it from the OneSignal SDK. The foreground
+  /// listener fires from a method-channel callback and adds to [_messages];
+  /// after dispose() closed the controller, a push arriving in the foreground
+  /// threw a StateError inside platform code — the same failure mode the FCM
+  /// subscription above was already stored to prevent, but the OneSignal
+  /// registration discarded its listener and could never be undone.
+  OnNotificationWillDisplayListener? _oneSignalForegroundListener;
+
   PushProvider _provider = PushProvider.disabled;
   bool _initialised = false;
 
@@ -122,24 +130,35 @@ class PushService {
       // Android 13+ runtime permission. On iOS this shows the system prompt.
       await OneSignal.Notifications.requestPermission(true);
 
-      OneSignal.Notifications.addForegroundWillDisplayListener((event) {
-        final data = event.notification.additionalData ?? const {};
-        _messages.add(
-          PushMessage(
-            title: event.notification.title ?? 'ExamVault',
-            body: event.notification.body ?? '',
-            examId: data['exam_id'] as String?,
-            status: data['status'] as String?,
-            receivedAt: DateTime.now(),
-          ),
-        );
-      });
+      // Store the listener so [dispose] can remove the exact same reference:
+      // `addForegroundWillDisplayListener` returns no handle, and the SDK's
+      // `removeForegroundWillDisplayListener` matches by function identity.
+      final listener = _onOneSignalForeground;
+      _oneSignalForegroundListener = listener;
+      OneSignal.Notifications.addForegroundWillDisplayListener(listener);
 
       return true;
     } catch (e, st) {
       AppLogger.e('push', 'OneSignal init failed', e, st);
       return false;
     }
+  }
+
+  void _onOneSignalForeground(OSNotificationWillDisplayEvent event) {
+    // A platform callback can already be mid-flight when dispose removes the
+    // listener; the contract of this class is "never throws", so drop the
+    // message instead of adding to a closed controller.
+    if (_messages.isClosed) return;
+    final data = event.notification.additionalData ?? const {};
+    _messages.add(
+      PushMessage(
+        title: event.notification.title ?? 'ExamVault',
+        body: event.notification.body ?? '',
+        examId: data['exam_id'] as String?,
+        status: data['status'] as String?,
+        receivedAt: DateTime.now(),
+      ),
+    );
   }
 
   Future<void> _syncOneSignalTags(Set<ExamCategory> categories) async {
@@ -284,6 +303,13 @@ class PushService {
     // used to call `add` on a closed controller — a StateError inside a
     // platform callback, in a class whose contract is "never throws".
     await _onMessageSub?.cancel();
+    final oneSignalListener = _oneSignalForegroundListener;
+    if (oneSignalListener != null) {
+      OneSignal.Notifications.removeForegroundWillDisplayListener(
+        oneSignalListener,
+      );
+      _oneSignalForegroundListener = null;
+    }
     await _messages.close();
   }
 }

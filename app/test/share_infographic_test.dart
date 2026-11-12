@@ -24,12 +24,14 @@ void main() {
     String roll = '0801786',
     String headline = 'RESULT IS LIVE',
     String? pdfSize,
+    String name = '',
   }) => ShareCardData(
     examName: 'Final Result: Combined Section Officers',
     headline: headline,
     subline: 'Official link & instant roll-number check',
     dateLine: '10 NOV 2026',
     rollNumber: roll,
+    candidateName: name,
     selected: selected,
     shareUrl: 'https://examvault.example/v1/feed',
     officialUrl: 'https://www.upsc.gov.in/sites/default/files/example.pdf',
@@ -325,6 +327,21 @@ void main() {
       findsOneWidget,
       reason: 'a rebuild must not overwrite a caption the user edited',
     );
+  });
+  testWidgets('the student\'s own name renders on the card', (tester) async {
+    await pumpCard(tester, data(name: 'Asha Verma'));
+    expect(find.text('ASHA VERMA'), findsOneWidget);
+    expect(find.text('0801786'), findsOneWidget);
+    expect(find.text('YOUR ROLL · IN THE LIST'), findsOneWidget);
+  });
+
+  testWidgets('a hidden roll still shows the name, as CANDIDATE', (
+    tester,
+  ) async {
+    await pumpCard(tester, data(name: 'Asha Verma', roll: ''));
+    expect(find.text('ASHA VERMA'), findsOneWidget);
+    expect(find.text('CANDIDATE'), findsOneWidget);
+    expect(find.text('0801786'), findsNothing);
   });
 }
 

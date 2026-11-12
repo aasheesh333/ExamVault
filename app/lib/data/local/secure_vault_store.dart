@@ -34,6 +34,7 @@ abstract final class AdmitCardCodec {
     'updatedAt': c.updatedAt.toIso8601String(),
     'verified': c.rollNumberVerified,
     'checklist': c.checklist.map((e) => e.id).toList(),
+    'name': c.candidateName,
   });
 
   /// Returns null for anything that cannot be trusted, so a half-written entry
@@ -93,6 +94,9 @@ abstract final class AdmitCardCodec {
             DateTime.tryParse(map['updatedAt'] as String? ?? '') ?? createdAt,
         rollNumberVerified: map['verified'] == true,
         checklist: checklist,
+        // Cards saved before the field existed carry no 'name' key: absent is
+        // empty, never an error (same per-field tolerance as the rest).
+        candidateName: map['name'] is String ? map['name'] as String : '',
       );
     } catch (e) {
       AppLogger.w('vault', 'discarding unreadable entry: $e');

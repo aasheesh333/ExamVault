@@ -46,7 +46,7 @@ void main() {
       const WhatsappShareCardScreen(),
       matrixPoints[1],
       env: env,
-      cards: [matrixCard(roll: '2201098765')],
+      cards: [matrixCard(roll: '2201098765', candidateName: 'Asha Verma')],
     );
 
     // Edit the caption, so `_captionTouched` freezes auto-sync.
@@ -95,6 +95,9 @@ void main() {
       isNotEmpty,
       reason: 'toggling privacy must regenerate the caption from scrubbed data',
     );
+    // The name is the student's identity, not a secret: hiding the roll keeps
+    // it on the card and in the caption.
+    expect(texts.any((t) => t.contains('ASHA VERMA')), isTrue);
 
     await disposeMatrix(tester);
   });

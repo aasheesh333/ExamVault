@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:examvault/data/local/secure_vault_store.dart';
 import 'package:examvault/domain/entities/admit_card.dart';
 import 'package:examvault/domain/entities/exam_category.dart';
@@ -27,6 +29,28 @@ AdmitCard _card() => AdmitCard(
 
 void main() {
   group('AdmitCardCodec', () {
+    test('round-trips the candidate name', () {
+      final original = _card().copyWith(candidateName: 'Asha Verma');
+      final c = AdmitCardCodec.decode(AdmitCardCodec.encode(original));
+      expect(c?.candidateName, 'Asha Verma');
+    });
+
+    test(
+      'cards saved before the name field existed decode with empty name',
+      () {
+        // Legacy payloads carry no 'name' key: absent must mean empty, never an
+        // error — the same per-field tolerance every other field gets.
+        final map =
+            jsonDecode(AdmitCardCodec.encode(_card())) as Map<String, dynamic>;
+        map.remove('name');
+        final legacy = jsonEncode(map);
+        expect(legacy.contains('"name"'), isFalse);
+        final c = AdmitCardCodec.decode(legacy);
+        expect(c, isNotNull);
+        expect(c!.candidateName, '');
+      },
+    );
+
     test('round-trips every field', () {
       final original = _card();
       final decoded = AdmitCardCodec.decode(AdmitCardCodec.encode(original));

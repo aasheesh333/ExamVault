@@ -75,6 +75,9 @@ class _VaultFormSheetState extends ConsumerState<_VaultFormSheet> {
   final _examNameFieldKey = GlobalKey(debugLabel: 'field-exam-name');
   final _rollFieldKey = GlobalKey(debugLabel: 'field-roll-number');
 
+  late final _name = TextEditingController(
+    text: widget.existing?.candidateName,
+  );
   late final _examName = TextEditingController(text: widget.existing?.examName);
   late final _body = TextEditingController(
     text: widget.existing?.conductingBody,
@@ -126,6 +129,7 @@ class _VaultFormSheetState extends ConsumerState<_VaultFormSheet> {
     _categoryPicked = widget.existing != null;
     _baseline = {
       for (final c in [
+        _name,
         _examName,
         _body,
         _examCode,
@@ -245,6 +249,7 @@ class _VaultFormSheetState extends ConsumerState<_VaultFormSheet> {
   @override
   void dispose() {
     for (final c in [
+      _name,
       _examName,
       _body,
       _examCode,
@@ -370,6 +375,7 @@ class _VaultFormSheetState extends ConsumerState<_VaultFormSheet> {
         base.examId == examId;
 
     final card = AdmitCard(
+      candidateName: _name.text.trim(),
       id:
           base?.id ??
           '${_category.id}_${now.millisecondsSinceEpoch.toRadixString(36)}',
@@ -517,6 +523,16 @@ class _VaultFormSheetState extends ConsumerState<_VaultFormSheet> {
                       style: context.type.microLabel.copyWith(),
                     ),
                     const SizedBox(height: 20),
+                    // The one field that is about the student, not the exam.
+                    // Optional: a card without a name still saves, checks and
+                    // shares exactly as before.
+                    _Field(
+                      controller: _name,
+                      label: 'Your name (optional)',
+                      hint: 'Printed on your share card',
+                      caps: TextCapitalization.words,
+                      maxLength: 40,
+                    ),
                     _Field(
                       fieldKey: _examNameFieldKey,
                       controller: _examName,

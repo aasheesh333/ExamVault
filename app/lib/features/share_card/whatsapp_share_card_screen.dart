@@ -96,6 +96,10 @@ class _WhatsappShareCardScreenState
       dateLine: _shortDate(DateTime.now()),
       // Empty when we do not have the user's roll — never a "—" placeholder.
       rollNumber: roll,
+      // The student's own name travels with their card: it is the one detail
+      // that makes a shared result *theirs*. Radar-only shares have no card
+      // and therefore no name — the card then stays anonymous, honestly.
+      candidateName: card?.candidateName ?? '',
       selected: verified,
       shareUrl: ref.read(resultIndexRepositoryProvider).shareUrl(examId),
       officialUrl: update?.officialUrl,
@@ -169,8 +173,14 @@ class _WhatsappShareCardScreenState
       // The caption echoes the card's own subline so an admit-card share does
       // not promise an "instant roll-number check" the card never offers.
       '🚨 ${data.examName.toUpperCase()} ${data.headline} — ${data.subline}.',
-      if (data.rollNumber.isNotEmpty)
-        'Roll ${data.rollNumber}${data.selected ? ' · in the published list' : ''}',
+      // The student's own name leads their line when present: the caption is
+      // what lands in the group chat, and "Roll 123…" alone is not a person.
+      if (data.candidateName.isNotEmpty && data.rollNumber.isNotEmpty)
+        '${data.candidateName} · Roll ${data.rollNumber}${data.selected ? ' · in the published list' : ''}'
+      else if (data.rollNumber.isNotEmpty)
+        'Roll ${data.rollNumber}${data.selected ? ' · in the published list' : ''}'
+      else if (data.candidateName.isNotEmpty)
+        data.candidateName,
       if (data.link != null) data.link!,
     ];
     return lines.join('\n');

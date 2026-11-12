@@ -14,8 +14,16 @@ name: Refresh exam data
 
 on:
   schedule:
-    # Every 30 minutes. SSC typically publishes between 09:00 and 20:00 IST.
-    - cron: '*/30 * * * *'
+    # Hourly, at an off-peak minute. This used to be */30 and GitHub silently
+    # SKIPPED most runs (observed: 8-hour gaps on 2026-11-10/11) — free-tier
+    # minutes cannot fund 48 runs/day, and over-quota scheduled runs simply do
+    # not start. With the failure-cooldown memo (build_indexes.py) a steady-
+    # state run is ~2 min (fetch + validate + no-commit), so hourly fits the
+    # budget with headroom for CI. On result day, trigger an immediate run:
+    #   gh workflow run "Refresh exam data" -f publish=true
+    # and the app itself shows feed age ("EDGE · 3h OLD"), so staleness is
+    # never silent.
+    - cron: '7 * * * *'
   workflow_dispatch:
     inputs:
       publish:

@@ -137,7 +137,7 @@ void main() {
   }
 
   String rollValue(WidgetTester tester) {
-    final field = find.byType(TextFormField).at(3);
+    final field = find.byType(TextFormField).at(4);
     return tester
         .widget<EditableText>(
           find.descendant(of: field, matching: find.byType(EditableText)),
@@ -188,7 +188,7 @@ void main() {
       await tester.tap(find.text('Open form'));
       await tester.pumpAndSettle();
 
-      await tester.enterText(find.byType(TextFormField).at(3), 'a123/B-9');
+      await tester.enterText(find.byType(TextFormField).at(4), 'a123/B-9');
       await tester.pump();
 
       // A digits-only filter used to keep "1239" and drop the letters, which
@@ -205,7 +205,7 @@ void main() {
       await tester.pumpAndSettle();
 
       await tester.enterText(
-        find.byType(TextFormField).at(3),
+        find.byType(TextFormField).at(4),
         'A123 4567 8901 2345 6789 0123',
       );
       await tester.pump();
@@ -226,7 +226,7 @@ void main() {
 
       expect(find.text('Not set — tap to choose'), findsOneWidget);
 
-      await fill(tester, ['SSC CHSL 2026', '', '', 'A1234567']);
+      await fill(tester, ['', 'SSC CHSL 2026', '', '', 'A1234567']);
       await tester.tap(find.text('Save to vault'));
       await tester.pumpAndSettle();
 
@@ -269,7 +269,7 @@ void main() {
       await tester.tap(find.text('Open form'));
       await tester.pumpAndSettle();
 
-      await fill(tester, ['SSC CHSL 2026', '', '', '2201098765']);
+      await fill(tester, ['', 'SSC CHSL 2026', '', '', '2201098765']);
       await pickToday(tester);
       await tester.tap(find.text('Save to vault'));
       await tester.pumpAndSettle();
@@ -280,6 +280,28 @@ void main() {
       );
       final index = jsonDecode(store.raw['__index']!) as List<dynamic>;
       expect(index, ['chsl']);
+    });
+
+    testWidgets('an optional name survives save', (tester) async {
+      useTallViewport(tester);
+      await tester.pumpWidget(harness(const _FormHost()));
+      await tester.tap(find.text('Open form'));
+      await tester.pumpAndSettle();
+
+      await fill(tester, ['Asha Verma', 'SSC CHSL 2026', '', '', '2201098765']);
+      await pickToday(tester);
+      await tester.tap(find.text('Save to vault'));
+      await tester.pumpAndSettle();
+
+      final index = jsonDecode(store.raw['__index']!) as List<dynamic>;
+      final saved =
+          jsonDecode(store.raw[index.first as String]!) as Map<String, dynamic>;
+      expect(saved['name'], 'Asha Verma');
+
+      // And the edit form seeds from it (the controller initialiser is the
+      // whole edit path for this field).
+      final card = AdmitCardCodec.decode(store.raw[index.first as String]!)!;
+      expect(card.candidateName, 'Asha Verma');
     });
 
     testWidgets('editing a card is not a duplicate of itself', (tester) async {
@@ -315,7 +337,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Roll valid, exam name empty: validate() fails on the first field.
-      await tester.enterText(find.byType(TextFormField).at(3), 'A1234567');
+      await tester.enterText(find.byType(TextFormField).at(4), 'A1234567');
       await tester.pump();
 
       await tester.drag(
@@ -356,7 +378,7 @@ void main() {
 
       // Fixing a roll typo: VERIFIED was a claim about the *old* roll being
       // found in a published index — the new one never matched anything.
-      await tester.enterText(find.byType(TextFormField).at(3), 'A9999999');
+      await tester.enterText(find.byType(TextFormField).at(4), 'A9999999');
       await tester.pump();
 
       await tester.tap(find.text('Save to vault'));
@@ -381,7 +403,7 @@ void main() {
 
       // The gate field (last in the sheet) touches neither the roll nor the
       // resolved exam id, so the hard-earned badge must survive.
-      await tester.enterText(find.byType(TextFormField).at(10), 'Gate 5');
+      await tester.enterText(find.byType(TextFormField).at(11), 'Gate 5');
       await tester.pump();
 
       await tester.tap(find.text('Save to vault'));
@@ -413,7 +435,7 @@ void main() {
 
       // Fixing a typo in the name with UPSC-sounding words must not override
       // what the card's category chip already deliberately said.
-      await tester.enterText(find.byType(TextFormField).first, 'UPSC CSE 2026');
+      await tester.enterText(find.byType(TextFormField).at(1), 'UPSC CSE 2026');
       await tester.pump();
       expect(selectedChips(tester), ['SSC']);
 
@@ -432,7 +454,7 @@ void main() {
       await tester.tap(find.text('Open form'));
       await tester.pumpAndSettle();
 
-      await tester.enterText(find.byType(TextFormField).first, 'UPSC CSE 2026');
+      await tester.enterText(find.byType(TextFormField).at(1), 'UPSC CSE 2026');
       await tester.pump();
       expect(selectedChips(tester), ['UPSC']);
     });

@@ -526,7 +526,7 @@ void main() {
       await tester.tap(find.text('Open form'));
       await tester.pumpAndSettle();
 
-      final roll = find.byType(TextFormField).at(3);
+      final roll = find.byType(TextFormField).at(4);
       await tester.enterText(roll, '1234 5678 9012 3456 7890 1234');
       await tester.pump();
 

@@ -379,6 +379,7 @@ Map<String, dynamic> _generatedSample(int i) {
 /// exercised by the matrix at all.
 AdmitCard matrixCard({
   String id = 'card_a',
+  String candidateName = '',
   String examName = 'SSC CGL Tier-1 2026',
   String roll = '2201098765',
   String centerAddress = 'Sector 9, Rohini, New Delhi',
@@ -395,6 +396,7 @@ AdmitCard matrixCard({
   ExamCategory category = ExamCategory.ssc,
   Set<ChecklistItem> checklist = const {},
 }) => AdmitCard(
+  candidateName: candidateName,
   id: id,
   examId: 'exam_$id',
   category: category,

@@ -50,6 +50,7 @@ class AdmitCard {
     required this.updatedAt,
     this.rollNumberVerified = false,
     this.checklist = const {},
+    this.candidateName = '',
   });
 
   final String id;
@@ -60,6 +61,14 @@ class AdmitCard {
   final String examName;
   final String conductingBody;
   final String examCode;
+
+  /// The student's own name, optional.
+  ///
+  /// Everything else on a card is the commission's data; this is the one field
+  /// that makes a share card *theirs* — "RAHUL SHARMA · ROLL 1234567890 ·
+  /// IN THE LIST" is a celebration, an anonymous roll is a screenshot. Empty
+  /// by default and for every card saved before it existed.
+  final String candidateName;
 
   final String rollNumber;
   final String registrationId;
@@ -110,6 +119,7 @@ class AdmitCard {
     DateTime? updatedAt,
     bool? rollNumberVerified,
     Set<ChecklistItem>? checklist,
+    String? candidateName,
   }) {
     return AdmitCard(
       id: id,
@@ -131,6 +141,7 @@ class AdmitCard {
       updatedAt: updatedAt ?? DateTime.now(),
       rollNumberVerified: rollNumberVerified ?? this.rollNumberVerified,
       checklist: checklist ?? this.checklist,
+      candidateName: candidateName ?? this.candidateName,
     );
   }
 }

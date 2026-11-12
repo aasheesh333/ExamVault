@@ -15,6 +15,7 @@ class ShareCardData {
     required this.dateLine,
     required this.rollNumber,
     required this.selected,
+    this.candidateName = '',
     required this.shareUrl,
     this.officialUrl,
     this.pdfSizeLabel,
@@ -26,6 +27,10 @@ class ShareCardData {
   final String dateLine;
   final String rollNumber;
   final bool selected;
+
+  /// The student's own name, when their saved card carries one. Empty for
+  /// radar-only shares (no card) and for cards saved before the field existed.
+  final String candidateName;
 
   /// Null when no public web base is configured — the card then shows no URL
   /// rather than a dead link to a domain we do not own.
@@ -56,6 +61,7 @@ class ShareCardData {
   ShareCardData copyWith({
     String? rollNumber,
     bool? selected,
+    String? candidateName,
     // `_clear` rather than `null`, so "no app URL" is expressible: a plain
     // nullable parameter cannot distinguish "leave alone" from "set to null".
     Object? shareUrl = _clear,
@@ -66,6 +72,7 @@ class ShareCardData {
     dateLine: dateLine,
     rollNumber: rollNumber ?? this.rollNumber,
     selected: selected ?? this.selected,
+    candidateName: candidateName ?? this.candidateName,
     shareUrl: identical(shareUrl, _clear) ? this.shareUrl : shareUrl as String?,
     officialUrl: officialUrl,
     pdfSizeLabel: pdfSizeLabel,
@@ -164,7 +171,8 @@ class ShareInfographic extends StatelessWidget {
                         color: _muted,
                       ),
                     ),
-                    if (data.rollNumber.isNotEmpty) ...[
+                    if (data.rollNumber.isNotEmpty ||
+                        data.candidateName.isNotEmpty) ...[
                       const SizedBox(height: 13),
                       _RollBlock(data: data),
                     ],
@@ -438,12 +446,34 @@ class _RollBlock extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (data.candidateName.isNotEmpty) ...[
+            Text(
+              data.candidateName.toUpperCase(),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontFamily: EvFont.ui,
+                fontFamilyFallback: EvFont.fallbackUi,
+                fontSize: 15,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.4,
+                color: Color(0xFFF8FAFC),
+              ),
+            ),
+            const SizedBox(height: 6),
+          ],
           Text(
             // "SELECTED" is only true of a final merit list. Most of what
             // this app indexes is a shortlist for the next stage (UPSC's
             // "qualified for the Personality Test"), so the card says what
             // is actually established: the roll is in the published list.
-            data.selected ? 'YOUR ROLL · IN THE LIST' : 'YOUR ROLL',
+            // With a name but no roll (privacy switch off) the block becomes
+            // the student's identity line, not a roll badge.
+            data.rollNumber.isEmpty
+                ? 'CANDIDATE'
+                : data.selected
+                ? 'YOUR ROLL · IN THE LIST'
+                : 'YOUR ROLL',
             style: const TextStyle(
               fontFamily: EvFont.mono,
               fontFamilyFallback: EvFont.fallbackMono,
@@ -454,22 +484,24 @@ class _RollBlock extends StatelessWidget {
               color: Color(0xFF8CA0BA),
             ),
           ),
-          const SizedBox(height: 4),
-          Text(
-            data.rollNumber,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontFamily: EvFont.mono,
-              fontFamilyFallback: EvFont.fallbackMono,
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 1.2,
-              color: data.selected
-                  ? const Color(0xFF6EE7B7)
-                  : const Color(0xFFF8FAFC),
+          if (data.rollNumber.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              data.rollNumber,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontFamily: EvFont.mono,
+                fontFamilyFallback: EvFont.fallbackMono,
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 1.2,
+                color: data.selected
+                    ? const Color(0xFF6EE7B7)
+                    : const Color(0xFFF8FAFC),
+              ),
             ),
-          ),
+          ],
         ],
       ),
     );

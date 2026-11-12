@@ -1,7 +1,7 @@
 {
   "revision": 5,
   "source": "official commission websites",
-  "fetched_at": "2026-11-11T22:27:12.209Z",
+  "fetched_at": "2026-11-12T03:14:47.002Z",
   "sources": [
     {
       "id": "ssc",
@@ -10,8 +10,8 @@
       "homepage": "https://ssc.gov.in/",
       "status": "ok",
       "rows": 17,
-      "checked_at": "2026-11-11T22:25:16.632Z",
-      "elapsed_ms": 1729
+      "checked_at": "2026-11-12T03:12:51.733Z",
+      "elapsed_ms": 1155
     },
     {
       "id": "upsc",
@@ -20,8 +20,8 @@
       "homepage": "https://www.upsc.gov.in",
       "status": "ok",
       "rows": 7,
-      "checked_at": "2026-11-11T22:26:57.540Z",
-      "elapsed_ms": 100908
+      "checked_at": "2026-11-12T03:14:32.738Z",
+      "elapsed_ms": 101005
     },
     {
       "id": "ibps",
@@ -30,8 +30,8 @@
       "homepage": "https://www.ibps.in",
       "status": "ok",
       "rows": 7,
-      "checked_at": "2026-11-11T22:26:59.783Z",
-      "elapsed_ms": 2243,
+      "checked_at": "2026-11-12T03:14:35.507Z",
+      "elapsed_ms": 2769,
       "note": "TLS chain completed with a pinned GlobalSign intermediate"
     },
     {
@@ -41,8 +41,8 @@
       "homepage": "https://www.tnpsc.gov.in",
       "status": "ok",
       "rows": 10,
-      "checked_at": "2026-11-11T22:27:01.722Z",
-      "elapsed_ms": 1939
+      "checked_at": "2026-11-12T03:14:36.997Z",
+      "elapsed_ms": 1490
     },
     {
       "id": "railways",
@@ -51,8 +51,8 @@
       "homepage": "https://rrbchennai.gov.in",
       "status": "unavailable",
       "rows": 0,
-      "checked_at": "2026-11-11T22:27:12.208Z",
-      "elapsed_ms": 10486,
+      "checked_at": "2026-11-12T03:14:47.000Z",
+      "elapsed_ms": 10003,
       "reason": "fetch failed"
     }
   ],
@@ -109,7 +109,7 @@
       "index_available": true,
       "index_version": "496699f59fa7",
       "roll_count": 2526,
-      "index_attempted_at": "2026-11-11T22:28:12.878418+00:00",
+      "index_attempted_at": "2026-11-12T03:15:47.852811+00:00",
       "index_skipped": "HTTPError: HTTP Error 504: Gateway Time-out"
     },
     {
@@ -126,7 +126,7 @@
       "index_available": true,
       "index_version": "ebf0b48ddd52",
       "roll_count": 181,
-      "index_attempted_at": "2026-11-11T22:29:13.559886+00:00",
+      "index_attempted_at": "2026-11-12T03:16:48.784266+00:00",
       "index_skipped": "HTTPError: HTTP Error 504: Gateway Time-out"
     },
     {
@@ -143,7 +143,7 @@
       "index_available": true,
       "index_version": "ec7dd2aa1ba9",
       "roll_count": 8956,
-      "index_attempted_at": "2026-11-11T22:30:14.903356+00:00",
+      "index_attempted_at": "2026-11-12T03:17:50.426074+00:00",
       "index_skipped": "HTTPError: HTTP Error 504: Gateway Time-out"
     },
     {
@@ -160,7 +160,7 @@
       "index_available": true,
       "index_version": "9fc461201151",
       "roll_count": 66,
-      "index_attempted_at": "2026-11-11T22:31:15.967049+00:00",
+      "index_attempted_at": "2026-11-12T03:18:51.961734+00:00",
       "index_skipped": "HTTPError: HTTP Error 504: Gateway Time-out"
     },
     {
@@ -177,7 +177,7 @@
       "index_available": true,
       "index_version": "e1da0b22d115",
       "roll_count": 30,
-      "index_attempted_at": "2026-11-11T22:32:17.179147+00:00",
+      "index_attempted_at": "2026-11-12T03:19:53.280323+00:00",
       "index_skipped": "HTTPError: HTTP Error 504: Gateway Time-out"
     },
     {
@@ -194,7 +194,7 @@
       "index_available": true,
       "index_version": "2519ef9780b0",
       "roll_count": 617,
-      "index_attempted_at": "2026-11-11T22:33:18.678324+00:00",
+      "index_attempted_at": "2026-11-12T03:20:54.724984+00:00",
       "index_skipped": "HTTPError: HTTP Error 504: Gateway Time-out"
     },
     {
@@ -549,7 +549,8 @@
       "official_page": null,
       "index_available": true,
       "index_version": "ed72256aa6bf",
-      "roll_count": 240
+      "roll_count": 240,
+      "index_built_at": "2026-11-12T03:20:57.202664+00:00"
     },
     {
       "exam_id": "tnpsc_16_2024_combined_civil_services_examination_in_gro",
@@ -564,7 +565,8 @@
       "official_page": null,
       "index_available": true,
       "index_version": "9f9babf37b55",
-      "roll_count": 35
+      "roll_count": 35,
+      "index_built_at": "2026-11-12T03:20:59.231605+00:00"
     },
     {
       "exam_id": "tnpsc_12_2024_combined_technical_services_examination_in",

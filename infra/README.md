@@ -24,9 +24,11 @@ app ──HTTPS──> Cloudflare PoP (Cache API) ──miss──> Worker ─�
 | `GET /r/<examId>` | 302 → the exam's `official_pdf` (else `official_page`) from the live feed; plain-text 404 `"This result link is no longer active."` when the exam is not in the feed | 60 s |
 | `GET /health` | liveness | `no-store` |
 
-`/r/<examId>` is what makes the share card's deep link real without owning a
-domain: `EV_WEB_BASE` is set to the worker origin, and the worker resolves the
-link to the commission's own page.
+`/r/<examId>` is deployed and tested, but `EV_WEB_BASE` is **deliberately
+unset**: printing a `*.workers.dev` URL on the share card reads as a dev
+server, so until the project owns a real domain the card prints the
+commission's own URL instead. Map a domain at the worker and set `EV_WEB_BASE`
+to it, and this route becomes the card's deep link with no code changes.
 
 ## Why this survives 10M concurrent users
 
@@ -86,7 +88,8 @@ npx wrangler deploy
 The worker runs on `workers.dev` (`workers_dev = true` in `wrangler.toml`).
 A custom domain is *optional* and only possible with a domain you actually own
 and have added to the Cloudflare account; until one exists, the workers.dev URL
-above is the public host used by `EV_CDN_BASE` and `EV_WEB_BASE`.
+above is the public host used by `EV_CDN_BASE`. (`EV_WEB_BASE` stays unset on
+purpose — see the `/r/` note above.)
 
 ## Publish objects
 

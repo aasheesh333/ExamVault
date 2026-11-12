@@ -46,19 +46,22 @@ empty or missing (`::error::` + exit 1), which is the loud failure this section
 used to only promise.
 
 `EV_WEB_BASE` feeds the share card's deep link (`result_index_repository.dart`
-→ `shareUrl()` → `<base>/r/<examId>`). Set it to the worker origin:
+→ `shareUrl()` → `<base>/r/<examId>`). **Leave it UNSET until the project owns
+a real domain.**
 
-```
-EV_WEB_BASE=https://examvault-edge.aasheeshkatheriya.workers.dev
-```
+The worker's `GET /r/<examId>` route works and is deployed (it resolves the
+link against the live feed and 302s to the commission's own result PDF/page),
+so pointing this at the worker origin is *technically* functional — but a
+`*.workers.dev` URL printed on a card whose whole job is going viral reads as
+a dev server, not a product. Owner decision, 2026-11-12: the secret was set for
+one day, then deleted again. While unset, `shareUrl()` returns null and the
+card prints **the commission's own URL** — the more trustworthy link anyway.
 
-The worker's `GET /r/<examId>` route resolves that link against the live feed
-and 302s to the commission's own result PDF/page (plain-text 404 when the exam
-is not in the feed), so the printed deep link is real. **The project owns no
-domain** — never point this at a name nobody registered (e.g. the
-never-owned `examvault.in` from early mockups). When `EV_WEB_BASE` is unset,
-`shareUrl()` returns null and the card shows the commission's own URL instead of
-a dead link.
+When a domain is bought: add it to the Cloudflare account, route it at the
+worker, set `EV_WEB_BASE=https://<that-domain>`, and the already-deployed `/r/`
+route starts appearing on cards with zero code changes. **The project owns no
+domain** — never point this at a name nobody registered (e.g. the never-owned
+`examvault.in` from early mockups).
 
 ## Android release signing
 
@@ -121,7 +124,7 @@ git log -p | grep -nE 'AIza[0-9A-Za-z_-]{35}|cfoat_|ghp_[A-Za-z0-9]{36}|-----BEG
 | `EV_FIREBASE_STORAGE_BUCKET` | set |
 | `EV_ONESIGNAL_APP_ID` | set — `062ce6a9-a47e-48d8-bb4d-dfee88b60026` |
 | `EV_CDN_BASE` | set — worker origin `https://examvault-edge.aasheeshkatheriya.workers.dev` |
-| `EV_WEB_BASE` | set to the same worker origin — since the `/r/<examId>` route shipped, `shareUrl()` deep links resolve there (the project owns no domain; there is no public site) |
+| `EV_WEB_BASE` | **deliberately UNSET** — a workers.dev URL on the share card reads as a dev server; until a real domain is owned the card prints the commission's own URL (see above) |
 | `CLOUDFLARE_API_TOKEN` | set |
 | `CLOUDFLARE_ACCOUNT_ID` | set |
 | `ANDROID_KEYSTORE_BASE64` | set — upload keystore, `CN=ExamVault` |
@@ -132,11 +135,11 @@ git log -p | grep -nE 'AIza[0-9A-Za-z_-]{35}|cfoat_|ghp_[A-Za-z0-9]{36}|-----BEG
 Verified: the AAB built by CI is signed with
 `SHA-256 F4:D8:1E:BC:8C:DF:91:D7:15:52:01:CB:4F:77:46:C1:87:1E:32:E4:50:E5:6C:D4:17:53:A3:47:EA:34:E0:EB`.
 
-> The `EV_WEB_BASE` row states the **required** value. If the stored secret
-> predates the worker's `/r/<examId>` route, re-set it once:
-> `gh secret set EV_WEB_BASE --repo <owner>/ExamVault --body "https://examvault-edge.aasheeshkatheriya.workers.dev"`.
-> The route itself deploys automatically on the next push to `master` that
-> touches `infra/**` (CI job `deploy-edge`).
+> If an `EV_WEB_BASE` secret exists in your environment from the 2026-11-11
+> experiment, delete it: `gh secret delete EV_WEB_BASE`. The `/r/<examId>`
+> route stays deployed and tested either way — it deploys automatically on
+> any push to `master` that touches `infra/**` (CI job `deploy-edge`), so it
+> is ready the day a real domain is mapped.
 
 ### OneSignal notes
 

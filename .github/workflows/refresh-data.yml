@@ -30,6 +30,10 @@ on:
         description: 'Publish to the edge (otherwise validate only)'
         type: boolean
         default: true
+      verify_push:
+        description: 'Send one self-test push (topic examvault_selftest — notifies nobody)'
+        type: boolean
+        default: false
 
 concurrency:
   group: refresh-exam-data
@@ -104,6 +108,12 @@ jobs:
       # provider has credentials. The script exits 0 when none are configured
       # (with a loud log) because a missing notification must never redden the
       # pipeline that publishes the data itself.
+      - name: Verify the push send path
+        if: ${{ inputs.verify_push }}
+        env:
+          FCM_SERVICE_ACCOUNT_JSON: ${{ secrets.FCM_SERVICE_ACCOUNT_JSON }}
+        run: node tools/dispatch_alerts.mjs --verify-send
+
       - name: Notify students
         if: ${{ github.event_name == 'schedule' || inputs.publish }}
         env:

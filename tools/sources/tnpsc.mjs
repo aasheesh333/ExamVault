@@ -12,7 +12,15 @@
  * document to index and no date to trust.
  */
 
-import { absUrl, clean, extractDates, getText, slug, toIsoDate } from './lib.mjs';
+import {
+  absUrl,
+  clean,
+  extractDates,
+  extractFacts,
+  getText,
+  slug,
+  toIsoDate,
+} from './lib.mjs';
 
 const BASE = 'https://www.tnpsc.gov.in';
 const LIST = `${BASE}/English/Results.aspx`;
@@ -58,6 +66,7 @@ function parseRows(html) {
         // The grid's anchor text is the publication date, not a future result
         // date; only an explicit phrase would yield result_date here.
         ...extractDates({ headline: label, context }),
+        ...extractFacts({ headline: label, context }),
         published_at: published,
         source: 'tnpsc.gov.in',
         source_id: 'tnpsc',

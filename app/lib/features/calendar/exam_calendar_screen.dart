@@ -9,6 +9,7 @@ import '../../providers/exam_calendar_provider.dart';
 import '../../shared/widgets/ev_controls.dart';
 import '../../shared/widgets/ev_surfaces.dart';
 import '../shell/root_shell.dart';
+import 'exam_detail_sheet.dart';
 
 /// Screen — Exam Calendar.
 ///
@@ -54,6 +55,11 @@ class ExamCalendarScreen extends ConsumerWidget {
                       itemBuilder: (context, i) => _EntryCard(
                         entry: entries[i],
                         now: now,
+                        onOpen: () => showExamDetailSheet(
+                          context,
+                          update: entries[i].update,
+                          card: entries[i].card,
+                        ),
                         alerting: alerts.contains(entries[i].examId),
                         onAlertToggle:
                             entries[i].update == null ||
@@ -204,12 +210,17 @@ class _EntryCard extends StatelessWidget {
   const _EntryCard({
     required this.entry,
     required this.now,
+    required this.onOpen,
     required this.alerting,
     required this.onAlertToggle,
   });
 
   final CalendarEntry entry;
   final DateTime now;
+
+  /// Opens the per-exam detail page (important dates, vacancy, fee, links) —
+  /// the part a student needs after seeing the date.
+  final VoidCallback onOpen;
   final bool alerting;
   final VoidCallback? onAlertToggle;
 
@@ -220,6 +231,13 @@ class _EntryCard extends StatelessWidget {
     final urgent = days <= 3;
 
     return EvCard(
+      onTap: onOpen,
+      // The card is a button, so it needs a name: without one TalkBack
+      // announced a nameless button the size of the card (caught by the a11y
+      // matrix, which checks exactly this).
+      semanticLabel:
+          '${entry.examName}. ${entry.kind.sentence} ${entry.dateLabel}. '
+          'Open notice details.',
       padding: const EdgeInsets.fromLTRB(EvSpace.x4, 12, 12, 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

@@ -40,6 +40,11 @@ const STATUSES = new Set([
   'result_out',
   'admit_card_live',
   'form_closing',
+  // A recruitment that has been ANNOUNCED but whose deadline is not yet
+  // pressing. This is the biggest category on the aggregator sites and the app
+  // used to mislabel all of it "CLOSING SOON", which is simply untrue for a
+  // notice published this morning.
+  'notification',
   'answer_key',
   'awaited',
 ]);
@@ -70,6 +75,9 @@ const TTL_HOURS = {
   admit_card_live: 24 * 21,
   // A closing form is urgent but short-lived.
   form_closing: 24 * 7,
+  // A vacancy announcement stays useful while the window is open: two months
+  // covers the usual 3-6 week application period plus late reading.
+  notification: 24 * 60,
   answer_key: 24 * 30,
   // "Awaited" is a standing placeholder.
   awaited: 24 * 90,

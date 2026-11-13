@@ -104,6 +104,54 @@ function iso(year, month, day) {
 }
 
 /**
+ * OPTIONAL structured facts, extracted only when the notice states them in a
+ * recognisable form.
+ *
+ * Same rule as the dates: absent means "not stated", never a guess. A wrong
+ * vacancy count or fee is a trust failure — a student plans around it.
+ *
+ *   vacancy  "Total Post : 1234", "1234 posts", "for 500 vacancies"
+ *   fee      "Application Fee : Rs. 100/-", "Fee: ₹100", "Examination Fee – 100"
+ */
+export function extractFacts({ headline = '', context = '', text = '' } = {}) {
+  const haystack = `${headline} ${context} ${text}`.replace(/\s+/g, ' ');
+
+  const facts = {};
+
+  // Vacancy: a number 1-6 digits attached to a post/vacancy word, or the
+  // "Total Post : N" form. Capped so a year or a roll range cannot qualify.
+  const vacancyPatterns = [
+    /total\s+(?:no\.?\s+of\s+)?posts?\s*[:\-–]?\s*([\d,]{1,7})/i,
+    /(?:posts?|vacanc(?:y|ies)|seats?)\s*[:\-–]?\s*([\d,]{1,7})/i,
+    /([\d,]{1,7})\s+(?:posts?|vacanc(?:y|ies)|seats?)\b/i,
+  ];
+  for (const re of vacancyPatterns) {
+    const m = haystack.match(re);
+    if (!m) continue;
+    const n = Number(m[1].replace(/,/g, ''));
+    // A plausible recruitment size; 0 and absurd values are noise.
+    if (Number.isInteger(n) && n > 0 && n <= 500000) {
+      facts.vacancy = n;
+      break;
+    }
+  }
+
+  // Fee: currency-marked numbers only. "Fee" alone is too ambiguous (fee
+  // waiver, fee receipt) — the rupee/ Rs form is what the notices print.
+  const feeMatch = haystack.match(
+    /(?:application|examination|exam)?\s*fee[^\d₹]{0,24}(?:rs\.?|₹|inr)?\s*([\d,]{1,6})/i,
+  );
+  if (feeMatch) {
+    const n = Number(feeMatch[1].replace(/,/g, ''));
+    if (Number.isInteger(n) && n >= 0 && n <= 100000) {
+      facts.fee = `₹${n}`;
+    }
+  }
+
+  return facts;
+}
+
+/**
  * The three OPTIONAL "when" fields a feed row may carry.
  *
  * They are absent unless the commission's own wording states them. A missing
@@ -301,6 +349,16 @@ const ADMIT_WORDS =
 const KEY_WORDS = /(answer.?key|response.?sheet|objection tracker)/;
 const FORM_WORDS =
   /(apply|application|registration|last.?date|closing|closes|online form|recruitment|notification|advertisement|advt)/;
+/**
+ * Words that make an application notice URGENT rather than merely new.
+ *
+ * Without this split every "Recruitment 2026" row wore a red "CLOSING SOON"
+ * pill the day it was published. A notice is `form_closing` only when its own
+ * wording is about the deadline; otherwise it is a `notification` — the
+ * "new vacancy" category students browse daily.
+ */
+const CLOSING_WORDS =
+  /(last.?date|closing.?date|closes?\s+(?:on|soon)|apply\s+(?:before|by)|extended|re-?open|final.?date)/;
 const AWAIT_WORDS = /(schedule|calendar|notice|corrigendum|revised|exam date|indicative)/;
 
 /**
@@ -327,7 +385,10 @@ export function statusOf(input) {
   if (RESULT_WORDS.test(text)) return 'result_out';
   if (KEY_WORDS.test(text)) return 'answer_key';
   if (ADMIT_WORDS.test(text)) return 'admit_card_live';
-  if (FORM_WORDS.test(text)) return 'form_closing';
+  if (FORM_WORDS.test(text)) {
+    // Deadline wording → urgent. Otherwise a fresh vacancy announcement.
+    return CLOSING_WORDS.test(text) ? 'form_closing' : 'notification';
+  }
   if (AWAIT_WORDS.test(text)) return 'awaited';
   return null;
 }

@@ -7,6 +7,11 @@ enum UpdateStatus {
   resultOut('result_out', 'RESULT OUT'),
   admitCardLive('admit_card_live', 'ADMIT CARD LIVE'),
   formClosing('form_closing', 'CLOSING SOON'),
+
+  /// A recruitment that has been announced but whose deadline is not yet
+  /// pressing. The aggregator sites' biggest category, and the one this app
+  /// used to mislabel "CLOSING SOON" on publication day.
+  notification('notification', 'NEW VACANCY'),
   answerKey('answer_key', 'ANSWER KEY'),
   awaited('awaited', 'AWAITED');
 
@@ -43,6 +48,8 @@ class LiveUpdate {
     this.examDate,
     this.resultDate,
     this.deadline,
+    this.vacancy,
+    this.fee,
   });
 
   final String examId;
@@ -101,6 +108,15 @@ class LiveUpdate {
   final DateTime? examDate;
   final DateTime? resultDate;
   final DateTime? deadline;
+
+  /// Total posts, when the notice states a number ("Total Post: 1234").
+  ///
+  /// Absent means the notice did not say — never a guess. A wrong vacancy
+  /// count is a planning failure for the student.
+  final int? vacancy;
+
+  /// Application fee exactly as the notice states it ("₹100"), else null.
+  final String? fee;
 
   /// True when this row has a searchable roll index behind it.
   bool get hasIndex => indexVersion != null;

@@ -23,7 +23,15 @@
  * crawler cannot read them; the homepage list is the honest subset.
  */
 
-import { absUrl, clean, extractDates, getText, slug, toIsoDate } from './lib.mjs';
+import {
+  absUrl,
+  clean,
+  extractDates,
+  extractFacts,
+  getText,
+  slug,
+  toIsoDate,
+} from './lib.mjs';
 
 const BASE = 'https://rrbchennai.gov.in';
 
@@ -88,6 +96,7 @@ function parseRows(html) {
       // The date in the anchor is the NOTICE date (already published_at), not
       // an exam/deadline date, so only an explicit phrase in the label counts.
       ...extractDates({ headline: label, context }),
+      ...extractFacts({ headline: label, context }),
       published_at: published,
       source: 'rrbchennai.gov.in',
       source_id: 'railways',

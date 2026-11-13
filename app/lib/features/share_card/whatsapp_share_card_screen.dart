@@ -115,6 +115,7 @@ class _WhatsappShareCardScreenState
     UpdateStatus.admitCardLive => 'ADMIT CARD IS LIVE',
     UpdateStatus.answerKey => 'ANSWER KEY IS OUT',
     UpdateStatus.formClosing => 'LAST DATE IS NEAR',
+    UpdateStatus.notification => 'NEW VACANCY OUT',
     UpdateStatus.awaited => 'UPDATE AWAITED',
   };
 
@@ -123,6 +124,7 @@ class _WhatsappShareCardScreenState
     UpdateStatus.admitCardLive => 'Admit card link & exam-day details',
     UpdateStatus.answerKey => 'Official key & objection window',
     UpdateStatus.formClosing => 'Deadline & direct application link',
+    UpdateStatus.notification => 'Vacancy details & how to apply',
     UpdateStatus.awaited => 'Official notice & next update',
   };
 

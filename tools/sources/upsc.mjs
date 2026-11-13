@@ -12,7 +12,16 @@
 
 import { createHash } from 'node:crypto';
 
-import { absUrl, clean, extractDates, getText, slug, statusOf, toIsoDate } from './lib.mjs';
+import {
+  absUrl,
+  clean,
+  extractDates,
+  extractFacts,
+  getText,
+  slug,
+  statusOf,
+  toIsoDate,
+} from './lib.mjs';
 
 const BASE = 'https://www.upsc.gov.in';
 const LIST = `${BASE}/whats-new`;
@@ -112,6 +121,11 @@ export default {
           // The detail page is official text; a date is used only when one of
           // the explicit trigger phrases precedes it.
           ...extractDates({ headline: item.title, context, text: detail.text }),
+          ...extractFacts({
+            headline: item.title,
+            context,
+            text: detail.text,
+          }),
           published_at: detail.published,
           source: 'upsc.gov.in',
           source_id: 'upsc',

@@ -26,7 +26,14 @@ import https from 'node:https';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
-import { clean, extractDates, statusOf, toIsoDate, UA } from './lib.mjs';
+import {
+  clean,
+  extractDates,
+  extractFacts,
+  statusOf,
+  toIsoDate,
+  UA,
+} from './lib.mjs';
 
 const BASE = 'https://www.ibps.in';
 const LIST = `${BASE}/index.php/recruitment/`;
@@ -225,6 +232,7 @@ export default {
         context,
         status: open ? 'form_closing' : 'awaited',
         ...dates,
+        ...extractFacts({ headline: label, context }),
         // The window's opening date is the only date IBPS publishes here.
         published_at: item.opens,
         // EXPLICIT expiry pinned to the end of the closing day. The default

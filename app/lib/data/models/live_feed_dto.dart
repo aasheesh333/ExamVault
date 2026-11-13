@@ -142,6 +142,11 @@ abstract final class LiveFeedDto {
       examDate: _tryDateOnly(row['exam_date']),
       resultDate: _tryDateOnly(row['result_date']),
       deadline: _tryDateOnly(row['deadline']),
+      // Structured facts, only when the notice stated them.
+      vacancy: _tryInt(row['vacancy']),
+      fee: row['fee'] is String && (row['fee'] as String).trim().isNotEmpty
+          ? (row['fee'] as String).trim()
+          : null,
     );
   }
 
@@ -169,6 +174,9 @@ abstract final class LiveFeedDto {
       UpdateStatus.resultOut => const Duration(days: 30),
       UpdateStatus.admitCardLive => const Duration(days: 21),
       UpdateStatus.formClosing => const Duration(days: 7),
+      // Matches publish_feed.mjs: a vacancy stays useful while its window is
+      // open, which is weeks, not days.
+      UpdateStatus.notification => const Duration(days: 60),
       UpdateStatus.answerKey => const Duration(days: 30),
       UpdateStatus.awaited => const Duration(days: 90),
     };

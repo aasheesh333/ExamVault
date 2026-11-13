@@ -126,6 +126,8 @@ extension UpdateStatusColors on UpdateStatus {
     UpdateStatus.resultOut => p.success,
     UpdateStatus.admitCardLive => p.warning,
     UpdateStatus.formClosing => p.danger,
+    // A new vacancy is good news, not a warning: accent blue, not red.
+    UpdateStatus.notification => p.accent,
     UpdateStatus.answerKey => p.accent,
     UpdateStatus.awaited => p.textTertiary,
   };
@@ -146,6 +148,7 @@ extension UpdateStatusText on UpdateStatus {
       UpdateStatus.resultOut => p.successText,
       UpdateStatus.admitCardLive => p.warningText,
       UpdateStatus.formClosing => p.dangerText,
+      UpdateStatus.notification => p.accentText,
       UpdateStatus.answerKey => p.accentText,
       UpdateStatus.awaited => p.textTertiary,
     };
@@ -155,6 +158,7 @@ extension UpdateStatusText on UpdateStatus {
     UpdateStatus.resultOut => Icons.picture_as_pdf_rounded,
     UpdateStatus.admitCardLive => Icons.access_time_rounded,
     UpdateStatus.formClosing => Icons.timer_outlined,
+    UpdateStatus.notification => Icons.work_outline_rounded,
     UpdateStatus.answerKey => Icons.key_rounded,
     UpdateStatus.awaited => Icons.hourglass_empty_rounded,
   };

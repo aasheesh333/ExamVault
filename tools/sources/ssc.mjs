@@ -10,7 +10,7 @@
  * from `headline`, `createdAt` and `attachments`; nothing is inferred.
  */
 
-import { clean, extractDates, slug, statusOf } from './lib.mjs';
+import { clean, extractDates, extractFacts, slug, statusOf } from './lib.mjs';
 
 const BASE = 'https://ssc.gov.in/api/general-website/portal';
 const UA =
@@ -153,6 +153,8 @@ export default {
           // Only what the headline itself states; SSC's API carries no exam /
           // result / closing date fields, so anything else would be invented.
           ...extractDates({ headline, context }),
+          // Vacancy / fee only when the notice itself states them.
+          ...extractFacts({ headline, context }),
           published_at: createdAt.toISOString(),
           source: 'ssc.gov.in',
           source_id: 'ssc',

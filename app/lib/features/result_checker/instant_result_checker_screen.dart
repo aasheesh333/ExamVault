@@ -20,6 +20,7 @@ import '../../providers/app_providers.dart';
 import '../shell/root_shell.dart';
 import '../../shared/widgets/ev_controls.dart';
 import '../../shared/widgets/ev_surfaces.dart';
+import '../calendar/exam_detail_sheet.dart';
 
 /// Screen 3 — Instant result checker.
 ///
@@ -429,6 +430,23 @@ class _InstantResultCheckerScreenState
                   ),
                   const SizedBox(height: 6),
                   _TitleWithAccent(examName: examName),
+                  if (update != null || card != null) ...[
+                    const SizedBox(height: 4),
+                    // The aggregator-site question a radar row cannot answer:
+                    // when, how many posts, what fee, where to apply.
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: EvTextAction(
+                        label: 'Notice details',
+                        icon: Icons.open_in_new_rounded,
+                        onPressed: () => showExamDetailSheet(
+                          context,
+                          update: update,
+                          card: card,
+                        ),
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 8),
                   // Shown whenever there is more than one card — *including*
                   // while an exam is resolved. It used to hide the moment any

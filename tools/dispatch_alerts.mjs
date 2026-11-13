@@ -279,6 +279,42 @@ function readServiceAccount(env) {
   return parsed;
 }
 
+/**
+ * Proves the send path without notifying anyone.
+ *
+ * Sends one message to a topic that only exists for this purpose. FCM
+ * accepting it (HTTP 200) is the end-to-end proof that the credential, the
+ * API version, the channel id and the payload shape are all right — the one
+ * thing a token exchange alone cannot show.
+ */
+export async function verifySend({ env = process.env, log = console.log }) {
+  const serviceAccount = readServiceAccount(env);
+  if (!serviceAccount) {
+    log('verify-send: FCM_SERVICE_ACCOUNT_JSON is not set — nothing to verify');
+    return { ok: false, reason: 'no-credentials' };
+  }
+  const alert = {
+    examId: 'selftest',
+    examName: 'ExamVault self-test',
+    reason: 'verify',
+    title: 'ExamVault notifications are working',
+    body: 'This is a self-test. Nobody was notified.',
+    link: null,
+    topic: 'examvault_selftest',
+  };
+  try {
+    await sendFcm({ serviceAccount, alert });
+    log(
+      `verify-send: FCM accepted a message for topic ${alert.topic} ` +
+        `(project ${serviceAccount.project_id}) — the send path works.`,
+    );
+    return { ok: true };
+  } catch (err) {
+    log(`verify-send: FCM REJECTED the message — ${err.message}`);
+    return { ok: false, reason: err.message };
+  }
+}
+
 export async function dispatch({
   oldFeed,
   newFeed,
@@ -368,6 +404,10 @@ const isMain =
   process.argv[1] && import.meta.url.endsWith(process.argv[1].split('/').pop());
 
 if (isMain) {
+  if (process.argv.includes('--verify-send')) {
+    verifySend().then((r) => process.exit(r.ok ? 0 : 1));
+  }
+
   const oldPath = arg('old');
   const newPath = arg('new', '../data/live_feed.json');
   if (!oldPath) {

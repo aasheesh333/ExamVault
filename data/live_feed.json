@@ -1,7 +1,7 @@
 {
-  "revision": 6,
+  "revision": 7,
   "source": "official commission websites",
-  "fetched_at": "2026-11-13T16:15:09.114Z",
+  "fetched_at": "2026-11-13T19:53:24.861Z",
   "sources": [
     {
       "id": "ssc",
@@ -10,8 +10,8 @@
       "homepage": "https://ssc.gov.in/",
       "status": "ok",
       "rows": 17,
-      "checked_at": "2026-11-13T16:13:13.749Z",
-      "elapsed_ms": 1463
+      "checked_at": "2026-11-13T19:51:28.828Z",
+      "elapsed_ms": 1260
     },
     {
       "id": "upsc",
@@ -20,8 +20,8 @@
       "homepage": "https://www.upsc.gov.in",
       "status": "ok",
       "rows": 7,
-      "checked_at": "2026-11-13T16:14:54.967Z",
-      "elapsed_ms": 101218
+      "checked_at": "2026-11-13T19:53:09.928Z",
+      "elapsed_ms": 101100
     },
     {
       "id": "ibps",
@@ -30,8 +30,8 @@
       "homepage": "https://www.ibps.in",
       "status": "ok",
       "rows": 8,
-      "checked_at": "2026-11-13T16:14:57.007Z",
-      "elapsed_ms": 2040,
+      "checked_at": "2026-11-13T19:53:12.544Z",
+      "elapsed_ms": 2616,
       "note": "TLS chain completed with a pinned GlobalSign intermediate"
     },
     {
@@ -41,8 +41,8 @@
       "homepage": "https://www.tnpsc.gov.in",
       "status": "ok",
       "rows": 10,
-      "checked_at": "2026-11-13T16:14:58.625Z",
-      "elapsed_ms": 1618
+      "checked_at": "2026-11-13T19:53:14.371Z",
+      "elapsed_ms": 1827
     },
     {
       "id": "railways",
@@ -51,8 +51,8 @@
       "homepage": "https://rrbchennai.gov.in",
       "status": "unavailable",
       "rows": 0,
-      "checked_at": "2026-11-13T16:15:09.113Z",
-      "elapsed_ms": 10488,
+      "checked_at": "2026-11-13T19:53:24.860Z",
+      "elapsed_ms": 10489,
       "reason": "fetch failed"
     }
   ],
@@ -63,6 +63,7 @@
       "exam_name": "MANIT \u2014 Recruitment of various Group \u2018B\u2019 & \u2018C\u2019 Non-Teaching Positions",
       "context": "Registration closes 10 Dec 2026",
       "status": "form_closing",
+      "deadline": "2026-12-10",
       "published_at": "2026-11-13T00:00:00.000Z",
       "expires_at": "2026-12-10T23:59:59.000Z",
       "source": "ibps.in",
@@ -76,6 +77,7 @@
       "exam_name": "BPCL \u2014 Special Recruitment Drive for Persons with Benchmark Disabilities (PwBDs)/ Divyangjans",
       "context": "Registration closes 29 Nov 2026",
       "status": "form_closing",
+      "deadline": "2026-11-29",
       "published_at": "2026-11-09T00:00:00.000Z",
       "expires_at": "2026-11-29T23:59:59.000Z",
       "source": "ibps.in",
@@ -101,6 +103,7 @@
       "exam_name": "JKB \u2014 Recruitment of Various Posts",
       "context": "Registration closes 26 Nov 2026",
       "status": "form_closing",
+      "deadline": "2026-11-26",
       "published_at": "2026-11-07T00:00:00.000Z",
       "expires_at": "2026-11-26T23:59:59.000Z",
       "source": "ibps.in",
@@ -122,7 +125,7 @@
       "index_available": true,
       "index_version": "496699f59fa7",
       "roll_count": 2526,
-      "index_attempted_at": "2026-11-13T16:16:09.932961+00:00",
+      "index_attempted_at": "2026-11-13T19:54:25.872388+00:00",
       "index_skipped": "HTTPError: HTTP Error 504: Gateway Time-out"
     },
     {
@@ -139,7 +142,7 @@
       "index_available": true,
       "index_version": "ebf0b48ddd52",
       "roll_count": 181,
-      "index_attempted_at": "2026-11-13T16:17:11.217100+00:00",
+      "index_attempted_at": "2026-11-13T19:55:26.374960+00:00",
       "index_skipped": "HTTPError: HTTP Error 504: Gateway Time-out"
     },
     {
@@ -156,7 +159,7 @@
       "index_available": true,
       "index_version": "ec7dd2aa1ba9",
       "roll_count": 8956,
-      "index_attempted_at": "2026-11-13T16:18:12.210301+00:00",
+      "index_attempted_at": "2026-11-13T19:56:27.236020+00:00",
       "index_skipped": "HTTPError: HTTP Error 504: Gateway Time-out"
     },
     {
@@ -173,7 +176,7 @@
       "index_available": true,
       "index_version": "9fc461201151",
       "roll_count": 66,
-      "index_attempted_at": "2026-11-13T16:19:13.537063+00:00",
+      "index_attempted_at": "2026-11-13T19:57:28.489811+00:00",
       "index_skipped": "HTTPError: HTTP Error 504: Gateway Time-out"
     },
     {
@@ -190,7 +193,7 @@
       "index_available": true,
       "index_version": "e1da0b22d115",
       "roll_count": 30,
-      "index_attempted_at": "2026-11-13T16:20:14.957986+00:00",
+      "index_attempted_at": "2026-11-13T19:58:29.355139+00:00",
       "index_skipped": "HTTPError: HTTP Error 504: Gateway Time-out"
     },
     {
@@ -207,7 +210,7 @@
       "index_available": true,
       "index_version": "2519ef9780b0",
       "roll_count": 617,
-      "index_attempted_at": "2026-11-13T16:21:16.567750+00:00",
+      "index_attempted_at": "2026-11-13T19:59:30.332865+00:00",
       "index_skipped": "HTTPError: HTTP Error 504: Gateway Time-out"
     },
     {
@@ -266,6 +269,7 @@
       "exam_name": "SBI \u2014 Recruitment of Specialist Cadre Officer (Assistant Manager -Engineer (Fire))",
       "context": "Registration closes 25 Nov 2026",
       "status": "form_closing",
+      "deadline": "2026-11-25",
       "published_at": "2026-11-04T00:00:00.000Z",
       "expires_at": "2026-11-25T23:59:59.000Z",
       "source": "ibps.in",
@@ -279,6 +283,7 @@
       "exam_name": "SBI \u2014 Recruitment of Specialist Cadre Officers (Manager (Security) / Deputy Manager (Security))",
       "context": "Registration closes 25 Nov 2026",
       "status": "form_closing",
+      "deadline": "2026-11-25",
       "published_at": "2026-11-04T00:00:00.000Z",
       "expires_at": "2026-11-25T23:59:59.000Z",
       "source": "ibps.in",
@@ -318,6 +323,7 @@
       "exam_name": "RSBL \u2014 Recruitment of Clerk (Junior Officer), Assistant Branch Manager & Assistant Manager-IT",
       "context": "Registration closes 15 Nov 2026",
       "status": "form_closing",
+      "deadline": "2026-11-15",
       "published_at": "2026-10-30T00:00:00.000Z",
       "expires_at": "2026-11-15T23:59:59.000Z",
       "source": "ibps.in",
@@ -369,6 +375,7 @@
       "exam_name": "CWC \u2014 Recruitment of Various Posts",
       "context": "Registration closes 15 Nov 2026",
       "status": "form_closing",
+      "deadline": "2026-11-15",
       "published_at": "2026-10-17T00:00:00.000Z",
       "expires_at": "2026-11-15T23:59:59.000Z",
       "source": "ibps.in",
@@ -406,6 +413,7 @@
       "exam_name": "NIT \u2014 Recruitment of Non-Faculty Position",
       "context": "Registration closes 15 Nov 2026",
       "status": "form_closing",
+      "deadline": "2026-11-15",
       "published_at": "2026-10-01T00:00:00.000Z",
       "expires_at": "2026-11-15T23:59:59.000Z",
       "source": "ibps.in",

@@ -1,7 +1,7 @@
 {
   "revision": 7,
   "source": "official commission websites",
-  "fetched_at": "2026-11-13T19:53:24.861Z",
+  "fetched_at": "2026-11-13T20:05:32.083Z",
   "sources": [
     {
       "id": "ssc",
@@ -10,8 +10,8 @@
       "homepage": "https://ssc.gov.in/",
       "status": "ok",
       "rows": 17,
-      "checked_at": "2026-11-13T19:51:28.828Z",
-      "elapsed_ms": 1260
+      "checked_at": "2026-11-13T20:03:37.214Z",
+      "elapsed_ms": 1517
     },
     {
       "id": "upsc",
@@ -20,8 +20,8 @@
       "homepage": "https://www.upsc.gov.in",
       "status": "ok",
       "rows": 7,
-      "checked_at": "2026-11-13T19:53:09.928Z",
-      "elapsed_ms": 101100
+      "checked_at": "2026-11-13T20:05:18.164Z",
+      "elapsed_ms": 100950
     },
     {
       "id": "ibps",
@@ -30,8 +30,8 @@
       "homepage": "https://www.ibps.in",
       "status": "ok",
       "rows": 8,
-      "checked_at": "2026-11-13T19:53:12.544Z",
-      "elapsed_ms": 2616,
+      "checked_at": "2026-11-13T20:05:19.990Z",
+      "elapsed_ms": 1826,
       "note": "TLS chain completed with a pinned GlobalSign intermediate"
     },
     {
@@ -41,8 +41,8 @@
       "homepage": "https://www.tnpsc.gov.in",
       "status": "ok",
       "rows": 10,
-      "checked_at": "2026-11-13T19:53:14.371Z",
-      "elapsed_ms": 1827
+      "checked_at": "2026-11-13T20:05:21.591Z",
+      "elapsed_ms": 1601
     },
     {
       "id": "railways",
@@ -51,8 +51,8 @@
       "homepage": "https://rrbchennai.gov.in",
       "status": "unavailable",
       "rows": 0,
-      "checked_at": "2026-11-13T19:53:24.860Z",
-      "elapsed_ms": 10489,
+      "checked_at": "2026-11-13T20:05:32.082Z",
+      "elapsed_ms": 10491,
       "reason": "fetch failed"
     }
   ],
@@ -125,7 +125,7 @@
       "index_available": true,
       "index_version": "496699f59fa7",
       "roll_count": 2526,
-      "index_attempted_at": "2026-11-13T19:54:25.872388+00:00",
+      "index_attempted_at": "2026-11-13T20:06:32.899611+00:00",
       "index_skipped": "HTTPError: HTTP Error 504: Gateway Time-out"
     },
     {
@@ -142,7 +142,7 @@
       "index_available": true,
       "index_version": "ebf0b48ddd52",
       "roll_count": 181,
-      "index_attempted_at": "2026-11-13T19:55:26.374960+00:00",
+      "index_attempted_at": "2026-11-13T20:07:34.148916+00:00",
       "index_skipped": "HTTPError: HTTP Error 504: Gateway Time-out"
     },
     {
@@ -159,7 +159,7 @@
       "index_available": true,
       "index_version": "ec7dd2aa1ba9",
       "roll_count": 8956,
-      "index_attempted_at": "2026-11-13T19:56:27.236020+00:00",
+      "index_attempted_at": "2026-11-13T20:08:35.135206+00:00",
       "index_skipped": "HTTPError: HTTP Error 504: Gateway Time-out"
     },
     {
@@ -176,7 +176,7 @@
       "index_available": true,
       "index_version": "9fc461201151",
       "roll_count": 66,
-      "index_attempted_at": "2026-11-13T19:57:28.489811+00:00",
+      "index_attempted_at": "2026-11-13T20:09:36.134797+00:00",
       "index_skipped": "HTTPError: HTTP Error 504: Gateway Time-out"
     },
     {
@@ -193,7 +193,7 @@
       "index_available": true,
       "index_version": "e1da0b22d115",
       "roll_count": 30,
-      "index_attempted_at": "2026-11-13T19:58:29.355139+00:00",
+      "index_attempted_at": "2026-11-13T20:10:37.357684+00:00",
       "index_skipped": "HTTPError: HTTP Error 504: Gateway Time-out"
     },
     {
@@ -210,7 +210,7 @@
       "index_available": true,
       "index_version": "2519ef9780b0",
       "roll_count": 617,
-      "index_attempted_at": "2026-11-13T19:59:30.332865+00:00",
+      "index_attempted_at": "2026-11-13T20:11:38.696123+00:00",
       "index_skipped": "HTTPError: HTTP Error 504: Gateway Time-out"
     },
     {

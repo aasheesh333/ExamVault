@@ -285,12 +285,13 @@ export async function dispatch({
   env = process.env,
   log = console.log,
 }) {
-  const alerts = computeAlerts(oldFeed, newFeed);
-  if (alerts.length === 0) {
-    log('dispatch: nothing to notify');
-    return { sent: 0, failed: 0, alerts: 0 };
-  }
-
+  // Resolve and VALIDATE credentials before looking at the diff.
+  //
+  // A service-account key can be wrong in ways only a token exchange reveals
+  // (wrong project, revoked key, clock skew, a PEM pasted with escaped
+  // newlines). Proving it on every run — including the many runs with nothing
+  // to send — is the difference between "we think notifications work" and "we
+  // know". One token request per hour costs nothing.
   let provider = 'none';
   let serviceAccount = null;
   const appId = (env.EV_ONESIGNAL_APP_ID ?? '').trim();
@@ -299,10 +300,31 @@ export async function dispatch({
   try {
     serviceAccount = readServiceAccount(env);
   } catch (err) {
-    log(`dispatch: ${err.message}`);
+    log(`dispatch: credential error — ${err.message}`);
   }
   if (serviceAccount) provider = 'fcm';
   else if (appId && restKey) provider = 'onesignal';
+
+  if (provider === 'fcm') {
+    try {
+      await fcmAccessToken(serviceAccount);
+      log(
+        `dispatch: push credentials OK (fcm · project ${serviceAccount.project_id} · ${serviceAccount.client_email})`,
+      );
+    } catch (err) {
+      log(`dispatch: push credentials REJECTED — ${err.message}`);
+      // Sending would fail identically for every alert; say so once.
+      return { sent: 0, failed: 0, alerts: 0, provider: 'fcm', credentialError: true };
+    }
+  } else if (provider === 'onesignal') {
+    log('dispatch: push credentials present (onesignal) — validated on first send');
+  }
+
+  const alerts = computeAlerts(oldFeed, newFeed);
+  if (alerts.length === 0) {
+    log('dispatch: nothing to notify');
+    return { sent: 0, failed: 0, alerts: 0, provider };
+  }
 
   if (provider === 'none') {
     log(

@@ -10,7 +10,7 @@
  * from `headline`, `createdAt` and `attachments`; nothing is inferred.
  */
 
-import { clean, slug, statusOf } from './lib.mjs';
+import { clean, extractDates, slug, statusOf } from './lib.mjs';
 
 const BASE = 'https://ssc.gov.in/api/general-website/portal';
 const UA =
@@ -138,6 +138,9 @@ export default {
         // indexing via `index_skipped`, and say so in the row context.
         // build_indexes.py honours the flag and never indexes the row.
         const multiPart = attachments.length > 1;
+        const context = multiPart
+          ? 'Multi-part list — indexing paused'
+          : contextLine(headline, attachment, sizeBytes);
 
         rows.push({
           // The feed row id and the index id are the same string, so
@@ -145,10 +148,11 @@ export default {
           exam_id: slug(`${record.examId || 'ssc'}-${record.id}`),
           category: 'ssc',
           exam_name: headline.length > 96 ? `${headline.slice(0, 93)}…` : headline,
-          context: multiPart
-            ? 'Multi-part list — indexing paused'
-            : contextLine(headline, attachment, sizeBytes),
+          context,
           status,
+          // Only what the headline itself states; SSC's API carries no exam /
+          // result / closing date fields, so anything else would be invented.
+          ...extractDates({ headline, context }),
           published_at: createdAt.toISOString(),
           source: 'ssc.gov.in',
           source_id: 'ssc',

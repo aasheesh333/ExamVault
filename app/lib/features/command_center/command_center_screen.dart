@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -988,6 +990,8 @@ class _RadarSliver extends ConsumerWidget {
       );
     }
 
+    final alerts = ref.watch(examAlertsProvider);
+
     final list = SliverPadding(
       padding: const EdgeInsets.symmetric(horizontal: EvSpace.gutter),
       sliver: SliverList.builder(
@@ -1008,6 +1012,13 @@ class _RadarSliver extends ConsumerWidget {
               update: updates[i],
               isFirst: first,
               isLast: last,
+              alerting: alerts.contains(updates[i].examId),
+              // Hidden when this build cannot deliver a push: a bell that
+              // cannot ring is a lie (web builds, and any build without push
+              // credentials).
+              onAlertToggle: ref.watch(pushServiceProvider).canDeliver
+                  ? () => _toggleAlert(context, ref, updates[i])
+                  : null,
               onTap: () => _openResult(context, ref, updates[i]),
             ),
           );
@@ -1026,6 +1037,42 @@ class _RadarSliver extends ConsumerWidget {
         list,
       ],
     );
+  }
+
+  /// Flips the per-exam bell and reconciles the push backend immediately.
+  ///
+  /// Optimistic: the icon flips on the tap, the persisted write and the topic
+  /// subscription follow. A failed subscription is logged and repaired on the
+  /// next boot (PushService.syncExamAlerts is idempotent), and the bell's own
+  /// state always reflects what the student asked for.
+  Future<void> _toggleAlert(
+    BuildContext context,
+    WidgetRef ref,
+    LiveUpdate update,
+  ) async {
+    EvHaptics.select();
+    final next = await ref
+        .read(examAlertsProvider.notifier)
+        .toggle(update.examId);
+    final on = next.contains(update.examId);
+    // One clear confirmation, and only for the action that needs explaining:
+    // turning ON promises a notification, turning OFF is self-evident.
+    if (on && context.mounted) {
+      final label = update.examName;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              'We will alert you about $label — results, admit cards and dates.',
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+              style: context.type.label.copyWith(color: Colors.white),
+            ),
+          ),
+        );
+    }
+    unawaited(ref.read(pushServiceProvider).syncExamAlerts(next));
   }
 
   void _openResult(BuildContext context, WidgetRef ref, LiveUpdate update) {

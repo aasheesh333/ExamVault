@@ -18,12 +18,21 @@ class LiveRadarTile extends StatelessWidget {
     required this.onTap,
     this.isFirst = false,
     this.isLast = false,
+    this.alerting = false,
+    this.onAlertToggle,
   });
 
   final LiveUpdate update;
   final VoidCallback onTap;
   final bool isFirst;
   final bool isLast;
+
+  /// Whether the bell for THIS exam is on.
+  final bool alerting;
+
+  /// Null hides the bell (e.g. no push provider configured): offering a switch
+  /// that cannot deliver anything would be a lie.
+  final VoidCallback? onAlertToggle;
 
   @override
   Widget build(BuildContext context) {
@@ -91,6 +100,14 @@ class LiveRadarTile extends StatelessWidget {
                         if (update.mirrorLatencyMs != null) ...[
                           const SizedBox(width: 6),
                           _LatencyChip(ms: update.mirrorLatencyMs!),
+                        ],
+                        if (onAlertToggle != null) ...[
+                          const SizedBox(width: 4),
+                          _AlertBell(
+                            examName: update.examName,
+                            on: alerting,
+                            onTap: onAlertToggle!,
+                          ),
                         ],
                       ],
                     ),
@@ -185,6 +202,61 @@ class _LatencyChip extends StatelessWidget {
           color: fast ? p.successText : p.warningText,
           fontSize: 11,
           letterSpacing: 0.2,
+        ),
+      ),
+    );
+  }
+}
+
+/// Per-exam notification bell.
+///
+/// Sits in the row's meta line rather than as a fourth column: the row already
+/// carries a 34px icon tile, two lines of copy and a status/age column, and a
+/// fourth column would either shrink the headline or overflow at 320px @2.0x.
+/// The 44px hit area is kept even though the glyph is 16px — this is a
+/// thumb-target on exam morning, not a decoration.
+class _AlertBell extends StatelessWidget {
+  const _AlertBell({
+    required this.examName,
+    required this.on,
+    required this.onTap,
+  });
+
+  final String examName;
+  final bool on;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.ev;
+
+    return Semantics(
+      container: true,
+      button: true,
+      toggled: on,
+      label: on
+          ? 'Notifications on for $examName. Turn off.'
+          : 'Notify me about $examName.',
+      excludeSemantics: true,
+      child: Tooltip(
+        message: on ? 'Alerts on' : 'Alert me',
+        excludeFromSemantics: true,
+        child: InkResponse(
+          onTap: onTap,
+          radius: 22,
+          child: SizedBox(
+            width: 44,
+            height: 44,
+            child: Center(
+              child: Icon(
+                on
+                    ? Icons.notifications_active_rounded
+                    : Icons.notifications_none_rounded,
+                size: 16,
+                color: on ? p.accentText : p.textTertiary,
+              ),
+            ),
+          ),
         ),
       ),
     );

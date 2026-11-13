@@ -40,6 +40,9 @@ class LiveUpdate {
     this.officialPage,
     this.indexVersion,
     this.rollCount,
+    this.examDate,
+    this.resultDate,
+    this.deadline,
   });
 
   final String examId;
@@ -87,6 +90,17 @@ class LiveUpdate {
 
   /// Number of candidates in that index (already public information).
   final int? rollCount;
+
+  /// Dates the commission itself stated in this notice.
+  ///
+  /// Never inferred: the pipeline only emits a date it found next to an
+  /// explicit phrase ("exam will be held on…", "result declared on…", "last
+  /// date…"), and absence means the notice did not say. A guessed date on a
+  /// calendar would be worse than an empty one — a student would plan around
+  /// it.
+  final DateTime? examDate;
+  final DateTime? resultDate;
+  final DateTime? deadline;
 
   /// True when this row has a searchable roll index behind it.
   bool get hasIndex => indexVersion != null;

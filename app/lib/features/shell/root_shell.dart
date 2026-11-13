@@ -7,6 +7,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/theme/motion.dart';
 import '../../core/utils/ev_haptics.dart';
 import '../../core/theme/theme_tokens.dart';
+import '../../features/calendar/exam_calendar_screen.dart';
 import '../../features/command_center/command_center_screen.dart';
 import '../../features/result_checker/instant_result_checker_screen.dart';
 import '../../features/share_card/whatsapp_share_card_screen.dart';
@@ -17,6 +18,9 @@ import '../../providers/app_providers.dart';
 enum EvTab {
   home('Home', Icons.home_rounded),
   vault('Vault', Icons.lock_rounded),
+  // "Dates", not "Calendar": five tabs at 320px @2.0x leave ~60px per label,
+  // and the shorter word survives that without shrinking to illegibility.
+  calendar('Dates', Icons.event_note_rounded),
   radar('Radar', Icons.radar_rounded),
   share('Share', Icons.ios_share_rounded);
 
@@ -80,6 +84,7 @@ class RootShell extends ConsumerWidget {
           children: const [
             CommandCenterScreen(),
             AdmitCardDetailScreen(),
+            ExamCalendarScreen(),
             InstantResultCheckerScreen(),
             WhatsappShareCardScreen(),
           ],

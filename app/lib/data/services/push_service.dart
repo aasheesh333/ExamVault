@@ -72,6 +72,18 @@ class PushService {
 
   PushProvider get provider => _provider;
   bool get isEnabled => _provider != PushProvider.disabled;
+
+  /// Whether this build *can* deliver a push at all — independent of whether
+  /// the provider finished initialising.
+  ///
+  /// The per-exam bell is gated on this: offering a switch that cannot deliver
+  /// anything would be a lie, and `isEnabled` flickers to false for the first
+  /// frames while the SDK boots, which would make the bell appear late.
+  bool get canDeliver {
+    if (kIsWeb) return false;
+    return fcmEnabled || oneSignalAppId.isNotEmpty;
+  }
+
   Set<String> get subscribedTopics => Set.unmodifiable(_subscribed);
 
   /// OneSignal wins when both are configured: it is the one that still works
@@ -252,8 +264,11 @@ class PushService {
       switch (_provider) {
         case PushProvider.oneSignal:
           await _syncOneSignalTags(categories);
+          // Merge, do not clear: _subscribed also tracks the per-exam
+          // `exam_*` topics, and clearing it here would make the next
+          // syncExamAlerts re-subscribe everything on every boot.
           _subscribed
-            ..clear()
+            ..removeWhere((t) => !t.startsWith('exam_'))
             ..addAll(categories.map((c) => c.fcmTopic));
 
         case PushProvider.fcm:
@@ -276,6 +291,58 @@ class PushService {
       AppLogger.w('push', 'topic sync failed: $e');
     }
   }
+
+  /// Subscribes to `exam_<examId>` for every bell the student switched on.
+  ///
+  /// Per-exam topics are what make "notify me about SSC CGL, not everything"
+  /// real: one publish to that topic reaches exactly the students who asked.
+  /// Topic names are sanitised because an exam id comes from the feed.
+  Future<void> syncExamAlerts(Set<String> examIds) async {
+    if (!isEnabled) return;
+    final wanted = {
+      for (final id in examIds)
+        if (_topicSafe(id).isNotEmpty) 'exam_${_topicSafe(id)}',
+    };
+    final previous = {
+      for (final t in _subscribed)
+        if (t.startsWith('exam_')) t,
+    };
+    try {
+      switch (_provider) {
+        case PushProvider.oneSignal:
+          await OneSignal.User.addTags({
+            for (final t in previous.difference(wanted)) t: false,
+            for (final t in wanted) t: true,
+          });
+          _subscribed
+            ..removeAll(previous.difference(wanted))
+            ..addAll(wanted);
+
+        case PushProvider.fcm:
+          for (final topic in wanted.difference(previous)) {
+            await FirebaseMessaging.instance.subscribeToTopic(topic);
+            _subscribed.add(topic);
+            AppLogger.d('push', 'subscribed $topic');
+          }
+          for (final topic in previous.difference(wanted)) {
+            await FirebaseMessaging.instance.unsubscribeFromTopic(topic);
+            _subscribed.remove(topic);
+            AppLogger.d('push', 'unsubscribed $topic');
+          }
+
+        case PushProvider.disabled:
+          break;
+      }
+    } catch (e) {
+      // Cosmetic failure: the bell still shows state, and the next boot retries.
+      AppLogger.w('push', 'exam-alert sync failed: $e');
+    }
+  }
+
+  /// FCM topics allow [a-zA-Z0-9-_.~%]; feed ids are already slugs, but a
+  /// publisher change must never produce an invalid topic name.
+  static String _topicSafe(String raw) =>
+      raw.trim().toLowerCase().replaceAll(RegExp(r'[^a-z0-9_-]'), '_');
 
   Future<void> unsubscribeAll() async {
     if (!isEnabled) return;

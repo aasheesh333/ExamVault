@@ -23,7 +23,7 @@
  * crawler cannot read them; the homepage list is the honest subset.
  */
 
-import { absUrl, clean, getText, slug, toIsoDate } from './lib.mjs';
+import { absUrl, clean, extractDates, getText, slug, toIsoDate } from './lib.mjs';
 
 const BASE = 'https://rrbchennai.gov.in';
 
@@ -68,6 +68,8 @@ function parseRows(html) {
       .replace(/\(\d{1,2}[-/.]\d{1,2}[-/.]\d{4}\)\s*$/, '')
       .trim();
 
+    const context = `Railway Recruitment Board · ${shortDate(published)}`;
+
     rows.push({
       // NO notice date in the id. RRB re-dates reposted CEN notices, and with
       // the date embedded, every repost became a brand-new row — the snapshot
@@ -81,8 +83,11 @@ function parseRows(html) {
       exam_name: truncate(
         `${cen ? `RRB CEN ${cen}` : 'RRB'} · ${kind || 'Notice'}`,
       ),
-      context: `Railway Recruitment Board · ${shortDate(published)}`,
+      context,
       status,
+      // The date in the anchor is the NOTICE date (already published_at), not
+      // an exam/deadline date, so only an explicit phrase in the label counts.
+      ...extractDates({ headline: label, context }),
       published_at: published,
       source: 'rrbchennai.gov.in',
       source_id: 'railways',

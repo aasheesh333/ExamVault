@@ -122,6 +122,58 @@ climbed ~48/day through runs that changed nothing.
 | Feed older than 2 min | Header reads `EDGE · 26m OLD` instead of `LIVE` |
 | Vault empty | Every screen shows an explicit empty state with one way forward |
 
+## Dates shown in the app
+
+Each row may carry up to three **optional** date fields:
+
+| Field | Meaning |
+|---|---|
+| `exam_date` | the day the exam is held (or the first day of a published range) |
+| `result_date` | the day the result is declared |
+| `deadline` | registration / application last date (the form closes) |
+
+All are `YYYY-MM-DD`. **Absence means “not announced”** — the app shows no date
+rather than a placeholder, and nothing downstream may fill one in.
+
+### The never-invent rule
+
+A date is emitted only when the commission actually wrote it in the notice text
+(or exposed it as a structured field on its own page). `tools/sources/lib.mjs`
+exports `extractDates({ headline, context, text })`, which:
+
+- anchors on explicit phrases only — `examination will be held on`,
+  `exam dates`, `held on`, `date of examination`; `result will be declared on`,
+  `declared on`, `result date`, `declaration of result`; `last date`,
+  `closing date`, `registration closes`, `apply before/by`, `closes on`;
+- accepts a date only within ~60 characters **after** the trigger phrase, so an
+  unrelated date earlier in the sentence is never captured;
+- parses `21.11.2026`, `21/11/2026`, `21-11-2026`, `2026-11-21`,
+  `21 Nov 2026`, `21 November 2026` and `November 21, 2026`, plus ranges
+  (`21.11.2026 to 24.11.2026`, `21 & 22 November 2026`) whose **first day** is
+  used;
+- rejects impossible calendar dates (`31 Feb`) and years outside
+  `[now − 1 year, now + 3 years]`;
+- never mistakes `Part-IV` or `12,480 aspirants` for a date.
+
+Structured source fields win over text: IBPS's grid exposes `closes`, which is
+merged into `deadline` after extraction. Adapters with no date field leave the
+field out entirely.
+
+### Validation and carry-forward
+
+`publish_feed.mjs` validates any present date field as a real `YYYY-MM-DD`
+calendar date. Unlike `published_at`, these fields are **not** subject to the
+future-guard — an exam or result date is normally in the future, which is the
+whole point of surfacing it.
+
+`carryIndexFields` will copy an old date forward only when the row still points
+at the identical source document (same `official_pdf`/`official_page` **and**
+same `context`), and only if the fresh row has no date of its own. If the source
+now has no date and the link or context changed, the old date is dropped rather
+than resurrected. The date fields are ordinary row content to
+`tools/normalize_feed.mjs`, so a change in any of them counts as a content change
+(revision bump / snapshot commit) and unchanged values do not cause churn.
+
 ## Roll-number indexes — the copyright problem
 
 The headline feature is “is my roll in the list?” without downloading a 60 MB

@@ -123,7 +123,26 @@ git log -p | grep -nE 'AIza[0-9A-Za-z_-]{35}|cfoat_|ghp_[A-Za-z0-9]{36}|-----BEG
 | `EV_FIREBASE_PROJECT_ID` | set — `examvault-49b1a` |
 | `EV_FIREBASE_STORAGE_BUCKET` | set |
 | `EV_ONESIGNAL_APP_ID` | set — `062ce6a9-a47e-48d8-bb4d-dfee88b60026` |
+| `EV_ONESIGNAL_REST_KEY` | **optional** — unset today. Set it to send exam alerts through OneSignal (REST key from the dashboard). |
+| `FCM_SERVICE_ACCOUNT_JSON` | **optional** — unset today. Set it (Firebase service-account JSON, raw or base64) to send through FCM HTTP v1 topics instead. Preferred when available. |
 | `EV_CDN_BASE` | set — worker origin `https://examvault-edge.aasheeshkatheriya.workers.dev` |
+### Exam alerts need one of these two keys
+
+The per-exam bells in the app subscribe to `exam_<examId>` topics/tags. The
+refresh workflow diffs each new snapshot against the previous one and calls
+`tools/dispatch_alerts.mjs`, which sends through **whichever** provider has
+credentials:
+
+* `FCM_SERVICE_ACCOUNT_JSON` → FCM HTTP v1, one send per topic (free on Spark,
+  no per-device fan-out). Create it in Firebase console → Project settings →
+  Service accounts → Generate new private key, for project `examvault-49b1a`.
+* or `EV_ONESIGNAL_REST_KEY` → OneSignal REST, filtered to the same tag.
+
+With neither set the workflow still succeeds and logs exactly what it *would*
+have sent — a missing notification must never redden the pipeline that
+publishes the data. Nothing else needs to change when a key is added: the
+channel id (`exam_alerts_v2`) and topic names are already in the app.
+
 | `EV_WEB_BASE` | **deliberately UNSET** — a workers.dev URL on the share card reads as a dev server; until a real domain is owned the card prints the commission's own URL (see above) |
 | `CLOUDFLARE_API_TOKEN` | set |
 | `CLOUDFLARE_ACCOUNT_ID` | set |

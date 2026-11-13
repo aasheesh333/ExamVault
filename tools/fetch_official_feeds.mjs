@@ -34,6 +34,7 @@ import { argv } from 'node:process';
 import { pathToFileURL } from 'node:url';
 
 import { canonicalJson, stripVolatile } from './normalize_feed.mjs';
+import { DATE_FIELDS } from './sources/lib.mjs';
 import ssc from './sources/ssc.mjs';
 import upsc from './sources/upsc.mjs';
 import ibps from './sources/ibps.mjs';
@@ -91,13 +92,21 @@ export function carryIndexFields(rows, previous) {
   }
 
   for (const row of rows) {
+    const old = byId.get(row.exam_id);
+    if (!old) continue;
+
+    // DATES: an old date may only survive when it describes the SAME document
+    // (same official link AND same context). If the source dropped the date
+    // and the link/context changed, we do NOT resurrect it — the notice was
+    // updated or replaced and the old promise no longer applies. A freshly
+    // extracted date always wins over the carried one.
+    carryDates(row, old);
+
     // A producer-set pause (e.g. SSC's multi-part flag) outranks any old
     // stamp: the pipeline is refusing to index this row, so it must not
     // advertise a stale index built from a partial list.
     if (row.index_skipped) continue;
 
-    const old = byId.get(row.exam_id);
-    if (!old) continue;
     // Only trust the old bookkeeping when it was made from the same PDF.
     if ((old.official_pdf ?? null) !== (row.official_pdf ?? null)) continue;
 
@@ -113,6 +122,30 @@ export function carryIndexFields(rows, previous) {
     }
   }
   return rows;
+}
+
+/**
+ * Copies an old date onto a row only when the row still points at the exact
+ * same source document (official_pdf/official_page and context are unchanged).
+ *
+ * This is not invention: the unchanged document said that date last run and
+ * says it now; the extractor simply did not re-parse it (e.g. an HTML detail
+ * page that temporarily lost its text). If any identity field differs, nothing
+ * is copied, so a re-published notice with no date stays silent instead of
+ * inheriting a stale one.
+ */
+function carryDates(row, old) {
+  const sameLink =
+    (old.official_pdf ?? null) === (row.official_pdf ?? null) &&
+    (old.official_page ?? null) === (row.official_page ?? null);
+  if (!sameLink) return;
+  if ((old.context ?? null) !== (row.context ?? null)) return;
+
+  for (const field of DATE_FIELDS) {
+    if (row[field] === undefined && typeof old[field] === 'string') {
+      row[field] = old[field];
+    }
+  }
 }
 
 /** Drops rows that cannot be shown or opened, and rows the app would reject. */

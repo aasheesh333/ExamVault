@@ -131,6 +131,11 @@ Future<void> _bootPush(ProviderContainer container) async {
   final provider = await push.initialise();
   if (provider == PushProvider.disabled) return;
 
+  // Reconcile the student's per-exam bells on every boot: a subscription
+  // silently dropped by a Play Services update repairs itself here, and the
+  // sync is idempotent.
+  await push.syncExamAlerts(container.read(examAlertsProvider));
+
   // Subscribe to every category the app covers.
   //
   // It used to be just SSC and UPSC, so a student who only follows Banking or

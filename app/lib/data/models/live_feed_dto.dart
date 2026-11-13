@@ -138,7 +138,23 @@ abstract final class LiveFeedDto {
           ? indexVersionRaw
           : null,
       rollCount: _tryInt(row['roll_count']),
+      // Absent is normal and honest: most notices do not state these.
+      examDate: _tryDateOnly(row['exam_date']),
+      resultDate: _tryDateOnly(row['result_date']),
+      deadline: _tryDateOnly(row['deadline']),
     );
+  }
+
+  /// A calendar date (`YYYY-MM-DD`) as LOCAL midnight.
+  ///
+  /// `DateTime.parse` on a bare date yields UTC midnight, which renders as the
+  /// *previous* day in any negative-offset timezone — a deadline would show one
+  /// day early. Dates carry no time, so they are pinned to the local day.
+  static DateTime? _tryDateOnly(Object? raw) {
+    if (raw is! String) return null;
+    final parsed = DateTime.tryParse(raw.trim());
+    if (parsed == null) return null;
+    return DateTime(parsed.year, parsed.month, parsed.day);
   }
 
   /// Fallback TTL per status, used when the publisher omits `expires_at`.

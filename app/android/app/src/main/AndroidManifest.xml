@@ -55,9 +55,12 @@
         <!-- Result-day alerts are time-critical. HIGH lets them arrive promptly
              while the app is backgrounded; DEFAULT would batch them and defeat
              the whole product. -->
+        <!-- Must match MainActivity.CHANNEL_ID: a payload without an explicit
+             channel_id lands on this one, and a channel whose sound is frozen
+             at creation is why the id is versioned (v2 carries the custom SFX). -->
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_channel_id"
-            android:value="exam_alerts" />
+            android:value="exam_alerts_v2" />
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_color"
             android:resource="@color/ev_accent" />

@@ -101,3 +101,96 @@ test('missing previous feed is a no-op', () => {
   carryIndexFields(rows, null);
   assert.deepEqual(rows, [{ exam_id: 'ssc_x', official_pdf: PDF }]);
 });
+
+test('carries dates only for the identical document (same link + context)', () => {
+  const rows = [
+    {
+      exam_id: 'ibps_x',
+      official_pdf: null,
+      official_page: 'https://www.ibps.in/notice/1',
+      context: 'Registration closes 25 Nov 2026',
+    },
+  ];
+  const previous = {
+    updates: [
+      {
+        exam_id: 'ibps_x',
+        official_pdf: null,
+        official_page: 'https://www.ibps.in/notice/1',
+        context: 'Registration closes 25 Nov 2026',
+        deadline: '2026-11-25',
+      },
+    ],
+  };
+  carryIndexFields(rows, previous);
+  assert.equal(rows[0].deadline, '2026-11-25');
+});
+
+test('a changed URL with no fresh date does not resurrect the old date', () => {
+  const rows = [
+    {
+      exam_id: 'ibps_x',
+      official_pdf: null,
+      official_page: 'https://www.ibps.in/notice/2',
+      context: 'Registration closes soon',
+    },
+  ];
+  const previous = {
+    updates: [
+      {
+        exam_id: 'ibps_x',
+        official_pdf: null,
+        official_page: 'https://www.ibps.in/notice/1',
+        context: 'Registration closes 25 Nov 2026',
+        deadline: '2026-11-25',
+      },
+    ],
+  };
+  carryIndexFields(rows, previous);
+  assert.equal(rows[0].deadline, undefined);
+});
+
+test('a changed context drops the old date even at the same URL', () => {
+  const rows = [
+    {
+      exam_id: 'ibps_x',
+      official_pdf: null,
+      official_page: 'https://www.ibps.in/notice/1',
+      context: 'Registration closes soon',
+    },
+  ];
+  const previous = {
+    updates: [
+      {
+        exam_id: 'ibps_x',
+        official_pdf: null,
+        official_page: 'https://www.ibps.in/notice/1',
+        context: 'Registration closes 25 Nov 2026',
+        deadline: '2026-11-25',
+      },
+    ],
+  };
+  carryIndexFields(rows, previous);
+  assert.equal(rows[0].deadline, undefined);
+});
+
+test('a freshly extracted date always wins over the carried one', () => {
+  const rows = [
+    {
+      exam_id: 'ssc_x',
+      official_pdf: PDF,
+      context: 'Official PDF · ssc.gov.in',
+      result_date: '2026-12-12',
+    },
+  ];
+  const previous = {
+    updates: [
+      previousRow({
+        result_date: '2026-11-21',
+        context: 'Official PDF · ssc.gov.in',
+      }),
+    ],
+  };
+  carryIndexFields(rows, previous);
+  assert.equal(rows[0].result_date, '2026-12-12');
+});

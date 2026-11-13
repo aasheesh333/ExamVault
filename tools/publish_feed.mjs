@@ -45,6 +45,14 @@ const STATUSES = new Set([
 ]);
 
 /**
+ * Optional "when" fields. They are deliberately NOT required and NOT run
+ * through the `published_at` future-guard below: an exam date or a result date
+ * is normally in the FUTURE, which is the whole point of showing it. They only
+ * have to be a real `YYYY-MM-DD` calendar date.
+ */
+const DATE_FIELDS = ['exam_date', 'result_date', 'deadline'];
+
+/**
  * Default time-to-live per status, in hours.
  *
  * A radar row must stop shouting once it is no longer useful. "RESULT OUT" three
@@ -112,6 +120,24 @@ function validate(doc) {
     }
     if (row.published_at && Date.parse(row.published_at) > Date.now() + 60_000) {
       errors.push(`updates[${i}] published_at is in the future`);
+    }
+    for (const field of DATE_FIELDS) {
+      const value = row[field];
+      if (value === undefined || value === null) continue; // absence is valid
+      if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+        errors.push(`updates[${i}] ${field} must be YYYY-MM-DD`);
+        continue;
+      }
+      // Date.parse alone rolls 31 Feb over to March; compare the parts back.
+      const [year, month, day] = value.split('-').map(Number);
+      const date = new Date(Date.UTC(year, month - 1, day));
+      if (
+        date.getUTCFullYear() !== year ||
+        date.getUTCMonth() !== month - 1 ||
+        date.getUTCDate() !== day
+      ) {
+        errors.push(`updates[${i}] ${field} is not a real calendar date`);
+      }
     }
   });
 

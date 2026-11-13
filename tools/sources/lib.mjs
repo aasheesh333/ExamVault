@@ -104,6 +104,175 @@ function iso(year, month, day) {
 }
 
 /**
+ * The three OPTIONAL "when" fields a feed row may carry.
+ *
+ * They are absent unless the commission's own wording states them. A missing
+ * field means "not announced" — the app shows nothing — and must never be filled
+ * in from a guess, a sibling notice, or last month's date.
+ */
+export const DATE_FIELDS = ['exam_date', 'result_date', 'deadline'];
+
+/**
+ * Explicit phrases that may introduce one of the dates above.
+ *
+ * These are deliberately narrow. A date is only taken when it follows one of
+ * these phrases, because these boards print plenty of unrelated dates (fee
+ * payment, admit-card release, a previous year's cutoff) and picking the first
+ * date on the page would turn a real notice into a false promise.
+ */
+const DATE_TRIGGERS = {
+  // "Examination will be held on …", "Exam is scheduled …", "Exam date: …"
+  exam_date:
+    /(exam(?:ination)?\s+(?:will\s+be\s+held|is\s+scheduled|dates?)|held\s+on|date\s+of\s+exam(?:ination)?)/i,
+  // "Result will be declared on …", "Result date: …", "Declaration of result …"
+  // The bare "on" branch refuses "held on"/"conducted on", so a sentence like
+  // "Result of the examination held on 21.11.2026 will be declared on
+  // 12.12.2026" reports 12.12.2026 (via the standalone "declared on") rather
+  // than the exam day that merely precedes the word "result".
+  result_date:
+    /(result\D{0,30}(?:will\s+be\s+declared|declared|\bdate\b|(?<!held\s)(?<!conducted\s)\bon\b)|declaration\s+of\s+result|(?:will\s+be\s+)?declared\s+on)/i,
+  // "Last date …", "Closing date …", "Registration closes …", "Apply by …"
+  deadline:
+    /(last\s+date|closing\s+date|registration\s+closes|apply\s+(?:before|by)|closes\s+on)/i,
+};
+
+/** Turns `26` into `2026`; four-digit years pass through unchanged. */
+function yearOf(value) {
+  return String(value).length === 2 ? 2000 + Number(value) : Number(value);
+}
+
+function monthIndexOf(word) {
+  return MONTHS[String(word).slice(0, 3).toLowerCase()];
+}
+
+/**
+ * Validates a calendar date and returns `YYYY-MM-DD`, or undefined.
+ *
+ * `Date.UTC` silently rolls impossible dates over (31 Feb becomes 3 Mar), so
+ * the components are compared back. The year window is one year behind and
+ * three ahead of today: older notices are history, and a typo that produces
+ * 2126 must not ship as "exam coming".
+ */
+function calendarDate(year, month, day, now) {
+  if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) {
+    return undefined;
+  }
+  if (month < 0 || month > 11 || day < 1 || day > 31) return undefined;
+  const yearNow = now.getUTCFullYear();
+  if (year < yearNow - 1 || year > yearNow + 3) return undefined;
+
+  const date = new Date(Date.UTC(year, month, day));
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== month ||
+    date.getUTCDate() !== day
+  ) {
+    return undefined;
+  }
+  return date.toISOString().slice(0, 10);
+}
+
+/**
+ * The date formats these notices actually print. Order only breaks ties at the
+ * same position; the EARLIEST match in the window wins, which is also how the
+ * first day of a range is selected.
+ *
+ *   `21.11.2026`, `21/11/2026`, `21-11-2026`, `2026-11-21`
+ *   `21 Nov 2026`, `21 November 2026`, `21st November, 2026`
+ *   `November 21, 2026`
+ *   `21 & 22 November 2026`  → 21 November (the range's first day)
+ */
+const DATE_FORMATS = [
+  {
+    re: /\b(\d{4})-(\d{1,2})-(\d{1,2})\b/,
+    parts: (m) => [Number(m[1]), Number(m[2]) - 1, Number(m[3])],
+  },
+  {
+    // "21 & 22 November 2026": claim the first day before the plain
+    // "22 November 2026" pattern can start at the second day.
+    re: /\b(\d{1,2})\s*&\s*\d{1,2}\s+([A-Za-z]{3,9})\.?,?\s+(\d{2,4})\b/,
+    parts: (m) => [yearOf(m[3]), monthIndexOf(m[2]), Number(m[1])],
+  },
+  {
+    re: /\b(\d{1,2})\s*(?:st|nd|rd|th)?[\s\-.]+([A-Za-z]{3,9})\.?,?[\s\-.,]+(\d{2,4})\b/,
+    parts: (m) => [yearOf(m[3]), monthIndexOf(m[2]), Number(m[1])],
+  },
+  {
+    re: /\b([A-Za-z]{3,9})\.?\s+(\d{1,2})\s*,?\s+(\d{4})\b/,
+    parts: (m) => [Number(m[3]), monthIndexOf(m[1]), Number(m[2])],
+  },
+  {
+    re: /\b(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})\b/,
+    parts: (m) => [yearOf(m[3]), Number(m[2]) - 1, Number(m[1])],
+  },
+];
+
+/** Earliest real calendar date in `window`, or undefined. */
+function firstDateIn(window, now) {
+  let best = null;
+  for (const format of DATE_FORMATS) {
+    for (const match of window.matchAll(new RegExp(format.re.source, 'gi'))) {
+      const [year, month, day] = format.parts(match);
+      const value = calendarDate(year, month, day, now);
+      if (!value) continue;
+      if (!best || match.index < best.index) best = { index: match.index, value };
+    }
+  }
+  return best?.value;
+}
+
+/**
+ * Finds the first date that follows `trigger` within ~60 characters.
+ *
+ * The 60-character window is the guard against grabbing an unrelated date:
+ * "Result of the Tier-I examination (held on 21.11.2026) will be declared on
+ * 12.12.2026" must yield 12.12.2026 for the result, not the exam date that
+ * happens to be earlier in the sentence. A trigger with no date close behind
+ * contributes nothing — absence is the honest answer.
+ */
+function triggeredDate(text, trigger, now) {
+  const re = new RegExp(trigger.source, `${trigger.flags}g`);
+  let match;
+  while ((match = re.exec(text)) !== null) {
+    const from = match.index + match[0].length;
+    const value = firstDateIn(text.slice(from, from + 60), now);
+    if (value) return value;
+    if (re.lastIndex === match.index) re.lastIndex += 1; // zero-length safety
+  }
+  return undefined;
+}
+
+/**
+ * Extracts the dates a notice explicitly states.
+ *
+ * Returns `{ exam_date?, result_date?, deadline? }` where each value is
+ * `YYYY-MM-DD`. Fields the text does not state are simply absent.
+ *
+ * @param {object} input
+ * @param {string} [input.headline] The commission's own headline/notice title.
+ * @param {string} [input.context]  Adapter context built from source fields.
+ * @param {string} [input.text]     Extra notice/detail text, when available.
+ * @param {Date}   [input.now]      Injectable clock (tests only).
+ */
+export function extractDates({ headline, context, text, now = new Date() } = {}) {
+  const parts = [headline, context, text]
+    .map((part) => clean(part))
+    .filter(Boolean);
+
+  const out = {};
+  for (const field of DATE_FIELDS) {
+    for (const part of parts) {
+      const value = triggeredDate(part, DATE_TRIGGERS[field], now);
+      if (value) {
+        out[field] = value;
+        break;
+      }
+    }
+  }
+  return out;
+}
+
+/**
  * Verification-stage notices: IV / DV / shortlist-for-verification.
  *
  * These LOOK like results — SSC's own wording is "Identity Verification (IV)

@@ -26,7 +26,7 @@ import https from 'node:https';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
-import { clean, statusOf, toIsoDate, UA } from './lib.mjs';
+import { clean, extractDates, statusOf, toIsoDate, UA } from './lib.mjs';
 
 const BASE = 'https://www.ibps.in';
 const LIST = `${BASE}/index.php/recruitment/`;
@@ -208,14 +208,23 @@ export default {
       const closeEndMs = Number.isFinite(closeMs) ? closeMs + 24 * 3600 * 1000 - 1 : NaN;
       const open = Number.isFinite(closeEndMs) && closeEndMs > today;
 
+      const context = open
+        ? `Registration closes ${placeDate(item.closes)}`
+        : `Registration closed ${placeDate(item.closes)}`;
+
+      // `closes` is a structured field on IBPS's own grid, so it WINS over
+      // anything the text extraction might read out of the generated context.
+      const dates = extractDates({ headline: label, context });
+      const closesDay = item.closes?.slice(0, 10);
+      if (closesDay) dates.deadline = closesDay;
+
       rows.push({
         exam_id: `ibps_${slugify(`${org}_${item.title}_${item.closes?.slice(0, 10) ?? ''}`)}`,
         category: 'banking',
         exam_name: label.length > 96 ? `${label.slice(0, 93)}…` : label,
-        context: open
-          ? `Registration closes ${placeDate(item.closes)}`
-          : `Registration closed ${placeDate(item.closes)}`,
+        context,
         status: open ? 'form_closing' : 'awaited',
+        ...dates,
         // The window's opening date is the only date IBPS publishes here.
         published_at: item.opens,
         // EXPLICIT expiry pinned to the end of the closing day. The default

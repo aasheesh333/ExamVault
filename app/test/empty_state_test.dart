@@ -300,7 +300,7 @@ void main() {
       expect(find.textContaining('Nothing live right now'), findsNothing);
 
       // Scroll the radar fully into the lazy viewport before counting rows.
-      await tester.drag(find.text('MY ADMIT CARDS'), const Offset(0, -160));
+      await tester.drag(find.text('MY ADMIT CARDS'), const Offset(0, -420));
       await tester.pump(const Duration(milliseconds: 200));
 
       expect(find.byType(LiveRadarTile), findsNWidgets(3));

@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:examvault/domain/entities/admit_card.dart';
 import 'package:examvault/domain/entities/exam_category.dart';
+import 'package:examvault/features/calendar/exam_calendar_screen.dart';
 import 'package:examvault/features/command_center/command_center_screen.dart';
 import 'package:examvault/features/result_checker/instant_result_checker_screen.dart';
 import 'package:examvault/features/share_card/whatsapp_share_card_screen.dart';
@@ -60,6 +61,7 @@ void main() {
 
   final screens = <String, Widget Function()>{
     'Home': CommandCenterScreen.new,
+    'Dates': ExamCalendarScreen.new,
     'Vault': AdmitCardDetailScreen.new,
     'Radar': InstantResultCheckerScreen.new,
     'Share': WhatsappShareCardScreen.new,

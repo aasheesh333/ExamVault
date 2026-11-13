@@ -585,6 +585,47 @@ final alertsSeenProvider = NotifierProvider<AlertsSeenNotifier, DateTime>(
   AlertsSeenNotifier.new,
 );
 
+/// Exams the student asked to be notified about, by exam id.
+///
+/// This is the difference between "the app tells me about everything" and "the
+/// app tells me about SSC CGL, which is what I am sitting for". Persisted in the
+/// settings box; reconciled with the push backend on every boot and on every
+/// toggle, so a subscription silently dropped by a Play Services update repairs
+/// itself.
+class ExamAlertsNotifier extends Notifier<Set<String>> {
+  static const _key = 'exam_alerts';
+
+  @override
+  Set<String> build() {
+    final box = ref.watch(settingsBoxProvider);
+    final raw = box.get(_key);
+    if (raw is! List) return const <String>{};
+    return {
+      for (final v in raw)
+        if (v is String && v.isNotEmpty) v,
+    };
+  }
+
+  /// Returns the new state so the caller can reconcile push without re-reading.
+  Future<Set<String>> toggle(String examId) async {
+    final next = {...state};
+    if (!next.remove(examId)) next.add(examId);
+    state = Set.unmodifiable(next);
+    try {
+      await ref.read(settingsBoxProvider).put(_key, next.toList());
+    } catch (e) {
+      // A failed write must not leave the UI claiming a subscription that will
+      // be gone on next launch — same rule as the theme preference.
+      AppLogger.w('alerts', 'could not persist exam alerts: $e');
+    }
+    return state;
+  }
+}
+
+final examAlertsProvider = NotifierProvider<ExamAlertsNotifier, Set<String>>(
+  ExamAlertsNotifier.new,
+);
+
 /// Number shown on the radar tab badge — expired rows do not count.
 final liveRadarBadgeProvider = Provider<int>((ref) {
   final feed = ref.watch(liveFeedProvider).value?.feed;

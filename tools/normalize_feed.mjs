@@ -29,6 +29,10 @@ export function stripVolatile(doc) {
   const copy = structuredClone(doc ?? {});
   delete copy.fetched_at;
   delete copy.generated_at;
+  // Row content INCLUDING exam_date / result_date / deadline must survive:
+  // they are facts about the notice, not clocks. Stripping them (or failing to
+  // include them in the canonical form) would hide a real date change from the
+  // revision bump and from the snapshot commit in refresh-data.yml.
   if (Array.isArray(copy.sources)) {
     for (const source of copy.sources) {
       if (source && typeof source === 'object') {

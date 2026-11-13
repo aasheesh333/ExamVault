@@ -12,7 +12,7 @@
 
 import { createHash } from 'node:crypto';
 
-import { absUrl, clean, getText, slug, statusOf, toIsoDate } from './lib.mjs';
+import { absUrl, clean, extractDates, getText, slug, statusOf, toIsoDate } from './lib.mjs';
 
 const BASE = 'https://www.upsc.gov.in';
 const LIST = `${BASE}/whats-new`;
@@ -59,7 +59,7 @@ function parseDetail(html, url) {
     .filter(Boolean);
   const pdf = pdfs.find((p) => p.includes('/sites/default/files/')) ?? null;
 
-  return { published, pdf };
+  return { published, pdf, text };
 }
 
 function firstDate(text) {
@@ -99,14 +99,19 @@ export default {
         const status = statusOf(item.title);
         if (!status || !detail.published) continue;
 
+        const context = detail.pdf
+          ? 'Official PDF · upsc.gov.in'
+          : 'Published on upsc.gov.in';
+
         rows.push({
           exam_id: examIdFor(decodeURIComponent(new URL(item.url).pathname)),
           category: 'upsc',
           exam_name: item.title.length > 96 ? `${item.title.slice(0, 93)}…` : item.title,
-          context: detail.pdf
-            ? 'Official PDF · upsc.gov.in'
-            : 'Published on upsc.gov.in',
+          context,
           status,
+          // The detail page is official text; a date is used only when one of
+          // the explicit trigger phrases precedes it.
+          ...extractDates({ headline: item.title, context, text: detail.text }),
           published_at: detail.published,
           source: 'upsc.gov.in',
           source_id: 'upsc',

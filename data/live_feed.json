@@ -1,7 +1,7 @@
 {
-  "revision": 5,
+  "revision": 6,
   "source": "official commission websites",
-  "fetched_at": "2026-11-13T01:03:42.155Z",
+  "fetched_at": "2026-11-13T07:53:17.947Z",
   "sources": [
     {
       "id": "ssc",
@@ -10,8 +10,8 @@
       "homepage": "https://ssc.gov.in/",
       "status": "ok",
       "rows": 17,
-      "checked_at": "2026-11-13T01:01:46.643Z",
-      "elapsed_ms": 1423
+      "checked_at": "2026-11-13T07:51:23.194Z",
+      "elapsed_ms": 1498
     },
     {
       "id": "upsc",
@@ -20,8 +20,8 @@
       "homepage": "https://www.upsc.gov.in",
       "status": "ok",
       "rows": 7,
-      "checked_at": "2026-11-13T01:03:28.312Z",
-      "elapsed_ms": 101669
+      "checked_at": "2026-11-13T07:53:04.029Z",
+      "elapsed_ms": 100835
     },
     {
       "id": "ibps",
@@ -29,9 +29,9 @@
       "category": "banking",
       "homepage": "https://www.ibps.in",
       "status": "ok",
-      "rows": 7,
-      "checked_at": "2026-11-13T01:03:29.932Z",
-      "elapsed_ms": 1620,
+      "rows": 8,
+      "checked_at": "2026-11-13T07:53:05.629Z",
+      "elapsed_ms": 1600,
       "note": "TLS chain completed with a pinned GlobalSign intermediate"
     },
     {
@@ -41,8 +41,8 @@
       "homepage": "https://www.tnpsc.gov.in",
       "status": "ok",
       "rows": 10,
-      "checked_at": "2026-11-13T01:03:31.665Z",
-      "elapsed_ms": 1733
+      "checked_at": "2026-11-13T07:53:07.460Z",
+      "elapsed_ms": 1830
     },
     {
       "id": "railways",
@@ -51,12 +51,25 @@
       "homepage": "https://rrbchennai.gov.in",
       "status": "unavailable",
       "rows": 0,
-      "checked_at": "2026-11-13T01:03:42.154Z",
-      "elapsed_ms": 10489,
+      "checked_at": "2026-11-13T07:53:17.946Z",
+      "elapsed_ms": 10486,
       "reason": "fetch failed"
     }
   ],
   "updates": [
+    {
+      "exam_id": "ibps_manit_recruitment_of_various_group_b_c_non_teaching_posi",
+      "category": "banking",
+      "exam_name": "MANIT \u2014 Recruitment of various Group \u2018B\u2019 & \u2018C\u2019 Non-Teaching Positions",
+      "context": "Registration closes 10 Dec 2026",
+      "status": "form_closing",
+      "published_at": "2026-11-13T00:00:00.000Z",
+      "expires_at": "2026-12-10T23:59:59.000Z",
+      "source": "ibps.in",
+      "source_id": "ibps",
+      "official_pdf": null,
+      "official_page": "https://ibpsreg.ibps.in/manitboct26/"
+    },
     {
       "exam_id": "ibps_bpcl_special_recruitment_drive_for_persons_with_benchmar",
       "category": "banking",
@@ -109,7 +122,7 @@
       "index_available": true,
       "index_version": "496699f59fa7",
       "roll_count": 2526,
-      "index_attempted_at": "2026-11-13T01:04:42.978021+00:00",
+      "index_attempted_at": "2026-11-13T07:54:19.195178+00:00",
       "index_skipped": "HTTPError: HTTP Error 504: Gateway Time-out"
     },
     {
@@ -126,7 +139,7 @@
       "index_available": true,
       "index_version": "ebf0b48ddd52",
       "roll_count": 181,
-      "index_attempted_at": "2026-11-13T01:05:43.692440+00:00",
+      "index_attempted_at": "2026-11-13T07:55:20.367594+00:00",
       "index_skipped": "HTTPError: HTTP Error 504: Gateway Time-out"
     },
     {
@@ -143,7 +156,7 @@
       "index_available": true,
       "index_version": "ec7dd2aa1ba9",
       "roll_count": 8956,
-      "index_attempted_at": "2026-11-13T01:06:45.075864+00:00",
+      "index_attempted_at": "2026-11-13T07:56:21.330018+00:00",
       "index_skipped": "HTTPError: HTTP Error 504: Gateway Time-out"
     },
     {
@@ -160,7 +173,7 @@
       "index_available": true,
       "index_version": "9fc461201151",
       "roll_count": 66,
-      "index_attempted_at": "2026-11-13T01:07:46.034972+00:00",
+      "index_attempted_at": "2026-11-13T07:57:22.245053+00:00",
       "index_skipped": "HTTPError: HTTP Error 504: Gateway Time-out"
     },
     {
@@ -177,7 +190,7 @@
       "index_available": true,
       "index_version": "e1da0b22d115",
       "roll_count": 30,
-      "index_attempted_at": "2026-11-13T01:08:47.748660+00:00",
+      "index_attempted_at": "2026-11-13T07:58:23.618462+00:00",
       "index_skipped": "HTTPError: HTTP Error 504: Gateway Time-out"
     },
     {
@@ -194,7 +207,7 @@
       "index_available": true,
       "index_version": "2519ef9780b0",
       "roll_count": 617,
-      "index_attempted_at": "2026-11-13T01:09:49.044517+00:00",
+      "index_attempted_at": "2026-11-13T07:59:24.607815+00:00",
       "index_skipped": "HTTPError: HTTP Error 504: Gateway Time-out"
     },
     {

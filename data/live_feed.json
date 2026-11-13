@@ -1,7 +1,7 @@
 {
-  "revision": 7,
+  "revision": 8,
   "source": "official commission websites",
-  "fetched_at": "2026-11-13T20:05:32.083Z",
+  "fetched_at": "2026-11-13T22:35:35.243Z",
   "sources": [
     {
       "id": "ssc",
@@ -10,8 +10,8 @@
       "homepage": "https://ssc.gov.in/",
       "status": "ok",
       "rows": 17,
-      "checked_at": "2026-11-13T20:03:37.214Z",
-      "elapsed_ms": 1517
+      "checked_at": "2026-11-13T22:33:39.281Z",
+      "elapsed_ms": 1332
     },
     {
       "id": "upsc",
@@ -20,18 +20,18 @@
       "homepage": "https://www.upsc.gov.in",
       "status": "ok",
       "rows": 7,
-      "checked_at": "2026-11-13T20:05:18.164Z",
-      "elapsed_ms": 100950
+      "checked_at": "2026-11-13T22:35:20.187Z",
+      "elapsed_ms": 100906
     },
     {
       "id": "ibps",
       "label": "IBPS",
       "category": "banking",
       "homepage": "https://www.ibps.in",
-      "status": "ok",
-      "rows": 8,
-      "checked_at": "2026-11-13T20:05:19.990Z",
-      "elapsed_ms": 1826,
+      "status": "empty",
+      "rows": 0,
+      "checked_at": "2026-11-13T22:35:22.903Z",
+      "elapsed_ms": 2716,
       "note": "TLS chain completed with a pinned GlobalSign intermediate"
     },
     {
@@ -41,8 +41,8 @@
       "homepage": "https://www.tnpsc.gov.in",
       "status": "ok",
       "rows": 10,
-      "checked_at": "2026-11-13T20:05:21.591Z",
-      "elapsed_ms": 1601
+      "checked_at": "2026-11-13T22:35:24.752Z",
+      "elapsed_ms": 1848
     },
     {
       "id": "railways",
@@ -51,40 +51,12 @@
       "homepage": "https://rrbchennai.gov.in",
       "status": "unavailable",
       "rows": 0,
-      "checked_at": "2026-11-13T20:05:32.082Z",
-      "elapsed_ms": 10491,
+      "checked_at": "2026-11-13T22:35:35.241Z",
+      "elapsed_ms": 10490,
       "reason": "fetch failed"
     }
   ],
   "updates": [
-    {
-      "exam_id": "ibps_manit_recruitment_of_various_group_b_c_non_teaching_posi",
-      "category": "banking",
-      "exam_name": "MANIT \u2014 Recruitment of various Group \u2018B\u2019 & \u2018C\u2019 Non-Teaching Positions",
-      "context": "Registration closes 10 Dec 2026",
-      "status": "form_closing",
-      "deadline": "2026-12-10",
-      "published_at": "2026-11-13T00:00:00.000Z",
-      "expires_at": "2026-12-10T23:59:59.000Z",
-      "source": "ibps.in",
-      "source_id": "ibps",
-      "official_pdf": null,
-      "official_page": "https://ibpsreg.ibps.in/manitboct26/"
-    },
-    {
-      "exam_id": "ibps_bpcl_special_recruitment_drive_for_persons_with_benchmar",
-      "category": "banking",
-      "exam_name": "BPCL \u2014 Special Recruitment Drive for Persons with Benchmark Disabilities (PwBDs)/ Divyangjans",
-      "context": "Registration closes 29 Nov 2026",
-      "status": "form_closing",
-      "deadline": "2026-11-29",
-      "published_at": "2026-11-09T00:00:00.000Z",
-      "expires_at": "2026-11-29T23:59:59.000Z",
-      "source": "ibps.in",
-      "source_id": "ibps",
-      "official_pdf": null,
-      "official_page": "https://ibpsreg.ibps.in/bpcljul26/"
-    },
     {
       "exam_id": "nri55c0igljht26_1997jbnok58mxwixyntdm",
       "category": "ssc",
@@ -96,20 +68,6 @@
       "source_id": "ssc",
       "official_pdf": "https://ssc.gov.in/api/attachment/uploads/masterData/NoticeBoards/CHT%202025%20FRTA%20notice%2007112026.pdf",
       "pdf_size": "0.3 MB"
-    },
-    {
-      "exam_id": "ibps_jkb_recruitment_of_various_posts_2026_11_26",
-      "category": "banking",
-      "exam_name": "JKB \u2014 Recruitment of Various Posts",
-      "context": "Registration closes 26 Nov 2026",
-      "status": "form_closing",
-      "deadline": "2026-11-26",
-      "published_at": "2026-11-07T00:00:00.000Z",
-      "expires_at": "2026-11-26T23:59:59.000Z",
-      "source": "ibps.in",
-      "source_id": "ibps",
-      "official_pdf": null,
-      "official_page": "https://ibpsreg.ibps.in/jkbvpocto26/"
     },
     {
       "exam_id": "upsc_whats_new_civil_services_main_examination_2026_writ",
@@ -125,7 +83,7 @@
       "index_available": true,
       "index_version": "496699f59fa7",
       "roll_count": 2526,
-      "index_attempted_at": "2026-11-13T20:06:32.899611+00:00",
+      "index_attempted_at": "2026-11-13T22:36:36.225726+00:00",
       "index_skipped": "HTTPError: HTTP Error 504: Gateway Time-out"
     },
     {
@@ -142,7 +100,7 @@
       "index_available": true,
       "index_version": "ebf0b48ddd52",
       "roll_count": 181,
-      "index_attempted_at": "2026-11-13T20:07:34.148916+00:00",
+      "index_attempted_at": "2026-11-13T22:37:37.110334+00:00",
       "index_skipped": "HTTPError: HTTP Error 504: Gateway Time-out"
     },
     {
@@ -159,7 +117,7 @@
       "index_available": true,
       "index_version": "ec7dd2aa1ba9",
       "roll_count": 8956,
-      "index_attempted_at": "2026-11-13T20:08:35.135206+00:00",
+      "index_attempted_at": "2026-11-13T22:38:37.943813+00:00",
       "index_skipped": "HTTPError: HTTP Error 504: Gateway Time-out"
     },
     {
@@ -176,7 +134,7 @@
       "index_available": true,
       "index_version": "9fc461201151",
       "roll_count": 66,
-      "index_attempted_at": "2026-11-13T20:09:36.134797+00:00",
+      "index_attempted_at": "2026-11-13T22:39:38.887467+00:00",
       "index_skipped": "HTTPError: HTTP Error 504: Gateway Time-out"
     },
     {
@@ -193,7 +151,7 @@
       "index_available": true,
       "index_version": "e1da0b22d115",
       "roll_count": 30,
-      "index_attempted_at": "2026-11-13T20:10:37.357684+00:00",
+      "index_attempted_at": "2026-11-13T22:40:41.231349+00:00",
       "index_skipped": "HTTPError: HTTP Error 504: Gateway Time-out"
     },
     {
@@ -210,7 +168,7 @@
       "index_available": true,
       "index_version": "2519ef9780b0",
       "roll_count": 617,
-      "index_attempted_at": "2026-11-13T20:11:38.696123+00:00",
+      "index_attempted_at": "2026-11-13T22:41:42.149668+00:00",
       "index_skipped": "HTTPError: HTTP Error 504: Gateway Time-out"
     },
     {
@@ -264,34 +222,6 @@
       "pdf_size": "0.3 MB"
     },
     {
-      "exam_id": "ibps_sbi_recruitment_of_specialist_cadre_officer_assistant_ma",
-      "category": "banking",
-      "exam_name": "SBI \u2014 Recruitment of Specialist Cadre Officer (Assistant Manager -Engineer (Fire))",
-      "context": "Registration closes 25 Nov 2026",
-      "status": "form_closing",
-      "deadline": "2026-11-25",
-      "published_at": "2026-11-04T00:00:00.000Z",
-      "expires_at": "2026-11-25T23:59:59.000Z",
-      "source": "ibps.in",
-      "source_id": "ibps",
-      "official_pdf": null,
-      "official_page": "https://ibpsreg.ibps.in/sbiameoct26/"
-    },
-    {
-      "exam_id": "ibps_sbi_recruitment_of_specialist_cadre_officers_manager_sec",
-      "category": "banking",
-      "exam_name": "SBI \u2014 Recruitment of Specialist Cadre Officers (Manager (Security) / Deputy Manager (Security))",
-      "context": "Registration closes 25 Nov 2026",
-      "status": "form_closing",
-      "deadline": "2026-11-25",
-      "published_at": "2026-11-04T00:00:00.000Z",
-      "expires_at": "2026-11-25T23:59:59.000Z",
-      "source": "ibps.in",
-      "source_id": "ibps",
-      "official_pdf": null,
-      "official_page": "https://ibpsreg.ibps.in/sbirscooct26/"
-    },
-    {
       "exam_id": "ctgd1yln49o2026_q5qc0zgw8hg6itzr5jwzv",
       "category": "ssc",
       "exam_name": "Constable (GD) in Central Armed Police Forces (CAPFs) and SSF, and Rifleman (GD) in Assam Rif\u2026",
@@ -316,20 +246,6 @@
       "source_id": "ssc",
       "official_pdf": "https://ssc.gov.in/api/attachment/uploads/masterData/NoticeBoards/Exams_notice_02112026.pdf",
       "pdf_size": "0.5 MB"
-    },
-    {
-      "exam_id": "ibps_rsbl_recruitment_of_clerk_junior_officer_assistant_branc",
-      "category": "banking",
-      "exam_name": "RSBL \u2014 Recruitment of Clerk (Junior Officer), Assistant Branch Manager & Assistant Manager-IT",
-      "context": "Registration closes 15 Nov 2026",
-      "status": "form_closing",
-      "deadline": "2026-11-15",
-      "published_at": "2026-10-30T00:00:00.000Z",
-      "expires_at": "2026-11-15T23:59:59.000Z",
-      "source": "ibps.in",
-      "source_id": "ibps",
-      "official_pdf": null,
-      "official_page": "https://ibpsreg.ibps.in/rsblrsep26/"
     },
     {
       "exam_id": "j2k7sgab6eu9sh6c_5ufxf0ts6671mcxh451qs",
@@ -370,20 +286,6 @@
       "index_skipped": "multi-part list (2 attachments)"
     },
     {
-      "exam_id": "ibps_cwc_recruitment_of_various_posts_2026_11_15",
-      "category": "banking",
-      "exam_name": "CWC \u2014 Recruitment of Various Posts",
-      "context": "Registration closes 15 Nov 2026",
-      "status": "form_closing",
-      "deadline": "2026-11-15",
-      "published_at": "2026-10-17T00:00:00.000Z",
-      "expires_at": "2026-11-15T23:59:59.000Z",
-      "source": "ibps.in",
-      "source_id": "ibps",
-      "official_pdf": null,
-      "official_page": "https://ibpsreg.ibps.in/cwcaug26/"
-    },
-    {
       "exam_id": "ctgd1yln49o2026_79emomlpem47k0rh757ut",
       "category": "ssc",
       "exam_name": "Constable (GD) in Central Armed Police Forces (CAPFs) and SSF, and Rifleman (GD) in Assam Rif\u2026",
@@ -406,20 +308,6 @@
       "source_id": "ssc",
       "official_pdf": "https://ssc.gov.in/api/attachment/uploads/masterData/Results/writeup_final_chsl_2025_07102026.pdf",
       "index_skipped": "multi-part list (2 attachments)"
-    },
-    {
-      "exam_id": "ibps_nit_recruitment_of_non_faculty_position_2026_11_15",
-      "category": "banking",
-      "exam_name": "NIT \u2014 Recruitment of Non-Faculty Position",
-      "context": "Registration closes 15 Nov 2026",
-      "status": "form_closing",
-      "deadline": "2026-11-15",
-      "published_at": "2026-10-01T00:00:00.000Z",
-      "expires_at": "2026-11-15T23:59:59.000Z",
-      "source": "ibps.in",
-      "source_id": "ibps",
-      "official_pdf": null,
-      "official_page": "https://ibpsreg.ibps.in/nitrjul26/"
     },
     {
       "exam_id": "q5zvwlkwna3s17u_oek19fmpzuiwlk8cwua5g",

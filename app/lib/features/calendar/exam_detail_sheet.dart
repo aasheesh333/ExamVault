@@ -191,9 +191,19 @@ class _ExamDetailSheet extends ConsumerWidget {
                     Text(
                       // The whole point: the student knows where each number
                       // came from.
-                      dates.every((d) => d.source == _DateSource.notice)
-                          ? 'As stated in the official notice.'
-                          : 'From your admit card and the official notice.',
+                      // Provenance must be exact: saying "and the official
+                      // notice" when every date came from the student's own
+                      // card is a small lie of the kind this app avoids.
+                      switch ((
+                        dates.any((d) => d.source == _DateSource.notice),
+                        dates.any((d) => d.source == _DateSource.card),
+                      )) {
+                        (true, true) =>
+                          'From the official notice and your admit card.',
+                        (true, false) => 'As stated in the official notice.',
+                        (false, true) => 'From your own admit card.',
+                        (false, false) => '',
+                      },
                       style: context.type.microLabel.copyWith(fontSize: 10.5),
                     ),
                     const SizedBox(height: 16),

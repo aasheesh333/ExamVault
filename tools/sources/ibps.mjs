@@ -230,7 +230,13 @@ export default {
         category: 'banking',
         exam_name: label.length > 96 ? `${label.slice(0, 93)}…` : label,
         context,
-        status: open ? 'form_closing' : 'awaited',
+        // `open` is a CALENDAR fact (the window has not closed yet), not the
+        // notice's urgency. Every open IBPS row used to be `form_closing`, so
+        // the whole banking category wore a red CLOSING SOON pill for the six
+        // weeks it was merely open. Urgency now comes from the notice's own
+        // wording, exactly as it does for every other source; a row with no
+        // deadline in its text is a `notification`.
+        status: open ? statusOf(label) ?? 'notification' : 'awaited',
         ...dates,
         ...extractFacts({ headline: label, context }),
         // The window's opening date is the only date IBPS publishes here.

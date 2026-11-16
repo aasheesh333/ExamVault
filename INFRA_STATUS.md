@@ -21,7 +21,7 @@ stays as the record of 2026-11-10.
 | **Firebase Android app** | ✅ Registered | package `app.examvault` |
 | **OneSignal** | ✅ Created | app id `062ce6a9-a47e-48d8-bb4d-dfee88b60026` (Android/iOS; web-push intentionally off) |
 | **Release signing** | ✅ Working | AAB signed with `CN=ExamVault` upload key, SHA-256 `F4:D8:1E:…:E0:EB` |
-| **CI** | ✅ Green | `dart format` (`lib test tool`), analyze, and the full suite in `app/test` (live-network tests gated behind `EV_LIVE=1`, skipped in CI) · signed App Bundle + 3 split APKs · edge deploy, which runs only on pushes that touch `infra/**` |
+| **CI** | ✅ Green | `dart format` (`lib test tool`), analyze, and the full suite in `app/test` (live-network tests gated behind `EV_LIVE=1`, skipped in CI) · signed App Bundle + 3 split APKs · edge deploy, which runs only on pushes that touch `infra/**` · **1.0.1 (build 2)** is built by this same pipeline: the version is derived from `app/pubspec.yaml` and passed to both build invocations as `EV_APP_VERSION`, so the About sheet prints the shipped version; an empty derivation fails the job instead of shipping an untraceable build |
 
 Repository secrets: Cloudflare (2), Firebase (5), OneSignal (1), Android signing (4),
 edge base (2). Listed in `.github/SECRETS.md`.

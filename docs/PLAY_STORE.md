@@ -4,6 +4,76 @@ Everything below was verified against a real build or against the code in this
 repository. Where a claim is a record of an earlier build rather than something
 this environment can re-derive, it says so.
 
+## Release notes — 1.0.1
+
+Written for the student, not for us. Every line describes behaviour the shipped
+code has; the commit-level record is in `docs/AUDIT_2026-11-16.md` § *Disposition*.
+
+**Paste-ready for the Console's "What's new" field** (the field caps it at 500
+characters per language — re-check the counter at submission):
+
+> ExamVault 1.0.1 — Screen readers can now activate every button, including Retry and Add. The alerts inbox says when it is still checking instead of claiming nothing needs your attention. Share exports the card you picked. The vault form names each field and can no longer hang while saving. Delete all data is in About. Choose which exam categories notify you. The radar marks what arrived since your last visit, Dates is grouped, and the status pill stays readable at large text.
+
+**Full notes**
+
+- **Every button works with a screen reader.** A group of controls were announced
+  as buttons — "Retry", "Add", "N saved", "Notice details", "See live results",
+  "Try again", "Browse live results", the alert bell, "Copy roll number", "Edit
+  caption" — but double-tapping did nothing. They now activate, and a test fails
+  the build if a button on the five main screens ships without an action again.
+- **The alerts inbox no longer guesses.** It used to say "Nothing needs your
+  attention" before it had checked anything — on result day, with a dead network.
+  It now says it is checking, or that it could not check and offers Retry, and
+  only claims there is nothing to report once it has actually looked.
+- **Share exports the card you selected.** After tapping a radar row, swiping to
+  another card and opening Share used to export the first exam. The selected card
+  now wins, the header names the exam being exported, and the details are read
+  from the current feed — so a result that arrived after you tapped no longer
+  exports as "update awaited". Dismissing the share sheet says nothing was sent
+  instead of claiming it shared for you. The exported image is also a consistent
+  size on every screen, instead of a huge file on a large one.
+- **The vault form says what each field is.** All twelve fields are announced by
+  their name ("Exam name", "Centre address", "Gate", "Roll number") rather than by
+  their example text, the password toggle is labelled, and a refused save is read
+  aloud instead of only turning red. If the exam date is what is blocking the
+  save, the form scrolls to it. A save that hangs now times out with a message and
+  a Retry instead of leaving the button spinning forever, and Retry cannot create
+  a duplicate card.
+- **"Delete all data" exists.** It is in About, under "Your data", behind a
+  confirmation. It removes every admit card, every setting and the cached feed.
+  Your push token is kept (it carries no exam or vault data); the per-exam bells
+  are dropped, and the notification categories go back to the default of all
+  five, so the Notifications section shows what the device is really subscribed
+  to.
+- **You choose which exam categories notify you.** About has a Notifications
+  section with the five categories. Turning them all off is allowed and the app
+  says what that means.
+- **The radar marks what is new.** A rule labelled "EARLIER" separates the rows
+  that arrived since your last visit from the rest, so the dot on the tab now
+  points at something you can see. It never appears when nothing is new, and never
+  on a fresh install.
+- **The Dates tab is grouped.** Entries are under "This week", "This month" and
+  "Later", in the same nearest-first order, and a screen reader can jump between
+  the three headings.
+- **The status pill stays readable.** At large text — and on a narrow phone at the
+  normal size — the pill used to be squeezed until its label painted below the
+  app's own minimum type size. It now paints at full size at every setting.
+- **A search says how much it found.** With a query or a category chip active, the
+  vault header reads "1 of 5" instead of "5 saved" over a single card.
+- **Landscape works on iPhone and iPad.** Rotating the device is supported again,
+  including the orientations iPad Split View needs.
+
+**Verification note (not user copy).** This environment has no Android SDK and no
+JDK, so `flutter build apk` / `appbundle` cannot be run here and no AAB or APK was
+produced for this section. The Android artefacts come from CI
+(`.github/workflows/ci.yml`, job `build-android`), which derives the version from
+`app/pubspec.yaml` and passes it as `EV_APP_VERSION` to both build invocations;
+with `version: 1.0.1+2` in place that value is `1.0.1+2` (verified by running the
+step's own script from `app/` with a stubbed `flutter`). The web release build,
+analyze, format and the full test suite were run locally on this tree: analyze
+`No issues found!`, format 0 changed, `flutter test` 948 passed / 7 skipped /
+0 failed, `node --test` 49/49, `flutter build web --release` succeeded.
+
 ## What CI produces
 
 The `build-android` job (`Build release APK`) runs on every push to `master` or
@@ -108,19 +178,24 @@ by design, so it exists only in the secrets and wherever you store the backup.
 
 ## Version codes: sideloaded APKs vs the Play AAB
 
-`pubspec.yaml` carries `version: 1.0.0+1` (versionCode 1). `flutter build apk
+`pubspec.yaml` carries `version: 1.0.1+2` (versionCode 2). `flutter build apk
 --split-per-abi` makes Flutter add `1000 × ABI index` to that, so the artefacts
 CI uploads are:
 
 | Artefact | versionCode |
 |---|---|
-| `app-release.aab` (Play) | **1** |
-| `app-armeabi-v7a-release.apk` | **1001** |
-| `app-arm64-v8a-release.apk` | **2001** |
-| `app-x86_64-release.apk` | **3001** |
+| `app-release.aab` (Play) | **2** |
+| `app-armeabi-v7a-release.apk` | **1002** |
+| `app-arm64-v8a-release.apk` | **2002** |
+| `app-x86_64-release.apk` | **3002** |
+
+(1.0.0+1 was versionCode 1, so the numbers above are 1.0.1's. Re-derive this table
+from `pubspec.yaml` whenever the build number changes — it is arithmetic, not a
+claim about a build.)
 
 Consequence to remember before distributing APK links: a phone that sideloaded a
-split APK sits at versionCode 1001/2001/3001. Play updates carry the AAB's plain
+split APK sits at versionCode 1002/2002/3002 (for 1.0.1; 1001/2001/3001 for
+1.0.0). Play updates carry the AAB's plain
 versionCode (1, 2, 3 …), which is **lower**, so the Play Store will refuse to
 update that install in place — Android treats it as a downgrade. A sideloaded
 user must uninstall and install the Play build instead; uninstalling deletes the

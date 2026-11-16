@@ -53,19 +53,27 @@
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
 	<string>Main</string>
-	<!-- Portrait only: every screen is a single column (the web manifest
-	     declares "portrait-primary") and no landscape layout exists. The
-	     scaffold shipped landscape anyway, so a rotated phone got a stretched
-	     portrait UI. iPhone keeps its usual no-upside-down rule; iPad also
-	     allows upside-down portrait, which is still portrait. -->
+	<!-- Landscape is supported, because it was measured to work: `RootShell`
+	     was pumped at 852x393, 900x500 and 393x852 and rendered with no
+	     exception and no overflow at any of them, so a rotated phone gets the
+	     same single-column layout with room to spare — not a stretched one.
+	     Restricting iOS to portrait would also disable iPad Split View, which
+	     needs every orientation, and would make iOS stricter than Android
+	     (which declares no `screenOrientation`). The web manifest's
+	     "portrait-primary" is a PWA display preference, not a lock, so it does
+	     not argue for one here. iPhone keeps its usual no-upside-down rule. -->
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
 	<key>UISupportedInterfaceOrientations~ipad</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
 		<string>UIInterfaceOrientationPortraitUpsideDown</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
 </dict>
 </plist>

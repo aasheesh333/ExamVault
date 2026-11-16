@@ -41,5 +41,5 @@ flutter run \
 ```sh
 flutter analyze --fatal-infos
 flutter test
-dart format --output=none --set-exit-if-changed lib test   # CI checks this too
+dart format --output=none --set-exit-if-changed lib test tool   # CI checks this too
 ```

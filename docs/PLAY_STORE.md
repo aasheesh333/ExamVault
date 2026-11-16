@@ -1,6 +1,8 @@
 # Play Store submission
 
-Everything below is verified against the actual build, not assumed.
+Everything below was verified against a real build or against the code in this
+repository. Where a claim is a record of an earlier build rather than something
+this environment can re-derive, it says so.
 
 ## What CI produces
 
@@ -137,7 +139,7 @@ form*. The four facts behind every answer, with the code that proves them:
 
 | Fact | Evidence |
 |---|---|
-| No account, no profile, nothing to sign in to | no auth dependency in `app/pubspec.yaml`; the About sheet says so in the app (`app/lib/features/about/about_sheet.dart:538`) |
+| No account, no profile, nothing to sign in to | no auth dependency in `app/pubspec.yaml`; the About sheet says so in the app — `app/lib/features/about/about_sheet.dart`, `_PolicySheet._sections` (the "No account, no profile" entry) and the "What we store" bullet "There is no account, so there is nothing to sign in to" |
 | The vault is encrypted on the device and never uploaded | `app/lib/data/local/secure_vault_store.dart:113-133` — `flutter_secure_storage` v11 defaults (AES-GCM under an RSA-OAEP key in the Android Keystore), `resetOnError: false` so a Keystore fault cannot silently wipe it; `android:allowBackup="false"` in `app/android/app/src/main/AndroidManifest.xml` |
 | No analytics, no advertising identifier | no analytics/ad SDK in `app/pubspec.yaml`; `AppLogger` writes to the Dart VM sink only, which a release build does not have (`app/lib/data/services/app_logger.dart:5`) |
 | Roll numbers never leave the device | `app/lib/features/result_checker/engine/hashed_index.dart:74-83` — the downloaded index holds salted SHA-256 hashes, and the comparison is local |
@@ -156,13 +158,19 @@ Then answer the Console form:
   delivery — that is the token disclosure above, server-side, not in-app
   analytics. The binary contains no analytics or advertising SDK.)
 
-One detail the form does not ask for but a reviewer may: when notifications are
-allowed the token is subscribed to **all five** exam-category topics
-(`app/lib/main.dart:144` calls `push.syncTopics(ExamCategory.values.toSet())`), so
-the current release is "all exam alerts" or "none". That is still a single
-"Device or other IDs" entry with purpose *App functionality* — the answer does
-not change if a per-category picker ships, because the picker narrows *which*
-topics the same token is subscribed to.
+One detail the form does not ask for but a reviewer may: the About sheet has a
+**Notifications** section (`_NotificationCategories` in
+`app/lib/features/about/about_sheet.dart`) where the student chooses which of the
+five exam categories the push token subscribes to. Boot reconciles the token to
+that stored set — `bootPush` in `app/lib/main.dart` ends with
+`push.syncTopics(container.read(followedCategoriesProvider))` — and an install
+that never opened the picker has no stored set, which defaults to **all five**
+(`FollowedCategoriesNotifier.build`), so existing users keep the behaviour they
+had. A stored empty set is a real choice: every category off means no exam
+alerts, without changing the OS permission. Either way it is a single
+"Device or other IDs" entry with purpose *App functionality*, because the picker
+only narrows *which* topics the same token is subscribed to — it adds no data
+type, no second identifier and no new recipient.
 
 ## Content rating
 
@@ -174,9 +182,18 @@ questionnaire literally; the expected outcome is Everyone / 3+.
 The app declares **3** permissions; the merged release manifest ships **26**,
 because the push SDKs and AndroidX merge in their own. Play reviewers and the
 Console's APK analysis see the merged set, so paste attributions, not guesses.
-Regenerated from
-`app/build/app/intermediates/merged_manifests/release/processReleaseManifest/arm64-v8a/AndroidManifest.xml`
-and `app/build/app/outputs/logs/manifest-merger-release-report.txt`.
+
+**Provenance.** These 26 rows were read from a release build's merged manifest
+(`app/build/app/intermediates/merged_manifests/release/processReleaseManifest/arm64-v8a/AndroidManifest.xml`)
+and its merger report
+(`app/build/app/outputs/logs/manifest-merger-release-report.txt`) at the time
+this document was written. **They cannot be regenerated in the environment that
+maintained this document** — it has no Android SDK and no `app/build/` directory,
+so nothing here was re-derived for 1.0.1. Treat the count and the attributions as
+a record of that build, and re-derive both from a fresh `flutter build appbundle`
+(or `flutter build apk`) before pasting anything into the Console: a new plugin
+version can add or drop a permission, and the number in particular is expected to
+drift.
 
 | # | Permission | Added by | Justification to paste into Play |
 |---|---|---|---|
@@ -220,11 +237,11 @@ the listing copy changes in the same commit as the code.
 
 | Claim | Verified by |
 |---|---|
-| **No PDF is mirrored or re-hosted.** Result documents open on the commission's own site. | `app/lib/domain/entities/live_update.dart:81` — `officialPdf`/`officialPage` are links, and the only use of them is `launchUrl(..., LaunchMode.externalApplication)` (`instant_result_checker_screen.dart:621`, `exam_detail_sheet.dart:490`); `app/lib/features/result_checker/engine/hashed_index.dart:74-83` — the published index holds hashes only. The legacy `resultPdfPath` mirror route (`app_config.dart:63`) still has `pdfBytes`/`pdfUrl` wrappers, but **nothing in `lib/` or `test/` calls them** — no code path downloads a PDF. |
-| **No analytics, no crash reporting, no ad SDK.** | `app/pubspec.yaml` dependency list (no analytics/crash/ads package); `app/lib/data/services/app_logger.dart:5` — `developer.log` only, inert in a release AOT build; `app/lib/features/about/about_sheet.dart:567` states it in-app |
-| **No account.** No email, phone, password, login, or profile field exists. | `app/lib/features/about/about_sheet.dart:156,538`; no auth dependency in `app/pubspec.yaml` |
-| **No location.** No location permission and no location code. | `app/android/app/src/main/AndroidManifest.xml:6` (comment) and the declared-permission block below it; `app/lib/features/about/about_sheet.dart:568` |
+| **No PDF is mirrored or re-hosted.** Result documents open on the commission's own site. | `app/lib/domain/entities/live_update.dart:81` — `officialPdf`/`officialPage` are links, and the only use of them is `launchUrl(..., LaunchMode.externalApplication)` (`instant_result_checker_screen.dart`'s `_openUrl`, `exam_detail_sheet.dart`'s `_LinkRow` onTap); `app/lib/features/result_checker/engine/hashed_index.dart:74-83` — the published index holds hashes only. `AppConfig.resultPdfPath` (the legacy mirror route) still exists but has **no callers anywhere in `lib/` or `test/`**, and the `pdfBytes`/`pdfUrl` wrappers that used to sit beside it were deleted — no code path downloads a PDF. |
+| **No analytics, no crash reporting, no ad SDK.** | `app/pubspec.yaml` dependency list (no analytics/crash/ads package); `app/lib/data/services/app_logger.dart:5` — `developer.log` only, inert in a release AOT build; `app/lib/features/about/about_sheet.dart` — the `_PolicySheet._sections` entry "No analytics, no adverts" states it in-app |
+| **No account.** No email, phone, password, login, or profile field exists. | `app/lib/features/about/about_sheet.dart` — `_PolicySheet._sections` ("No account, no profile") and the "What we store" bullet "There is no account"; no auth dependency in `app/pubspec.yaml` |
+| **No location.** No location permission and no location code. | `app/android/app/src/main/AndroidManifest.xml:6` (comment) and the declared-permission block below it; `app/lib/features/about/about_sheet.dart` — `_PolicySheet._sections` ("No analytics, no adverts", which also says "no location permission") |
 | **Encrypted local vault.** Cards, roll numbers and portal passwords are encrypted at rest and excluded from backup. | `app/lib/data/local/secure_vault_store.dart:113-133`; `android:allowBackup="false"` + `dataExtractionRules` in the manifest |
-| **The only identifier that leaves the device is the push token.** | `app/lib/data/services/push_service.dart:176,261`; `app/lib/main.dart:144` |
+| **The only identifier that leaves the device is the push token.** | `app/lib/data/services/push_service.dart` — `_syncOneSignalTags` (`:176`) and `syncTopics` (`:261`) send only category tags/topics; `bootPush` in `app/lib/main.dart` (`:150`) feeds them the student's chosen set |
 | **Roll numbers are checked on the device and never sent.** | `app/lib/features/result_checker/engine/hashed_index.dart:74-83` (hashes only) and `roll_index_engine.dart` (local binary search) |
 

@@ -94,12 +94,16 @@ Backup and device transfer.
 
 ## Screens
 
-| # | Screen | What it does |
-|---|---|---|
-| 1 | **Command Center** | Category chips, wallet-style stacked passes with 1-tap roll copy, live radar with status pills, and a per-commission health panel in About |
-| 2 | **Boarding-pass Vault** | Encrypted credentials with per-field copy, exam-day checklist, centre address |
-| 3 | **Instant Result Checker** | Auto-fills the saved roll, `Check` → edge index → local hash lookup → "YOUR ROLL IS IN THE LIST" or an honest "not in this list" with the reason |
-| 4 | **Share Card** | `RepaintBoundary` → PNG → share sheet, with an editable caption and an optional roll number |
+Five tabs, in the order they appear in the tab bar (`EvTab` in
+`app/lib/features/shell/root_shell.dart`):
+
+| # | Tab | Screen | What it does |
+|---|---|---|---|
+| 1 | **Home** | `CommandCenterScreen` | Alerts bell, a hero count, search across the radar and your saved cards, category chips, a preview of the saved cards, and the live radar with its `LIVE · EDGE` / `CACHED · 2h` provenance and status pills. The per-commission health panel lives in About |
+| 2 | **Vault** | `AdmitCardDetailScreen` | Saved cards as swipeable boarding passes — per-field tap-to-copy, the exam-day checklist, centre address, and the "Check my result" shortcut |
+| 3 | **Dates** | `ExamCalendarScreen` | Only dates the app can point at: the exam date on your own admit card, and dates a commission stated in a notice — each with a countdown and a per-exam alert bell. An exam with no published date is simply absent; the empty state says "No dates announced yet" rather than guessing |
+| 4 | **Radar** | `InstantResultCheckerScreen` | The instant result checker: auto-fills the saved roll, `Check` → edge index → local hash lookup → "YOUR ROLL IS IN THE LIST" or an honest "not in this list" with the reason |
+| 5 | **Share** | `WhatsappShareCardScreen` | `RepaintBoundary` → PNG → share sheet, with an editable caption and a switch for whether the roll number appears — turning it off scrubs the roll from the caption as well as the card |
 
 Pass cards stay deep navy in **both** themes on purpose — they are physical
 objects, and it keeps the 31px roll number at 13.96:1 contrast.
@@ -130,6 +134,7 @@ flutter run \
 ```sh
 cd app
 flutter analyze --fatal-infos   # 0 issues
+dart format --output=none --set-exit-if-changed lib test tool
 flutter test                    # the whole suite in app/test — CI runs it on every push
 ```
 
@@ -149,7 +154,9 @@ python3 build_indexes.py --feed ../data/live_feed.json       # PDFs → hashed i
 node publish_feed.mjs --in ../data/live_feed.json            # to the edge
 ```
 
-Runs every 30 minutes from `.github/workflows/refresh-data.yml`.
+Runs hourly from `.github/workflows/refresh-data.yml` (`cron: '7 * * * *'`;
+it was every 30 minutes until GitHub started silently skipping the over-quota
+runs).
 
 ## Infrastructure
 
@@ -161,12 +168,12 @@ npx wrangler deploy
 
 ## CI/CD
 
-`.github/workflows/ci.yml` runs analyze + test on every push, then builds a
-**signed App Bundle and split APKs** (the build step refuses to run when the
-`EV_CDN_BASE` secret is empty, so a schemeless "no feed" artefact can never be
-green), and deploys the edge worker only on pushes to `master`/`main` that touch
-`infra/**`. Release signing comes from four repository secrets; no credential is
-ever in the repository.
+`.github/workflows/ci.yml` runs `dart format`, analyze and test on every push,
+then builds a **signed App Bundle and split APKs** (the build step refuses to
+run when the `EV_CDN_BASE` secret is empty, so a schemeless "no feed" artefact
+can never be green), and deploys the edge worker only on pushes to
+`master`/`main` that touch `infra/**`. Release signing comes from four
+repository secrets; no credential is ever in the repository.
 
 The live-network suite (`app/test/live_edge_integration_test.dart`) is opt-in:
 CI never sets `EV_LIVE`, so those tests skip there. Run them deliberately with

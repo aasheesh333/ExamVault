@@ -31,8 +31,10 @@ final settingsBoxProvider = Provider<Box<dynamic>>(
 
 /// Settings-box keys.
 ///
-/// One list, so "Delete all data" cannot silently leave a setting behind when a
-/// new one is added — the wipe iterates [settingsKeys].
+/// One list, so "Delete all data" wipes every key it knows about in one place
+/// instead of three separate literals: a new setting is one line away from being
+/// included, not a grep. (Nothing *forces* a future key into this list — this is
+/// a convenience, not a guarantee.)
 const themeSettingKey = 'theme';
 const examAlertsSettingKey = 'exam_alerts';
 const alertsSeenSettingKey = 'alerts_seen_at';
@@ -154,35 +156,47 @@ class DataWiper {
   final Ref _ref;
 
   Future<void> deleteAll() async {
-    // The vault first: it is the only copy of the user's own data.
-    await _ref.read(admitCardRepositoryProvider).wipe();
+    try {
+      // The vault first: it is the only copy of the user's own data.
+      await _ref.read(admitCardRepositoryProvider).wipe();
 
-    final settings = _ref.read(settingsBoxProvider);
-    for (final key in settingsKeys) {
-      await settings.delete(key);
+      final settings = _ref.read(settingsBoxProvider);
+      for (final key in settingsKeys) {
+        await settings.delete(key);
+      }
+
+      // `clear()` also drops the repository's in-memory snapshot; without it the
+      // next cold read resurrects the document that was just deleted.
+      await _ref.read(liveFeedRepositoryProvider).clear();
+      await _ref.read(cdnClientProvider).evictAll();
+    } finally {
+      // Always, on every path. If a settings delete throws, the disk state is
+      // already gone for the keys that were deleted, so the providers must not
+      // keep showing a theme or a bell set that will not survive a restart.
+      _ref.invalidate(admitCardsProvider);
+      _ref.invalidate(themePreferenceProvider);
+      _ref.invalidate(examAlertsProvider);
+      _ref.invalidate(alertsSeenProvider);
+      _ref.invalidate(liveFeedProvider);
+      _ref.invalidate(resultCheckerProvider);
+      _ref.invalidate(selectedCardIdProvider);
+      _ref.invalidate(resultExamIdProvider);
     }
-
-    // `clear()` also drops the repository's in-memory snapshot; without it the
-    // next cold read resurrects the document that was just deleted.
-    await _ref.read(liveFeedRepositoryProvider).clear();
-    await _ref.read(cdnClientProvider).evictAll();
-
-    // In-memory copies of what was just deleted.
-    _ref.invalidate(admitCardsProvider);
-    _ref.invalidate(themePreferenceProvider);
-    _ref.invalidate(examAlertsProvider);
-    _ref.invalidate(alertsSeenProvider);
-    _ref.invalidate(liveFeedProvider);
-    _ref.invalidate(resultCheckerProvider);
-    _ref.invalidate(selectedCardIdProvider);
-    _ref.invalidate(resultExamIdProvider);
 
     // Best effort, and last: the local data is already gone, so a push failure
     // must not make the wipe look unsuccessful. Keeps the token (no
     // re-register churn) but drops every topic, so no alert arrives for data
     // that no longer exists.
+    //
+    // Bounded to 2s on its own clock, not the caller's 15s budget: a hung
+    // network unsubscribe would otherwise consume the whole allowance and
+    // report "Could not delete everything" after a completely successful local
+    // wipe — the exact wrong answer the ordering above exists to avoid.
     try {
-      await _ref.read(pushServiceProvider).unsubscribeAll();
+      await _ref
+          .read(pushServiceProvider)
+          .unsubscribeAll()
+          .timeout(const Duration(seconds: 2), onTimeout: () {});
     } catch (e) {
       AppLogger.w('wipe', 'could not unsubscribe push topics: $e');
     }

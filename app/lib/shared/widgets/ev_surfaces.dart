@@ -255,13 +255,20 @@ class EvTextAction extends StatelessWidget {
 ///
 /// `showModalBottomSheet` inserts its barrier a frame *after* it is called, so a
 /// fast double tap on the trigger stacked a second sheet on the first — the
-/// About panel and the exam detail sheet both did, and the alerts bell needed
-/// the same guard inline (`command_center_screen.dart`, `_alertsOpen`). The
-/// flag is read and set synchronously before the first await, which is the only
-/// window a second tap has.
+/// About panel, the exam detail sheet and the vault form all did, and the alerts
+/// bell needed the same guard inline (`command_center_screen.dart`,
+/// `_alertsOpen`). The flag is read and set synchronously before the first
+/// await, which is the only window a second tap has.
 ///
-/// Own one instance per trigger (a `State` field), never a global: two different
-/// buttons may legitimately open two different sheets.
+/// How many instances depends on the sheet, not on the button:
+///
+///  * **One per trigger** (a `State` field) when different triggers legitimately
+///    open *different* sheets — the About button, the delete confirmation. Two
+///    independent buttons must not block each other.
+///  * **One process-wide instance** when a second instance of the *same* sheet
+///    is never valid, whatever opened it — `showVaultFormSheet` holds a single
+///    module-level guard, because two credential forms on screen is a defect
+///    from any call site.
 class SheetOpenGuard {
   bool _open = false;
 
@@ -280,6 +287,14 @@ class SheetOpenGuard {
       _open = false;
     }
   }
+
+  /// Clears the flag without waiting for [run]'s future.
+  ///
+  /// For a guard whose sheet may be torn down before its route future resolves
+  /// (a Navigator disposed with the sheet still open). The owning widget calls
+  /// this from `dispose()` so a wedged guard cannot leave the trigger dead.
+  /// Idempotent, and safe alongside [run]'s own `finally`.
+  void release() => _open = false;
 }
 
 /// A vertically centred block that scrolls when it cannot fit.

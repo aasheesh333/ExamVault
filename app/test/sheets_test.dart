@@ -11,8 +11,10 @@ import 'package:examvault/domain/entities/admit_card.dart';
 import 'package:examvault/domain/entities/exam_category.dart';
 import 'package:examvault/domain/entities/live_update.dart';
 import 'package:examvault/features/about/about_sheet.dart';
+import 'package:examvault/features/calendar/exam_calendar_screen.dart';
 import 'package:examvault/features/command_center/command_center_screen.dart';
 import 'package:examvault/features/command_center/widgets/alerts_sheet.dart';
+import 'package:examvault/features/result_checker/instant_result_checker_screen.dart';
 import 'package:examvault/providers/app_providers.dart';
 import 'package:examvault/shared/widgets/ev_controls.dart';
 import 'package:examvault/shared/widgets/ev_surfaces.dart';
@@ -1185,10 +1187,66 @@ void main() {
         sourceCheckedLabel(now.subtract(const Duration(hours: 30)), now),
         'checked 15 Nov 2026',
       );
-      // Clock skew is not freshness — never "just now" for a future stamp.
+      // Clock skew is not a check that happened: nothing is said about time,
+      // rather than a date for a check in the future.
       expect(
         sourceCheckedLabel(now.add(const Duration(hours: 3)), now),
-        'checked 16 Nov 2026',
+        isNull,
+      );
+      expect(sourceCheckedLabel(now.add(const Duration(days: 2)), now), isNull);
+    });
+
+    testWidgets(
+      'a source row with a future checked_at says nothing about time',
+      (tester) async {
+        smallPhone(tester, textScale: 1.0);
+        await openWith(
+          tester,
+          feedWithChecks(
+            sscChecked: DateTime.now().add(const Duration(days: 2)),
+          ),
+        );
+
+        expect(find.text('17 items'), findsOneWidget);
+        expect(
+          find.textContaining('checked'),
+          findsNothing,
+          reason: 'a stamp in the future must not render as a completed check',
+        );
+      },
+    );
+
+    test('the homepage wins over the fallback, per commission id', () {
+      final byId = {
+        'ssc': const SourceHealth(
+          id: 'ssc',
+          label: 'SSC',
+          status: 'ok',
+          rows: 17,
+          homepage: 'https://ssc.gov.in/new-home',
+        ),
+        // A source that supplies no homepage must fall back, not resolve null.
+        'upsc': const SourceHealth(
+          id: 'upsc',
+          label: 'UPSC',
+          status: 'ok',
+          rows: 7,
+        ),
+      };
+
+      expect(
+        commissionUrlFor('ssc', byId, 'https://ssc.gov.in/'),
+        'https://ssc.gov.in/new-home',
+      );
+      expect(
+        commissionUrlFor('upsc', byId, 'https://www.upsc.gov.in/'),
+        'https://www.upsc.gov.in/',
+      );
+      // A feed with no health block at all (older documents) keeps the
+      // hand-written URL.
+      expect(
+        commissionUrlFor('tnpsc', const {}, 'https://www.tnpsc.gov.in/'),
+        'https://www.tnpsc.gov.in/',
       );
     });
 
@@ -1206,6 +1264,34 @@ void main() {
         find.text('17 items \u00b7 checked 4h ago'),
         findsOneWidget,
         reason: 'the count alone presents a stale check as current',
+      );
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('the age line fits at 320px @ 2.0x without ellipsising', (
+      tester,
+    ) async {
+      smallPhone(tester);
+      final now = DateTime.now();
+      await openWith(
+        tester,
+        feedWithChecks(sscChecked: now.subtract(const Duration(hours: 4))),
+      );
+
+      // The row is below the fold at this size and the sheet's ListView is lazy.
+      await tester.scrollUntilVisible(
+        find.text('17 items \u00b7 checked 4h ago'),
+        200,
+        scrollable: find.byType(Scrollable).last,
+      );
+
+      final paragraph = tester.renderObject<RenderParagraph>(
+        find.text('17 items \u00b7 checked 4h ago'),
+      );
+      expect(
+        paragraph.didExceedMaxLines,
+        isFalse,
+        reason: 'the age is the fact this panel exists to show — never clipped',
       );
       expect(tester.takeException(), isNull);
     });
@@ -1228,6 +1314,24 @@ void main() {
       tester,
     ) async {
       smallPhone(tester, textScale: 1.0);
+
+      // The URL that actually reaches the launcher, not merely "some InkWell
+      // has a callback": the pre-fix code hardcoded the same hand-written URL,
+      // so anything weaker would pass with the feed ignored.
+      final launched = <String>[];
+      const channel = MethodChannel('plugins.flutter.io/url_launcher');
+      final messenger =
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      messenger.setMockMethodCallHandler(channel, (call) async {
+        if (call.method == 'launch') {
+          launched.add((call.arguments as Map)['url'] as String);
+        }
+        // Fail the launch so nothing leaves the test, and so the sheet's own
+        // failure toast (which prints the same URL) is what renders.
+        return false;
+      });
+      addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+
       final now = DateTime.now();
       await openWith(
         tester,
@@ -1253,18 +1357,21 @@ void main() {
         300,
         scrollable: find.byType(Scrollable).last,
       );
-      final link = tester.widget<InkWell>(
-        find
-            .ancestor(
-              of: find.textContaining('SSC \u2014 Staff Selection'),
-              matching: find.byType(InkWell),
-            )
-            .first,
+      await tester.ensureVisible(
+        find.textContaining('SSC \u2014 Staff Selection'),
       );
-      expect(link.onTap, isNotNull);
-      // The row is driven by `source.homepage`; the fallback only applies when
-      // the publisher supplied none (covered by the rows without a homepage).
-      expect(find.textContaining('SSC \u2014 Staff Selection'), findsOneWidget);
+      await tester.pumpAndSettle();
+      await tester.tap(find.textContaining('SSC \u2014 Staff Selection'));
+      await tester.pumpAndSettle();
+
+      expect(launched, [
+        'https://ssc.gov.in/new-home',
+      ], reason: 'the feed homepage must win over the hand-written fallback');
+      expect(
+        find.textContaining('https://ssc.gov.in/new-home'),
+        findsOneWidget,
+        reason: 'the failure toast names the URL that was actually tried',
+      );
       expect(tester.takeException(), isNull);
     });
   });
@@ -1447,6 +1554,178 @@ void main() {
         expect(opened, 2);
       },
     );
+  });
+
+  /// The detail sheet is reachable from two screens, and both stacked it on a
+  /// fast double tap: the calendar's row card and the checker's "Notice
+  /// details" action. The brief's shared guard was only applied to About.
+  group('Exam detail sheet opens once per double tap', () {
+    LiveUpdate datedUpdate() {
+      final now = DateTime.now();
+      return LiveUpdate(
+        examId: 'exam_a',
+        category: ExamCategory.ssc,
+        examName: 'SSC CGL 2026',
+        contextLine: 'Official notice',
+        status: UpdateStatus.awaited,
+        publishedAt: now.subtract(const Duration(days: 1)),
+        examDate: now.add(const Duration(days: 9)),
+      );
+    }
+
+    AdmitCard datedCard() => AdmitCard(
+      id: 'card_a',
+      examId: 'exam_a',
+      category: ExamCategory.ssc,
+      examName: 'SSC CGL 2026',
+      conductingBody: 'Staff Selection Commission',
+      examCode: 'CGL',
+      rollNumber: '2201098765',
+      registrationId: '',
+      dobOrPortalPassword: '',
+      centerCode: '',
+      centerAddress: '',
+      gate: '',
+      reportBy: '',
+      examDate: DateTime.now().add(const Duration(days: 9)),
+      shift: '',
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+
+    ProviderContainer container({LiveUpdate? selected}) {
+      final c = ProviderContainer(
+        overrides: [
+          settingsBoxProvider.overrideWithValue(settingsBox),
+          liveFeedProvider.overrideWith(
+            () => _StaticLiveFeed(
+              LiveFeedSnapshot(
+                feed: LiveFeed(
+                  generatedAt: DateTime.now(),
+                  revision: 1,
+                  updates: [datedUpdate()],
+                ),
+                source: FeedSource.network,
+                fetchedAt: DateTime.now(),
+              ),
+            ),
+          ),
+          admitCardsProvider.overrideWith(() => _StaticCards([datedCard()])),
+        ],
+      );
+      addTearDown(c.dispose);
+      if (selected != null) {
+        c.read(resultExamIdProvider.notifier).select(selected);
+      }
+      return c;
+    }
+
+    /// Two taps delivered before the modal barrier exists — the only window a
+    /// synchronous guard can close. `tester.tap` twice cannot reach the trigger:
+    /// the binding builds the first tap's barrier before the second hit test.
+    Future<void> doubleTap(WidgetTester tester, VoidCallback? onTap) async {
+      expect(onTap, isNotNull);
+      onTap!();
+      onTap();
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('the calendar row opens one sheet', (tester) async {
+      final c = container();
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: c,
+          child: MaterialApp(
+            theme: AppTheme.dark(),
+            home: const ExamCalendarScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final row = find.text('SSC CGL 2026');
+      expect(row, findsWidgets);
+      final ink = tester.widget<InkWell>(
+        find.ancestor(of: row.first, matching: find.byType(InkWell)).first,
+      );
+      await doubleTap(tester, ink.onTap);
+
+      expect(
+        find.byType(DraggableScrollableSheet),
+        findsOneWidget,
+        reason: 'a second tap must not stack a second detail sheet',
+      );
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('the checker\'s "Notice details" opens one sheet', (
+      tester,
+    ) async {
+      final update = datedUpdate();
+      final c = container(selected: update);
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: c,
+          child: MaterialApp(
+            theme: AppTheme.dark(),
+            home: const InstantResultCheckerScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final action = find.byWidgetPredicate(
+        (w) => w is EvTextAction && w.label == 'Notice details',
+      );
+      expect(action, findsOneWidget);
+      await doubleTap(tester, tester.widget<EvTextAction>(action).onPressed);
+
+      expect(
+        find.byType(DraggableScrollableSheet),
+        findsOneWidget,
+        reason: 'a second tap must not stack a second detail sheet',
+      );
+      expect(tester.takeException(), isNull);
+    });
+  });
+
+  /// The vault form has five call sites, so the guard lives inside
+  /// `showVaultFormSheet` rather than at each one: two twelve-field credential
+  /// forms, each with its own discard guard, is a defect from any caller.
+  group('Vault form opens once per double tap', () {
+    testWidgets('two taps in the same frame open one form', (tester) async {
+      final env = await MatrixEnv.open();
+      addTearDown(env.close);
+      await pumpMatrix(
+        tester,
+        const CommandCenterScreen(),
+        matrixPoints.firstWhere((p) => p.name == 'default'),
+        env: env,
+      );
+
+      final add = find.byWidgetPredicate(
+        (w) => w is EvTextAction && w.label == 'Add',
+      );
+      expect(add, findsOneWidget);
+      final onPressed = tester.widget<EvTextAction>(add).onPressed;
+
+      onPressed!();
+      onPressed();
+      await tester.pumpAndSettle();
+
+      // Exactly one form: each form renders one "Save to vault" primary button
+      // and one of each labelled field.
+      expect(
+        find.byWidgetPredicate(
+          (w) => w is EvPrimaryButton && w.label == 'Save to vault',
+        ),
+        findsOneWidget,
+        reason: 'a second tap must not stack a second credential form',
+      );
+      expect(find.byType(TextFormField), findsWidgets);
+      expect(tester.takeException(), isNull);
+      await disposeMatrix(tester);
+    });
   });
 
   /// "Delete all data" was documented in two `wipe()` doc comments with no
@@ -1677,6 +1956,88 @@ void main() {
       expect(find.text('cards: 1'), findsOneWidget);
       expect(push.unsubscribed, 0);
     });
+
+    /// A hung network unsubscribe must not eat the widget's whole budget and
+    /// then report failure for a local wipe that fully succeeded.
+    testWidgets('a hanging push unsubscribe does not fail the wipe', (
+      tester,
+    ) async {
+      await seedEverything();
+      push.hangOnUnsubscribe = true;
+      await tester.pumpWidget(dataHost());
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('open about'));
+      await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(
+        find.text('Delete all data'),
+        300,
+        scrollable: find.byType(Scrollable).last,
+      );
+      await tester.ensureVisible(find.text('Delete all data'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Delete all data'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Delete'));
+
+      // The push step's own 2 s ceiling, well inside the 15 s the button holds.
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 2));
+      await tester.pumpAndSettle();
+
+      expect(push.unsubscribed, 1);
+      expect(store.raw, isEmpty);
+      expect(find.text('cards: 0'), findsOneWidget);
+      expect(
+        find.text('Your admit cards and settings were deleted.'),
+        findsOneWidget,
+        reason: 'a hung push call is not a failed wipe',
+      );
+      expect(
+        find.text('Could not delete everything. Try again.'),
+        findsNothing,
+      );
+      expect(tester.takeException(), isNull);
+    });
+
+    /// The dialog at the mandated floor: measured 320x568 @2.0x, both actions
+    /// hit-testable inside the viewport. This locks in that measurement.
+    testWidgets('the confirm dialog fits and is usable at 320x568 @2.0x', (
+      tester,
+    ) async {
+      smallPhone(tester);
+      await seedEverything();
+      await tester.pumpWidget(dataHost());
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('open about'));
+      await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(
+        find.text('Delete all data'),
+        300,
+        scrollable: find.byType(Scrollable).last,
+      );
+      await tester.ensureVisible(find.text('Delete all data'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Delete all data'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Delete all data?'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+
+      final keep = tester.getRect(find.text('Keep my data'));
+      final delete = tester.getRect(find.text('Delete'));
+      expect(find.text('Keep my data').hitTestable(), findsOneWidget);
+      expect(find.text('Delete').hitTestable(), findsOneWidget);
+      // Both actions inside the 320x568 viewport, not clipped off its bottom.
+      for (final rect in [keep, delete]) {
+        expect(rect.top, greaterThanOrEqualTo(0));
+        expect(rect.bottom, lessThanOrEqualTo(568));
+        expect(rect.right, lessThanOrEqualTo(320));
+      }
+      // The body still reads in full: `scrollable: true` must not truncate it.
+      expect(find.textContaining('It cannot be undone.'), findsOneWidget);
+    });
   });
 }
 
@@ -1689,11 +2050,26 @@ class _SpyPush extends PushService {
   int unsubscribed = 0;
   bool throwOnUnsubscribe = false;
 
+  /// Models a network call that never returns. `deleteAll` must bound it itself
+  /// rather than consuming the caller's whole budget.
+  bool hangOnUnsubscribe = false;
+
   @override
   Future<void> unsubscribeAll() async {
     unsubscribed++;
+    if (hangOnUnsubscribe) return Completer<void>().future;
     if (throwOnUnsubscribe) throw StateError('push backend unavailable');
   }
+}
+
+/// A vault notifier with a fixed card list.
+class _StaticCards extends AdmitCardsNotifier {
+  _StaticCards(this.cards);
+
+  final List<AdmitCard> cards;
+
+  @override
+  Future<List<AdmitCard>> build() async => cards;
 }
 
 class _StaticLiveFeed extends LiveFeedNotifier {

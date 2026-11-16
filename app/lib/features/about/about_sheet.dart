@@ -200,7 +200,7 @@ class _AboutSheet extends ConsumerWidget {
                       // one, so a moved site is fixed in the feed rather than in
                       // an app release.
                       label: link.label,
-                      url: byId[link.id]?.homepage ?? link.url,
+                      url: commissionUrlFor(link.id, byId, link.url),
                     ),
 
                   const SizedBox(height: 16),
@@ -502,12 +502,14 @@ class _SourceRow extends StatelessWidget {
 /// harder to place than the date. [now] is a parameter so a test can pin the
 /// label to a fixed clock — a function of `DateTime.now()` alone could not be
 /// asserted exactly.
+///
+/// Returns null for a stamp in the future. That is clock skew, not a check that
+/// has happened, and the verb would assert something untrue — so the row says
+/// nothing about time rather than printing a date for a future check.
 @visibleForTesting
-String sourceCheckedLabel(DateTime checkedAt, DateTime now) {
+String? sourceCheckedLabel(DateTime checkedAt, DateTime now) {
   final age = now.difference(checkedAt);
-  // A timestamp in the future is clock skew, not freshness: fall back to the
-  // date instead of claiming the source was checked "just now".
-  if (age.isNegative) return 'checked ${_fullDate(checkedAt)}';
+  if (age.isNegative) return null;
   if (age.inMinutes < 1) return 'checked just now';
   if (age.inHours < 1) return 'checked ${age.inMinutes}m ago';
   if (age.inHours < 24) return 'checked ${age.inHours}h ago';
@@ -558,6 +560,19 @@ const _commissionLinks = <({String id, String label, String url})>[
     url: 'https://www.tnpsc.gov.in/',
   ),
 ];
+
+/// The URL an "Official sources" row links to.
+///
+/// The publisher's own `homepage` wins whenever the feed carries one; the
+/// hand-written [fallback] only covers a feed with no health block (older
+/// documents) or a source that omits the field. Extracted so a test can assert
+/// the resolution itself rather than the fact that *some* InkWell has a callback.
+@visibleForTesting
+String commissionUrlFor(
+  String id,
+  Map<String, SourceHealth> byId,
+  String fallback,
+) => byId[id]?.homepage ?? fallback;
 
 /// "Delete all data", under the "Your data" heading.
 ///
@@ -617,6 +632,11 @@ class _DeleteAllDataState extends ConsumerState<_DeleteAllData> {
           borderRadius: BorderRadius.circular(20),
           side: BorderSide(color: p.border),
         ),
+        // The dialog fits at the mandated floor (measured 320x568 @2.0x: both
+        // actions hit-testable inside the viewport), but on anything shorter —
+        // 320x480, or the keyboard up at 2.0x — the body would be the first
+        // thing to clip. Scrolling costs nothing when it already fits.
+        scrollable: true,
         title: Text('Delete all data?', style: context.type.sectionTitle),
         content: Text(
           'This removes every admit card and every setting on this device. It '

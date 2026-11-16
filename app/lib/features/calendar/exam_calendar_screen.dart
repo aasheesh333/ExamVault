@@ -21,11 +21,22 @@ import 'exam_detail_sheet.dart';
 /// the student's own admit card, and dates a commission stated in a notice.
 /// Exams with no published date are simply absent, and the empty state says so
 /// in those words.
-class ExamCalendarScreen extends ConsumerWidget {
+class ExamCalendarScreen extends ConsumerStatefulWidget {
   const ExamCalendarScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ExamCalendarScreen> createState() => _ExamCalendarScreenState();
+}
+
+class _ExamCalendarScreenState extends ConsumerState<ExamCalendarScreen> {
+  /// One guard for the whole list: every row opens the same detail sheet, and
+  /// only one can be on screen at a time. The modal barrier appears a frame
+  /// after `showExamDetailSheet` is called, so without a synchronous flag a fast
+  /// double tap on a row stacked a second sheet on the first.
+  final _detailGuard = SheetOpenGuard();
+
+  @override
+  Widget build(BuildContext context) {
     final p = context.ev;
     final entries = ref.watch(examCalendarProvider);
     final now = DateTime.now();
@@ -55,10 +66,12 @@ class ExamCalendarScreen extends ConsumerWidget {
                       itemBuilder: (context, i) => _EntryCard(
                         entry: entries[i],
                         now: now,
-                        onOpen: () => showExamDetailSheet(
-                          context,
-                          update: entries[i].update,
-                          card: entries[i].card,
+                        onOpen: () => _detailGuard.run<void>(
+                          () => showExamDetailSheet(
+                            context,
+                            update: entries[i].update,
+                            card: entries[i].card,
+                          ),
                         ),
                         alerting: alerts.contains(entries[i].examId),
                         onAlertToggle:

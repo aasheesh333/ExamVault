@@ -9,28 +9,31 @@ Audit: `docs/AUDIT_2026-11-16.md`. Ledger: `.superpowers/sdd/PLAN_play_store_rea
 ---
 
 ## Task 1 — Green the suite (time-bomb test)
-- [ ] `live_feed_parsing_test.dart` `liveCount` fixture: pin `expires_at` far-future
-- [ ] Keep an explicitly-expired row in the fixture so the exclusion path is still proven
-- [ ] New test: `liveCountAt(fixedNow)` stable for a fixed clock
-- [ ] Audit all other fixtures omitting `expires_at` that assert a count/inclusion
-- [ ] Fix any additional wall-clock-dependent fixture found
-- [ ] Gate: `flutter analyze --fatal-infos` clean
-- [ ] Gate: `dart format --set-exit-if-changed lib test tool` clean
-- [ ] Gate: `flutter test` fully green
-- [ ] Commit `test(...)`
+- [x] `live_feed_parsing_test.dart` `liveCount` fixture: pin `expires_at` far-future
+- [x] Keep an explicitly-expired row in the fixture so the exclusion path is still proven
+- [x] New test: `liveCountAt(fixedNow)` stable for a fixed clock
+- [x] Audit all other fixtures omitting `expires_at` that assert a count/inclusion
+- [x] Fix any additional wall-clock-dependent fixture found
+- [x] Gate: `flutter analyze --fatal-infos` clean
+- [x] Gate: `dart format --set-exit-if-changed lib test tool` clean
+- [x] Gate: `flutter test` fully green
+- [x] Commit `test(...)`
 
 ## Task 2 — Every control operable (P0 dead buttons)
-- [ ] `ev_surfaces.dart` `EvTextAction`: pass `onTap` to `Semantics`
-- [ ] `live_radar_tile.dart` `_AlertBell`: pass `onTap`
-- [ ] `exam_calendar_screen.dart` calendar bell: pass `onTap`
-- [ ] `exam_detail_sheet.dart` `_BellRow`: pass `onTap`
-- [ ] `wallet_pass_card.dart` `_CopyPill`: add `onTap` to `Semantics`
-- [ ] `whatsapp_share_card_screen.dart` "Edit caption": pass `onTap`
-- [ ] `admit_card_detail_screen.dart` `_PageCounter`: confirm label-only is correct, document why
-- [ ] `a11y_matrix_test.dart`: assert every `isButton` node has a tap/longPress action, all 5 tabs @320@2.0×
-- [ ] New test: activate `EvTextAction` through the semantics layer, assert callback ran
-- [ ] Verify the new matrix assertion FAILS on pre-fix code
-- [ ] Commit `fix(a11y):`
+- [x] `ev_surfaces.dart` `EvTextAction`: pass `onTap` to `Semantics`
+- [x] `live_radar_tile.dart` `_AlertBell`: pass `onTap`
+- [x] `exam_calendar_screen.dart` calendar bell: pass `onTap`
+- [x] `exam_detail_sheet.dart` `_BellRow`: pass `onTap`
+- [x] `wallet_pass_card.dart` `_CopyPill`: add `onTap` to `Semantics`
+- [x] `whatsapp_share_card_screen.dart` "Edit caption": pass `onTap`
+- [x] `admit_card_detail_screen.dart` `_PageCounter`: confirm label-only is correct, document why
+- [x] `ev_surfaces.dart` `EvCard` — 8th site found by the implementer: wrapper now carries `onTap`
+- [x] `a11y_matrix_test.dart`: assert every `isButton` node has a tap/longPress action, all 5 tabs @320@2.0×
+- [x] Guard exemption for explicitly disabled nodes (`isEnabled == false`), verified narrow
+- [ ] DEFERRED → Task 9: `EvCard` inner `InkWell` still yields a second focus stop (`excludeFromSemantics` fix)
+- [x] New test: activate `EvTextAction` through the semantics layer, assert callback ran
+- [x] Verify the new matrix assertion FAILS on pre-fix code
+- [x] Commit `fix(a11y):`
 
 ## Task 3 — Rename must not keep old exam id or VERIFIED
 - [ ] `resolveExamId`: reuse `previous` only when the exam name is unchanged

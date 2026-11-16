@@ -126,6 +126,8 @@ Audit: `docs/AUDIT_2026-11-16.md`. Ledger: `.superpowers/sdd/PLAN_play_store_rea
 - [ ] `docs/PRIVACY.md:34`: document the new one-tap "Delete all data" (cards, settings, cached feed/index; token kept, topics dropped)
 - [ ] Keep Play "Data safety" wording consistent
 - [ ] Tests: default all five; toggle persists across rebuild; boot sync receives the subset; empty set allowed + announced
+- [ ] `ExamAlertsNotifier.toggle`: roll back `state` on a failed write and return the rolled-back set (comment claims this; code does not)
+- [ ] Test: a throwing settings write leaves the bell OFF and syncs the rolled-back set
 - [ ] Commit `feat(push):`
 
 ## Task 11 — Dead code + documentation drift

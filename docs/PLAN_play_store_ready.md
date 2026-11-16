@@ -472,6 +472,32 @@ persisted in the settings box, default = all five), `app/lib/main.dart`,
 - Tests: default is all five; a toggle persists and survives a rebuild; boot sync
   receives the stored subset; empty set is allowed and announced.
 
+**Also fix a false comment that hides a real inconsistency (verified by reading
+the code).** `ExamAlertsNotifier.toggle` (`app_providers.dart`) says:
+
+```dart
+} catch (e) {
+  // A failed write must not leave the UI claiming a subscription that will
+  // be gone on next launch — same rule as the theme preference.
+  AppLogger.w('alerts', 'could not persist exam alerts: $e');
+}
+```
+
+It logs and returns; it does **not** roll back. `ThemePreferenceNotifier.select`
+does (`state = previous;`), so the two notifiers contradict each other while one
+of them claims to follow the other's rule. The consequence is the exact failure
+the comment describes, one level deeper than the UI: the bell renders ON, the
+caller then calls `syncExamAlerts(next)` and the topic subscription is created,
+but the setting never reaches disk. On the next launch the bell reads OFF while
+the subscription is still live, so the student keeps receiving alerts for an exam
+the app says they do not follow — with no way to see why.
+
+Fix: capture `previous`, roll `state` back in the `catch`, and **return the
+rolled-back set** so the caller reconciles push against what is actually stored
+rather than against a toggle that did not persist. Add a test with a settings box
+whose `put` throws: the bell must end up off, and `syncExamAlerts` must be called
+with the rolled-back set.
+
 **Acceptance:** the About claim, the code and the privacy policy all agree; full
 suite green.
 

@@ -158,11 +158,11 @@ Audit: `docs/AUDIT_2026-11-16.md`. Ledger: `.superpowers/sdd/PLAN_play_store_rea
 - [x] Commit `docs(play):`
 
 ## Task 14 — Radar "new since last look" divider + Dates grouping
-- [x] Radar: hairline + "NEW" label at the first row newer than `alertsSeenAt`
+- [x] Radar: hairline + `EARLIER` label below the last unseen row (`radarNewBoundary`); it names the block it introduces, not the new one above it
 - [x] Never draw it when nothing is unseen
 - [x] Never draw it on a fresh install (`alertsSeenAt` == epoch)
 - [x] Test: divider appears with unseen rows, absent when all seen
-- [x] Dates: group under "This week" / "This month" / "Later"
+- [x] Dates: group under `Next 7 days` / `Next 30 days` / `Later` — rolling day counts, not calendar weeks or months (`CalendarBucket`)
 - [x] Empty groups are not drawn; existing order preserved exactly
 - [x] Each group header is `Semantics(header: true)`
 - [x] Tests: ordering, absent empty groups, headings exposed

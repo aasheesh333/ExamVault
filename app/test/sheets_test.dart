@@ -1907,6 +1907,13 @@ void main() {
       // about: leaving them live keeps pinging them about data they deleted.
       expect(push.unsubscribed, 1);
       expect(
+        push.initialised,
+        1,
+        reason:
+            'unsubscribeAll is a no-op while the provider is still disabled, so '
+            'a wipe inside boot\'s init window must await it first',
+      );
+      expect(
         push.clearedExamIds,
         {'exam_1'},
         reason:
@@ -2765,6 +2772,48 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
+    testWidgets('two taps in the same frame open one policy sheet', (
+      tester,
+    ) async {
+      // The modal barrier appears a frame after showModalBottomSheet is called,
+      // so two taps delivered before it exists stacked two policy sheets — the
+      // same defect the About button, the delete dialog and the vault form were
+      // fixed for, and this was the one sheet still without a guard.
+      smallPhone(tester, textScale: 1.0);
+      await openWith(tester, _SpyPush(canDeliverValue: true));
+      await tester.scrollUntilVisible(
+        find.text('Read the privacy policy'),
+        300,
+        scrollable: find.byType(Scrollable).last,
+      );
+      await tester.ensureVisible(find.text('Read the privacy policy'));
+      await tester.pumpAndSettle();
+
+      // Invoking the row's callback twice without awaiting models the only
+      // window a synchronous guard can close: two taps delivered before the
+      // modal barrier exists. (Two `tester.tap` calls cannot reach the row — the
+      // binding builds the barrier for the first tap before the second hit test
+      // runs, so that shape passes with or without a guard.)
+      final row = tester.widget<InkWell>(
+        find
+            .ancestor(
+              of: find.text('Read the privacy policy'),
+              matching: find.byType(InkWell),
+            )
+            .first,
+      );
+      row.onTap!();
+      row.onTap!();
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('No account, no profile'),
+        findsOneWidget,
+        reason: 'two stacked policy sheets would render this section twice',
+      );
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets(
       'a tap persists the choice and re-syncs push with the new set',
       (tester) async {
@@ -2816,6 +2865,17 @@ class _SpyPush extends PushService {
 
   int unsubscribed = 0;
   bool throwOnUnsubscribe = false;
+
+  /// How many times the wipe asked for the provider to be ready. A wipe that
+  /// does not initialise first can find `PushProvider.disabled` and drop
+  /// nothing at all, so this is part of the contract.
+  int initialised = 0;
+
+  @override
+  Future<PushProvider> initialise() async {
+    initialised++;
+    return PushProvider.fcm;
+  }
 
   /// Models a network call that never returns. `deleteAll` must bound it itself
   /// rather than consuming the caller's whole budget.

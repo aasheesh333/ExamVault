@@ -116,6 +116,16 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
     await tester.pump(const Duration(milliseconds: 400));
+    // The canned feed's response only completes on the real event loop (the
+    // same limitation search_test.dart documents), so without this hop the walk
+    // presses controls on the cold-start sentinel — a screen that says it is
+    // still checking and that no user stays on. A filter chip there legitimately
+    // changes nothing, which the dead-tap check would report as a wiring bug.
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 150)),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
   }
 
   /// Every tab, walked in turn.

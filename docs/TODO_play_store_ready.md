@@ -36,74 +36,76 @@ Audit: `docs/AUDIT_2026-11-16.md`. Ledger: `.superpowers/sdd/PLAN_play_store_rea
 - [x] Commit `fix(a11y):`
 
 ## Task 3 — Rename must not keep old exam id or VERIFIED
-- [ ] `resolveExamId`: reuse `previous` only when the exam name is unchanged
-- [ ] `keepsVerification`: add `!renamed`
-- [ ] Test: rename → unpublished name ⇒ slug id + VERIFIED dropped
-- [ ] Test: rename → published name ⇒ fresh feed id + VERIFIED dropped
-- [ ] Test: edit a non-name field (centre) ⇒ id kept + VERIFIED kept
-- [ ] Test: rename back to original ⇒ no implicit VERIFIED
-- [ ] Update the file's doc comment to describe the rename rule
-- [ ] Commit `fix(vault):`
+- [x] `resolveExamId`: reuse `previous` only when the exam name is unchanged
+- [x] `keepsVerification`: add `!renamed`
+- [x] Test: rename → unpublished name ⇒ slug id + VERIFIED dropped
+- [x] Test: rename → published name ⇒ fresh feed id + VERIFIED dropped
+- [x] Test: edit a non-name field (centre) ⇒ id kept + VERIFIED kept
+- [x] Test: rename back to original ⇒ no implicit VERIFIED
+- [x] Update the file's doc comment to describe the rename rule
+- [x] Commit `fix(vault):`
 
 ## Task 4 — Alerts inbox honest + survives 2.0×
-- [ ] Branch body: loading ⇒ "Checking for updates…" + progress
-- [ ] Branch body: error & no value ⇒ "Could not check for updates." + reason + Retry (`invalidate`)
-- [ ] Branch body: loaded & empty ⇒ current copy
-- [ ] Branch body: loaded & rows ⇒ list
-- [ ] Header subtitle matches body state (no "Nothing needs your attention" over spinner/error)
-- [ ] Preserve `onLoadedAlertsRendered` contract exactly (loaded, non-empty, not loading)
-- [ ] Wrap `_AlertRow` pill in `Flexible` + `FittedBox(scaleDown)` right-aligned
-- [ ] Tests: loading / error+Retry / empty / 320@2.0× no overflow + name wider than pill
-- [ ] Commit `fix(alerts):`
+- [~] Branch body: loading ⇒ "Checking for updates…" + progress
+- [~] Branch body: error & no value ⇒ "Could not check for updates." + reason + Retry (`invalidate`)
+- [~] Branch body: loaded & empty ⇒ current copy
+- [~] Branch body: loaded & rows ⇒ list
+- [~] Header subtitle matches body state (no "Nothing needs your attention" over spinner/error)
+- [~] Preserve `onLoadedAlertsRendered` contract exactly (loaded, non-empty, not loading)
+- [~] Wrap `_AlertRow` pill in `Flexible` + `FittedBox(scaleDown)` right-aligned
+- [~] Tests: loading / error+Retry / empty / 320@2.0× no overflow + name wider than pill
+- [~] Commit `fix(alerts):`
 
 ## Task 5 — Share: right card, fresh facts, honest result, bounded export
-- [ ] `_cardFor`: explicit selection wins when `examId` differs from pinned update
-- [ ] Show the shared exam's name in the header
-- [ ] Resolve the feed row by `examId` every build; use fresh status/headline/subline/URL/pdf size
-- [ ] Keep the tapped row as fallback only before the feed loads
-- [ ] Branch on `ShareResult.status`; dismissed/unavailable ⇒ "Nothing was sent — your caption is still here."
-- [ ] Constrain captured card to ≤400 dp; derive `pixelRatio` from laid-out width (~1080 px)
-- [ ] Share tile label: no word truncated at 2.0×
-- [ ] Tests: pinned-vs-selected; stale `awaited`→`result_out`; dismissed share message; capture ratio at wide viewport
-- [ ] Commit `fix(share):`
+- [~] `_cardFor`: explicit selection wins when `examId` differs from pinned update
+- [~] Show the shared exam's name in the header
+- [~] Resolve the feed row by `examId` every build; use fresh status/headline/subline/URL/pdf size
+- [~] Keep the tapped row as fallback only before the feed loads
+- [~] Branch on `ShareResult.status`; dismissed/unavailable ⇒ "Nothing was sent — your caption is still here."
+- [~] Constrain captured card to ≤400 dp; derive `pixelRatio` from laid-out width (~1080 px)
+- [~] Share tile label: no word truncated at 2.0×
+- [~] Tests: pinned-vs-selected; stale `awaited`→`result_out`; dismissed share message; capture ratio at wide viewport
+- [~] Commit `fix(share):`
 
 ## Task 6 — Detail sheet: no invented link, no foreign card, no overflow
-- [ ] Remove the invented "Apply online" duplicate row; update the comment
-- [ ] Gate "Exam date (your card)" + "Your card" section on `card.examId == examId`
-- [ ] When a foreign card is present: omit it and show a one-line note
-- [ ] `_LinkTile`: `Semantics(link: true)`
-- [ ] Sheet gets its own `ScaffoldMessenger` + transparent `Scaffold` (About pattern) so the copy-fallback toast is visible
-- [ ] `_DateRowView`: date `Flexible` + ellipsis
-- [ ] `_DateRowView`: countdown no longer a hard 76 px box
-- [ ] `_DateRowView`: stacked layout above ~1.4× text scale
-- [ ] Tests: no duplicate URL; foreign card hidden; `link: true` trait; 320@2.0× zero overflow
-- [ ] Commit `fix(detail):`
+- [~] Remove the invented "Apply online" duplicate row; update the comment
+- [~] Gate "Exam date (your card)" + "Your card" section on `card.examId == examId`
+- [~] When a foreign card is present: omit it and show a one-line note
+- [~] `_LinkTile`: `Semantics(link: true)`
+- [~] Sheet gets its own `ScaffoldMessenger` + transparent `Scaffold` (About pattern) so the copy-fallback toast is visible
+- [~] `_DateRowView`: date `Flexible` + ellipsis
+- [~] `_DateRowView`: countdown no longer a hard 76 px box
+- [~] `_DateRowView`: stacked layout above ~1.4× text scale
+- [~] Tests: no duplicate URL; foreign card hidden; `link: true` trait; 320@2.0× zero overflow
+- [~] Commit `fix(detail):`
 
 ## Task 7 — Vault form: labelled fields, announced errors, no trapped save
-- [ ] `_Field`: `labelText` (floating never) so the accessible name is the label; keep the visual label
-- [ ] Verify the label does not render twice; drop the sibling `Text` if it does
-- [ ] Password toggle: `tooltip: 'Show password' / 'Hide password'`
-- [ ] `_validationNotice` + `_error`: `liveRegion` + `SemanticsService.sendAnnouncement`
-- [ ] `_DateField` gets a key; added to `_revealFirstInvalidField`; `Scrollable.ensureVisible`
-- [ ] `save()` bounded with `.timeout(15s)` inside the existing try/catch ⇒ `_error` + Retry
-- [ ] Close during `_saving` says "Still saving your card…" instead of silently returning
-- [ ] Duplicate check: handle non-`AsyncData` explicitly (await load or say unavailable)
-- [ ] Tests: field semantics label; error announcement; date scrolled into view; hanging save surfaces error; duplicate waits for load
-- [ ] Commit `fix(vault-form):`
+- [~] `_Field`: `labelText` (floating never) so the accessible name is the label; keep the visual label
+- [~] Verify the label does not render twice; drop the sibling `Text` if it does
+- [~] Password toggle: `tooltip: 'Show password' / 'Hide password'`
+- [~] `_validationNotice` + `_error`: `liveRegion` + `SemanticsService.sendAnnouncement`
+- [~] `_DateField` gets a key; added to `_revealFirstInvalidField`; `Scrollable.ensureVisible`
+- [~] `save()` bounded with `.timeout(15s)` inside the existing try/catch ⇒ `_error` + Retry
+- [~] Close during `_saving` says "Still saving your card…" instead of silently returning
+- [~] Duplicate check: handle non-`AsyncData` explicitly (await load or say unavailable)
+- [~] Tests: field semantics label; error announcement; date scrolled into view; hanging save surfaces error; duplicate waits for load
+- [~] Commit `fix(vault-form):`
 
 ## Task 8 — Clipboard: fail loudly, never eat someone else's copy
-- [ ] Wrap `Clipboard.setData` + haptic in try/catch ⇒ error toast, no wipe scheduled
-- [ ] Before wiping, read the clipboard and only clear when it still holds our secret
-- [ ] Skip/cancel the timer when the app is not foregrounded
-- [ ] `context.mounted` check ahead of the empty-value toast
-- [ ] Tests: foreign content survives; own content cleared; throwing clipboard ⇒ error toast + no timer; background cancels timer
-- [ ] Commit `fix(clipboard):`
+- [~] Wrap `Clipboard.setData` + haptic in try/catch ⇒ error toast, no wipe scheduled
+- [~] Before wiping, read the clipboard and only clear when it still holds our secret
+- [~] Skip/cancel the timer when the app is not foregrounded
+- [~] `context.mounted` check ahead of the empty-value toast
+- [~] Tests: foreign content survives; own content cleared; throwing clipboard ⇒ error toast + no timer; background cancels timer
+- [~] Commit `fix(clipboard):`
 
 ## Task 9 — About: real provenance, wrapping headings, no stacked sheets, real delete-all
 - [ ] Render `source.checkedAt` next to the row count ("17 items · checked 4h ago"; full date >24h)
 - [ ] No age shown when `checkedAt` is null (never invent one)
 - [ ] Use `source.homepage` for the source link when present
 - [ ] `EvSectionHeader`: wrap to 2 lines above ~1.4× regardless of `trailing`
+- [ ] **FIX the top-anchored About sheet** (verified: rect (1,1)-(392,766) at 393×852) — move ScaffoldMessenger/Scaffold inside the DraggableScrollableSheet builder; assert geometry
+- [ ] `EvCard` double focus stop: `InkWell(excludeFromSemantics: onTap != null && semanticLabel != null)`
 - [ ] Shared synchronous open-guard (`showOnceSheet` or `_opening` bool) for About + detail sheet
 - [ ] Implement "Delete all data" UI in About under "Your data" with a confirm dialog
 - [ ] Wipe secure vault + settings keys + cached feed + HTTP cache

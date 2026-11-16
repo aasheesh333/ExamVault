@@ -104,6 +104,103 @@ void main() {
     });
   });
 
+  /// The arithmetic FCM used to get wrong: one `_subscribed` set holds both
+  /// category topics and per-exam `exam_*` bells, and a diff against the whole
+  /// set unsubscribed every bell on boot (and on every chip tap).
+  group('category topic diff', () {
+    Set<String> topics(Set<ExamCategory> categories) =>
+        categories.map((c) => c.fcmTopic).toSet();
+
+    test('a per-exam bell survives a category sync', () {
+      final diff = PushService.categoryTopicDiff(
+        topics({ExamCategory.ssc, ExamCategory.upsc}),
+        {ExamCategory.ssc.fcmTopic, 'exam_ssc_cgl_2026'},
+      );
+
+      expect(diff.subscribe, {ExamCategory.upsc.fcmTopic});
+      expect(
+        diff.unsubscribe,
+        isEmpty,
+        reason:
+            'exam_ssc_cgl_2026 is a bell, not a stale category topic — '
+            'unsubscribing it is the boot-time bug',
+      );
+    });
+
+    test('a removed category is unsubscribed while bells stay untouched', () {
+      final diff = PushService.categoryTopicDiff(topics({ExamCategory.ssc}), {
+        ExamCategory.ssc.fcmTopic,
+        ExamCategory.banking.fcmTopic,
+        'exam_ssc_cgl_2026',
+        'exam_ibps_po_2026',
+      });
+
+      expect(diff.subscribe, isEmpty);
+      expect(diff.unsubscribe, {ExamCategory.banking.fcmTopic});
+    });
+
+    test('an empty category set clears categories but not bells', () {
+      final diff = PushService.categoryTopicDiff(const {}, {
+        ExamCategory.ssc.fcmTopic,
+        'exam_ssc_cgl_2026',
+      });
+
+      expect(diff.subscribe, isEmpty);
+      expect(diff.unsubscribe, {ExamCategory.ssc.fcmTopic});
+    });
+
+    test('a bell-only set has nothing to reconcile as a category', () {
+      // A device whose five category topics were dropped by a Play Services
+      // update but whose bells are still live must subscribe all five back and
+      // remove nothing.
+      final all = topics(ExamCategory.values.toSet());
+      final diff = PushService.categoryTopicDiff(all, {'exam_ssc_cgl_2026'});
+
+      expect(diff.subscribe, all);
+      expect(diff.unsubscribe, isEmpty);
+    });
+
+    test('the diff is idempotent: a second run changes nothing', () {
+      final target = topics({ExamCategory.ssc, ExamCategory.railways});
+      final subscribed = {
+        ExamCategory.ssc.fcmTopic,
+        ExamCategory.railways.fcmTopic,
+        'exam_x',
+      };
+      final diff = PushService.categoryTopicDiff(target, subscribed);
+
+      expect(diff.subscribe, isEmpty);
+      expect(diff.unsubscribe, isEmpty);
+    });
+
+    // The mirror direction: `syncExamAlerts` used to read every `exam_*` topic
+    // as a bell, which includes `exam_ssc`, `exam_upsc` and the other category
+    // topics. Toggling one bell unsubscribed all five categories.
+    test('a category topic is never unsubscribed as a stale bell', () {
+      final diff = PushService.bellTopicDiff(
+        {'exam_ssc_cgl_2026'},
+        {for (final c in ExamCategory.values) c.fcmTopic, 'exam_ssc_cgl_2026'},
+      );
+
+      expect(diff.subscribe, isEmpty);
+      expect(
+        diff.unsubscribe,
+        isEmpty,
+        reason: 'turning a bell off must not drop the category topics',
+      );
+    });
+
+    test('a removed bell is unsubscribed while categories stay', () {
+      final diff = PushService.bellTopicDiff(
+        {'exam_ssc_cgl_2026'},
+        {ExamCategory.ssc.fcmTopic, 'exam_ssc_cgl_2026', 'exam_ibps_po_2026'},
+      );
+
+      expect(diff.subscribe, isEmpty);
+      expect(diff.unsubscribe, {'exam_ibps_po_2026'});
+    });
+  });
+
   /// The real `_bootPush` path, not a re-implementation of it: what it hands
   /// `syncTopics` is the property the About claim depends on.
   group('boot push sync', () {

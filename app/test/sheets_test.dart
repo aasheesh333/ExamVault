@@ -307,6 +307,14 @@ void main() {
         400,
         scrollable: find.byType(Scrollable).last,
       );
+      // The policy grew with the picker and the delete-all disclosure, so the
+      // last row can end up with only its top edge inside the viewport — which
+      // scrollUntilVisible counts as visible. ensureVisible finishes the job, as
+      // the About sheet's own last-row test already does.
+      await tester.ensureVisible(
+        find.textContaining('never hosts or redistributes a copy'),
+      );
+      await tester.pumpAndSettle();
       expect(
         find
             .textContaining('never hosts or redistributes a copy')
@@ -1825,6 +1833,10 @@ void main() {
               return Column(
                 children: [
                   Text('cards: ${cards.value?.length ?? -1}'),
+                  Text(
+                    'categories: '
+                    '${ref.watch(followedCategoriesProvider).length}',
+                  ),
                   TextButton(
                     onPressed: () => showAboutSheet(context),
                     child: const Text('open about'),
@@ -1892,11 +1904,58 @@ void main() {
       // Push subscriptions — a deleted setting in every sense the user cares
       // about: leaving them live keeps pinging them about data they deleted.
       expect(push.unsubscribed, 1);
+      expect(
+        push.clearedExamIds,
+        {'exam_1'},
+        reason:
+            'the per-exam bells must be named before the settings that hold '
+            'them are gone, or OneSignal keeps those tags forever',
+      );
+      // …and the categories are re-synced to the post-wipe default, because the
+      // picker now reads as all five. Five selected chips over zero topics is
+      // the same "UI claims a subscription the backend does not have" lie.
+      expect(push.topics, ExamCategory.values.toSet());
       // And the UI emptied without a restart.
       expect(find.text('cards: 0'), findsOneWidget);
       expect(
         find.text('Your admit cards and settings were deleted.'),
         findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    });
+
+    /// The picker reads as the fresh-install default once `followed_categories`
+    /// is deleted, so the backend has to be re-synced in the same session.
+    /// Otherwise About shows five selected categories over a device with zero
+    /// subscriptions until the next launch — the lie this task removes.
+    testWidgets('the picker and the backend agree after the wipe', (
+      tester,
+    ) async {
+      await seedEverything();
+      await tester.pumpWidget(dataHost());
+      await tester.pumpAndSettle();
+      // Seeded to SSC only, so the reset to five is observable.
+      expect(find.text('categories: 1'), findsOneWidget);
+
+      await tester.tap(find.text('open about'));
+      await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(
+        find.text('Delete all data'),
+        300,
+        scrollable: find.byType(Scrollable).last,
+      );
+      await tester.ensureVisible(find.text('Delete all data'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Delete all data'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Delete'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('categories: 5'), findsOneWidget);
+      expect(
+        push.topics,
+        ExamCategory.values.toSet(),
+        reason: 'the backend must be re-synced to what the picker now shows',
       );
       expect(tester.takeException(), isNull);
     });
@@ -2158,11 +2217,49 @@ void main() {
       await scrollToSection(tester);
 
       expect(
-        find.text('No categories — you will not get exam alerts.'),
+        find.text('No categories — you will not get category alerts.'),
         findsOneWidget,
         reason: 'five unselected chips alone do not say "you will get nothing"',
       );
       expect(categoryChips(tester).every((c) => !c.selected), isTrue);
+      expect(tester.takeException(), isNull);
+    });
+
+    /// The in-app policy told every reader to "Pick those categories in About →
+    /// Notifications" — including builds where that section is hidden.
+    testWidgets('the policy only points at the picker when it exists', (
+      tester,
+    ) async {
+      smallPhone(tester, textScale: 1.0);
+
+      Future<void> openPolicy(PushService push) async {
+        await openWith(tester, push);
+        await tester.scrollUntilVisible(
+          find.text('Read the privacy policy'),
+          300,
+          scrollable: find.byType(Scrollable).last,
+        );
+        await tester.ensureVisible(find.text('Read the privacy policy'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Read the privacy policy'));
+        await tester.pumpAndSettle();
+      }
+
+      await openPolicy(_SpyPush());
+      await tester.scrollUntilVisible(
+        find.textContaining('no category picker here'),
+        300,
+        scrollable: find.byType(Scrollable).last,
+      );
+      expect(find.textContaining('Pick those categories'), findsNothing);
+
+      await openPolicy(_SpyPush(canDeliverValue: true));
+      await tester.scrollUntilVisible(
+        find.textContaining('Pick those categories'),
+        300,
+        scrollable: find.byType(Scrollable).last,
+      );
+      expect(find.textContaining('no category picker here'), findsNothing);
       expect(tester.takeException(), isNull);
     });
 
@@ -2181,7 +2278,9 @@ void main() {
 
         expect(
           settingsBox.get('followed_categories'),
-          isNot(contains('railways')),
+          // Exact list, not `isNot(contains(...))`: the negative form is also
+          // satisfied by a missing key, i.e. by a write that never happened.
+          ['ssc', 'upsc', 'banking', 'state_psc'],
           reason: 'the toggle must reach the settings box, not just the chip',
         );
         expect(
@@ -2220,9 +2319,13 @@ class _SpyPush extends PushService {
   /// rather than consuming the caller's whole budget.
   bool hangOnUnsubscribe = false;
 
-  /// The last set handed to `syncTopics`, so a chip tap can be proved to
-  /// reconcile push rather than merely repaint.
+  /// The last set handed to `syncTopics`, so a chip tap and the post-wipe
+  /// re-sync can be proved to reconcile push rather than merely repaint.
   Set<ExamCategory>? topics;
+
+  /// The per-exam bell ids `unsubscribeAll` was told to clear. On OneSignal the
+  /// ids are the only way to reach those tags, so the caller must pass them.
+  Set<String>? clearedExamIds;
 
   @override
   bool get canDeliver => canDeliverValue;
@@ -2233,8 +2336,9 @@ class _SpyPush extends PushService {
   }
 
   @override
-  Future<void> unsubscribeAll() async {
+  Future<void> unsubscribeAll({Set<String> examIds = const {}}) async {
     unsubscribed++;
+    clearedExamIds = examIds;
     if (hangOnUnsubscribe) return Completer<void>().future;
     if (throwOnUnsubscribe) throw StateError('push backend unavailable');
   }

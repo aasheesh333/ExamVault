@@ -418,10 +418,13 @@ class _NotificationCategories extends ConsumerWidget {
         const EvSectionHeader(label: 'Notifications', padding: EdgeInsets.zero),
         const SizedBox(height: 8),
         // What the token is for, before the switches: the policy's claim and
-        // this control must be the same sentence.
+        // this control must be the same sentence. "Category alerts", not "exam
+        // alerts": the per-exam bells are a separate subscription, so turning
+        // every category off does not silence a bell the student switched on.
         _Paragraph(
           'Your push token is subscribed only to the categories you follow; '
-          'turning one off stops those alerts on this device.',
+          'turning one off stops those category alerts on this device. '
+          'Per-exam bells are separate.',
         ),
         const SizedBox(height: 8),
         Wrap(
@@ -440,7 +443,7 @@ class _NotificationCategories extends ConsumerWidget {
           const SizedBox(height: 8),
           // An empty set is a legal choice, but five unselected chips do not
           // say what it means. State it, rather than leaving the user to guess.
-          _Paragraph('No categories — you will not get exam alerts.'),
+          _Paragraph('No categories — you will not get category alerts.'),
         ],
       ],
     );
@@ -881,10 +884,16 @@ Future<void> _showPolicy(BuildContext context) {
   );
 }
 
-class _PolicySheet extends StatelessWidget {
+class _PolicySheet extends ConsumerWidget {
   const _PolicySheet();
 
-  static const _sections = <(String, String)>[
+  /// The policy, with the one sentence that depends on this build.
+  ///
+  /// "Pick those categories in About → Notifications" is only true when that
+  /// section is rendered: on the web and in builds without push credentials the
+  /// picker is hidden, so pointing at it would send the reader to a control
+  /// that does not exist.
+  static List<(String, String)> _sections(bool canDeliver) => [
     (
       'No account, no profile',
       'The app never asks for an email, phone number or password. Nothing you '
@@ -908,14 +917,7 @@ class _PolicySheet extends StatelessWidget {
           'request carries no personal data — the same request a browser makes '
           'for the same public file.',
     ),
-    (
-      'Notifications',
-      'If you allow them, a push token is used only to send result alerts for '
-          'the categories you follow. Pick those categories in About \u2192 '
-          'Notifications; turning one off unsubscribes it. It is not linked to '
-          'your vault or your roll number, and denying the permission changes '
-          'nothing else.',
-    ),
+    ('Notifications', _notificationsSection(canDeliver)),
     (
       'No analytics, no adverts',
       'There is no analytics SDK, no advertising identifier and no location '
@@ -924,9 +926,9 @@ class _PolicySheet extends StatelessWidget {
     (
       'Deleting your data',
       'Delete a card to remove that card, or use Delete all data in About to '
-          'remove every card, every setting and the cached feed at once. '
-          'Uninstalling removes everything. We hold no copy, so there is nothing '
-          'to request from us.',
+          'remove every card, every setting and the cached feed at once, and to '
+          'drop this device\u2019s push subscriptions. Uninstalling removes '
+          'everything. We hold no copy, so there is nothing to request from us.',
     ),
     (
       'Official documents',
@@ -935,9 +937,21 @@ class _PolicySheet extends StatelessWidget {
     ),
   ];
 
+  /// The token paragraph. Only the middle sentence depends on whether this
+  /// build can deliver a push, and the reader must not be sent to a picker that
+  /// is not rendered.
+  static String _notificationsSection(bool canDeliver) =>
+      'If you allow them, a push token is used only to send result alerts for '
+      'the categories you follow. '
+      '${canDeliver ? 'Pick those categories in About \u2192 Notifications; turning one off unsubscribes it. ' : 'This build cannot deliver push notifications, so there is no category picker here. '}'
+      'Per-exam bells are a separate subscription. The token is not linked to '
+      'your vault or your roll number, and denying the permission changes '
+      'nothing else.';
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final p = context.ev;
+    final sections = _sections(ref.watch(pushServiceProvider).canDeliver);
     return Container(
       decoration: BoxDecoration(
         color: p.surface,
@@ -962,7 +976,7 @@ class _PolicySheet extends StatelessWidget {
                   'What is stored, what leaves the phone, and what does not.',
             ),
             const SizedBox(height: 16),
-            for (final (title, body) in _sections) ...[
+            for (final (title, body) in sections) ...[
               Text(title, style: context.type.tileTitle.copyWith()),
               const SizedBox(height: 4),
               _Paragraph(body),

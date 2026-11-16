@@ -1,6 +1,6 @@
 # Privacy policy
 
-**Last updated: 11 November 2026**
+**Last updated: 16 November 2026**
 
 ExamVault is a study utility for Indian competitive-exam aspirants. This document
 describes exactly what the app stores, what leaves your device, and what does not.
@@ -35,11 +35,13 @@ Deleting an admit card deletes its entry from the encrypted store.
 
 **Delete all data**, in the app's About sheet, removes every admit card, every
 setting (including the notification categories you chose) and the cached feed and
-result index in one tap, without uninstalling. The push token itself is kept — it
-carries no exam or vault data, and re-registering on every wipe would churn the
-provider for no privacy gain — but its category-topic subscriptions are dropped,
-so no alert arrives for data the app no longer holds. Uninstalling the app
-removes everything, and the push token goes with it.
+result index in one tap, without uninstalling. It also drops this device's push
+subscriptions — every per-exam bell and every category topic — and then
+re-subscribes the fresh-install default, which is all five categories, so the
+Notifications section in About shows what the device is actually subscribed to.
+The push token itself is kept — it carries no exam or vault data, and
+re-registering on every wipe would churn the provider for no privacy gain.
+Uninstalling the app removes everything, and the push token goes with it.
 
 **There is no way for us to recover your data.** We never hold a copy of it.
 
@@ -58,9 +60,11 @@ Three things, and nothing else:
    (SSC, UPSC, Banking, Railways, State PSC) you follow. The token is subscribed
    only to the topics for the categories you chose, and turning one off
    unsubscribes it from that topic. Choosing no categories is allowed: you then
-   receive no exam alerts, and the app says so on that screen. The token is not
-   linked to your vault, your roll number, or any other data in the app, and it
-   goes away when you turn notifications off or uninstall.
+   receive no **category** alerts (per-exam bells you switched on separately are
+   a different subscription and keep working), and the app says so on that
+   screen. The token is not linked to your vault, your roll number, or any other
+   data in the app, and it goes away when you turn notifications off or
+   uninstall.
 3. **Nothing else.** No crash reports, no usage events, no device fingerprint.
    (The in-app error logger writes to the Dart VM's debug sink only; a release
    build has no such sink, and nothing is uploaded.)
@@ -146,11 +150,12 @@ device-level encryption alone.
 - **Notifications:** deny the permission, or turn them off in Android settings —
   either unsubscribes the device, and the provider's token for it goes away.
   The About sheet's **Notifications** section also lets you choose which exam
-  categories to follow; turning every category off stops exam alerts without
-  changing the OS permission.
+  categories to follow; turning every category off stops category alerts without
+  changing the OS permission (per-exam bells are a separate subscription).
 - **Your data:** delete individual cards in the app, use **Delete all data** in
-  About to remove every card and setting at once, or uninstall to remove
-  everything.
+  About to remove every card and setting at once (it also drops the per-exam
+  bells and the category topics, then re-applies the default of all five
+  categories), or uninstall to remove everything.
 - **Offline only:** enable airplane mode. The feed and any index you have already
   downloaded keep working; nothing about the vault depends on the network.
 

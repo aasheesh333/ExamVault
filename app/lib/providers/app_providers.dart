@@ -147,9 +147,16 @@ final shareServiceProvider = Provider<ShareService>((ref) => ShareService());
 ///
 /// The push **token is kept** (re-registering on every wipe only churns the
 /// backend for no privacy gain — the token carries no exam or vault data) but
-/// every **subscription is dropped** via `PushService.unsubscribeAll()`, so no
-/// alert arrives for an exam the app now says it knows nothing about. A live
-/// notification subscription is a setting in every sense the user cares about.
+/// every **subscription is dropped**: the per-exam bells and the category
+/// topics both go, so no alert arrives for an exam the app now says it knows
+/// nothing about. A live notification subscription is a setting in every sense
+/// the user cares about.
+///
+/// The category sync then runs again against the post-wipe default. Deleting
+/// `followed_categories` makes the picker read as all five, and a picker
+/// showing five selected categories over a device with zero subscriptions is
+/// the same lie this app keeps having to fix — so the backend is brought back
+/// in line with what About now displays.
 ///
 /// Deliberately not touched: the installed app and the bundled seed feed.
 class DataWiper {
@@ -158,6 +165,10 @@ class DataWiper {
   final Ref _ref;
 
   Future<void> deleteAll() async {
+    // Read the bells before the settings delete: once `exam_alerts` is gone
+    // there is no way to name the per-exam topics that must be switched off.
+    final examIds = _ref.read(examAlertsProvider);
+
     try {
       // The vault first: it is the only copy of the user's own data.
       await _ref.read(admitCardRepositoryProvider).wipe();
@@ -188,20 +199,30 @@ class DataWiper {
 
     // Best effort, and last: the local data is already gone, so a push failure
     // must not make the wipe look unsuccessful. Keeps the token (no
-    // re-register churn) but drops every topic, so no alert arrives for data
-    // that no longer exists.
+    // re-register churn) but drops every subscription, so no alert arrives for
+    // data that no longer exists.
     //
-    // Bounded to 2s on its own clock, not the caller's 15s budget: a hung
-    // network unsubscribe would otherwise consume the whole allowance and
+    // Bounded to 2s per call on its own clock, not the caller's 15s budget: a
+    // hung network unsubscribe would otherwise consume the whole allowance and
     // report "Could not delete everything" after a completely successful local
     // wipe — the exact wrong answer the ordering above exists to avoid.
+    final push = _ref.read(pushServiceProvider);
     try {
-      await _ref
-          .read(pushServiceProvider)
-          .unsubscribeAll()
+      await push
+          .unsubscribeAll(examIds: examIds)
           .timeout(const Duration(seconds: 2), onTimeout: () {});
     } catch (e) {
       AppLogger.w('wipe', 'could not unsubscribe push topics: $e');
+    }
+    try {
+      // The picker now reads as the fresh-install default (the key was
+      // deleted), so subscribe the token to exactly that. Without this, About
+      // showed five selected categories over a device with none.
+      await push
+          .syncTopics(_ref.read(followedCategoriesProvider))
+          .timeout(const Duration(seconds: 2), onTimeout: () {});
+    } catch (e) {
+      AppLogger.w('wipe', 'could not re-sync push categories: $e');
     }
   }
 }

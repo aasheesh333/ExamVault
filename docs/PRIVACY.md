@@ -15,8 +15,8 @@ It is written to match the code; where the two disagree, that is a bug.
 - The app collects **no analytics, no advertising identifiers, and no location**.
 - If you allow notifications, the push providers (Firebase Cloud Messaging /
   OneSignal) hold a **push token — a device identifier** used only to route exam
-  alerts to your device. Details below, and in the Play "Data safety" answers at
-  the end.
+  alerts for the categories you choose to your device. Details below, and in the
+  Play "Data safety" answers at the end.
 
 ## What is stored on your device
 
@@ -31,8 +31,15 @@ The encrypted store is excluded from Android Auto Backup and from device-to-devi
 transfer (`android:allowBackup="false"` plus an explicit data-extraction rule), so
 your admit cards do not leave the phone even during a migration.
 
-Deleting an admit card deletes its entry from the encrypted store. Uninstalling
-the app removes everything.
+Deleting an admit card deletes its entry from the encrypted store.
+
+**Delete all data**, in the app's About sheet, removes every admit card, every
+setting (including the notification categories you chose) and the cached feed and
+result index in one tap, without uninstalling. The push token itself is kept — it
+carries no exam or vault data, and re-registering on every wipe would churn the
+provider for no privacy gain — but its category-topic subscriptions are dropped,
+so no alert arrives for data the app no longer holds. Uninstalling the app
+removes everything, and the push token goes with it.
 
 **There is no way for us to recover your data.** We never hold a copy of it.
 
@@ -46,13 +53,14 @@ Three things, and nothing else:
    any browser would make for the same public file.
 2. **A push-notification token**, if you allow notifications. This token is a
    device identifier: it is issued by Firebase Cloud Messaging or OneSignal, and
-   the provider uses it to route exam alerts to your device. There is no
-   per-category picker in this release — when push is enabled the app subscribes
-   the token to **all five** exam categories (SSC, UPSC, Banking, Railways,
-   State PSC; `main.dart` calls `push.syncTopics(ExamCategory.values.toSet())`),
-   so the real choice is "all exam alerts" or "none". The token is not linked to
-   your vault, your roll number, or any other data in the app, and it goes away
-   when you turn notifications off or uninstall.
+   the provider uses it to route exam alerts to your device. The About sheet has
+   a **Notifications** section where you choose which of the five exam categories
+   (SSC, UPSC, Banking, Railways, State PSC) you follow. The token is subscribed
+   only to the topics for the categories you chose, and turning one off
+   unsubscribes it from that topic. Choosing no categories is allowed: you then
+   receive no exam alerts, and the app says so on that screen. The token is not
+   linked to your vault, your roll number, or any other data in the app, and it
+   goes away when you turn notifications off or uninstall.
 3. **Nothing else.** No crash reports, no usage events, no device fingerprint.
    (The in-app error logger writes to the Dart VM's debug sink only; a release
    build has no such sink, and nothing is uploaded.)
@@ -77,8 +85,8 @@ on the commission's own website; it does not host or redistribute them.
 | Service | Purpose | Data received |
 |---|---|---|
 | Cloudflare (R2 + Workers) | Delivers the public feed and index files | The request itself: IP address, user agent, timestamp — standard web-server logs |
-| Firebase Cloud Messaging | Optional push notifications | A push token (a device identifier used for routing) and the five category-topic subscriptions |
-| OneSignal | Optional push notifications | A push token / player ID (a device identifier) and the same five categories as boolean tags |
+| Firebase Cloud Messaging | Optional push notifications | A push token (a device identifier used for routing) and the category-topic subscriptions you chose |
+| OneSignal | Optional push notifications | A push token / player ID (a device identifier) and the same chosen categories as boolean tags |
 | Official commission websites | Not contacted by the app; opened in your browser when you tap an official link | Whatever your browser sends them |
 
 None of these receive your vault contents or your roll number. The push
@@ -137,8 +145,11 @@ device-level encryption alone.
 
 - **Notifications:** deny the permission, or turn them off in Android settings —
   either unsubscribes the device, and the provider's token for it goes away.
-  There is no per-category selection in this release; it is all alerts or none.
-- **Your data:** delete individual cards in the app, or uninstall to remove
+  The About sheet's **Notifications** section also lets you choose which exam
+  categories to follow; turning every category off stops exam alerts without
+  changing the OS permission.
+- **Your data:** delete individual cards in the app, use **Delete all data** in
+  About to remove every card and setting at once, or uninstall to remove
   everything.
 - **Offline only:** enable airplane mode. The feed and any index you have already
   downloaded keep working; nothing about the vault depends on the network.
@@ -161,7 +172,9 @@ none): open an issue at <https://github.com/aasheesh333/ExamVault/issues>.
 - Does your app collect or share any of the required user data types?
   **Yes — exactly one type: "Device or other IDs".**
   - What: the push token (FCM registration token / OneSignal player ID) —
-    collected by the push providers to deliver exam alerts to the device.
+    collected by the push providers to deliver exam alerts to the device. The
+    in-app picker narrows which exam-category topics this same token subscribes
+    to; it does not add a data type, a second identifier, or a new recipient.
   - Sold to third parties? **No.**
   - Purpose: **App functionality** (notifications the user opted into by
     allowing notifications).
@@ -174,6 +187,8 @@ none): open an issue at <https://github.com/aasheesh333/ExamVault/issues>.
 - Is all of the user data encrypted in transit? **Yes** (HTTPS only;
   `usesCleartextTraffic="false"`).
 - Does your app provide a way for users to request that their data be deleted?
-  **Yes** — deleting a card in-app or uninstalling removes all on-device data;
-  uninstalling or disabling notifications unsubscribes the push token.
+  **Yes** — **Delete all data** in the About sheet removes every card, setting
+  and cached public file on the device, deleting a card removes that card, and
+  uninstalling removes everything; uninstalling or disabling notifications
+  unsubscribes the push token.
 - Are you using a third-party analytics or advertising SDK? **No.**

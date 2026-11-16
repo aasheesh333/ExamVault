@@ -38,10 +38,12 @@ final settingsBoxProvider = Provider<Box<dynamic>>(
 const themeSettingKey = 'theme';
 const examAlertsSettingKey = 'exam_alerts';
 const alertsSeenSettingKey = 'alerts_seen_at';
+const followedCategoriesSettingKey = 'followed_categories';
 const settingsKeys = <String>[
   themeSettingKey,
   examAlertsSettingKey,
   alertsSeenSettingKey,
+  followedCategoriesSettingKey,
 ];
 
 /// Light / dark / follow-system.
@@ -177,6 +179,7 @@ class DataWiper {
       _ref.invalidate(themePreferenceProvider);
       _ref.invalidate(examAlertsProvider);
       _ref.invalidate(alertsSeenProvider);
+      _ref.invalidate(followedCategoriesProvider);
       _ref.invalidate(liveFeedProvider);
       _ref.invalidate(resultCheckerProvider);
       _ref.invalidate(selectedCardIdProvider);
@@ -688,7 +691,12 @@ class ExamAlertsNotifier extends Notifier<Set<String>> {
   }
 
   /// Returns the new state so the caller can reconcile push without re-reading.
+  ///
+  /// On a failed write the state is rolled back and *that* set is returned, so
+  /// the caller subscribes the topics that will actually survive the next
+  /// launch instead of one the UI only pretended to save.
   Future<Set<String>> toggle(String examId) async {
+    final previous = state;
     final next = {...state};
     if (!next.remove(examId)) next.add(examId);
     state = Set.unmodifiable(next);
@@ -698,8 +706,12 @@ class ExamAlertsNotifier extends Notifier<Set<String>> {
           .put(examAlertsSettingKey, next.toList());
     } catch (e) {
       // A failed write must not leave the UI claiming a subscription that will
-      // be gone on next launch — same rule as the theme preference.
+      // be gone on next launch — same rule as the theme preference, which rolls
+      // `state` back. This branch used to only log, so the bell stayed ON over
+      // an empty disk and the next launch showed it OFF while alerts kept
+      // arriving.
       AppLogger.w('alerts', 'could not persist exam alerts: $e');
+      state = previous;
     }
     return state;
   }
@@ -708,6 +720,60 @@ class ExamAlertsNotifier extends Notifier<Set<String>> {
 final examAlertsProvider = NotifierProvider<ExamAlertsNotifier, Set<String>>(
   ExamAlertsNotifier.new,
 );
+
+/// Exam categories whose alerts the student wants, persisted by category id.
+///
+/// The About sheet and the privacy policy both told the user the push token was
+/// used "for the categories you follow", but nothing let anyone follow a subset:
+/// `bootPush` subscribed every device to all five. This is that promise kept,
+/// and the value the boot sync and every chip toggle reconcile against.
+///
+/// **Absent means all five.** Every install that predates the picker was
+/// subscribed to all five, and a fresh install must not silently receive
+/// nothing — so only a stored list, *including an empty one*, counts as a
+/// choice. Empty is legal: the student turned every category off, and coercing
+/// that back to all five would subscribe them to alerts they refused.
+class FollowedCategoriesNotifier extends Notifier<Set<ExamCategory>> {
+  @override
+  Set<ExamCategory> build() {
+    final box = ref.watch(settingsBoxProvider);
+    final raw = box.get(followedCategoriesSettingKey);
+    if (raw is! List) return ExamCategory.values.toSet();
+    // Per-item tolerance, like [ExamAlertsNotifier]: one removed category id in
+    // an older list must not throw away the categories that still exist.
+    return {
+      for (final v in raw)
+        if (v is String) ?ExamCategory.fromId(v),
+    };
+  }
+
+  /// Flips [category] and returns the persisted set so the caller can
+  /// reconcile push without re-reading.
+  ///
+  /// On a failed write the state is rolled back and *that* set is returned, for
+  /// the same reason as [ExamAlertsNotifier.toggle]: the chips must not claim a
+  /// choice the next launch will not have.
+  Future<Set<ExamCategory>> toggle(ExamCategory category) async {
+    final previous = state;
+    final next = {...state};
+    if (!next.remove(category)) next.add(category);
+    state = Set.unmodifiable(next);
+    try {
+      await ref.read(settingsBoxProvider).put(followedCategoriesSettingKey, [
+        for (final c in next) c.id,
+      ]);
+    } catch (e) {
+      AppLogger.w('push', 'could not persist followed categories: $e');
+      state = previous;
+    }
+    return state;
+  }
+}
+
+final followedCategoriesProvider =
+    NotifierProvider<FollowedCategoriesNotifier, Set<ExamCategory>>(
+      FollowedCategoriesNotifier.new,
+    );
 
 /// Number shown on the radar tab badge — expired rows do not count.
 final liveRadarBadgeProvider = Provider<int>((ref) {

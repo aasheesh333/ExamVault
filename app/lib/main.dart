@@ -11,7 +11,6 @@ import 'core/config/app_config.dart';
 import 'data/repositories/admit_card_repository.dart';
 import 'data/services/app_logger.dart';
 import 'data/services/push_service.dart';
-import 'domain/entities/exam_category.dart';
 import 'providers/app_providers.dart';
 
 Future<void> main() async {
@@ -50,7 +49,7 @@ Future<void> main() async {
   );
 
   // Push is best-effort: a failure here must never stop the app from booting.
-  unawaited(_bootPush(container));
+  unawaited(bootPush(container));
 
   runApp(
     UncontrolledProviderScope(
@@ -126,7 +125,13 @@ Future<void> _purgeLegacySampleCards() async {
   }
 }
 
-Future<void> _bootPush(ProviderContainer container) async {
+/// Reconciles the push backend with what this device stored.
+///
+/// Public so a test can drive the real boot path: the categories it subscribes
+/// to are the user's choice, not a constant, and that is exactly the property
+/// worth pinning.
+@visibleForTesting
+Future<void> bootPush(ProviderContainer container) async {
   final push = container.read(pushServiceProvider);
   final provider = await push.initialise();
   if (provider == PushProvider.disabled) return;
@@ -136,10 +141,11 @@ Future<void> _bootPush(ProviderContainer container) async {
   // sync is idempotent.
   await push.syncExamAlerts(container.read(examAlertsProvider));
 
-  // Subscribe to every category the app covers.
+  // Subscribe to the categories the student follows — not to every category.
   //
-  // It used to be just SSC and UPSC, so a student who only follows Banking or
-  // Railways — both of which now publish real rows — would never receive a
-  // notification about them. The topics are cheap and empty topics cost nothing.
-  await push.syncTopics(ExamCategory.values.toSet());
+  // This used to pass `ExamCategory.values.toSet()`, which made the About
+  // sheet's "for the categories you follow" a promise no code kept: every
+  // device received all five. The stored set defaults to all five for anyone
+  // who never opened the picker, so existing users keep the behaviour they had.
+  await push.syncTopics(container.read(followedCategoriesProvider));
 }

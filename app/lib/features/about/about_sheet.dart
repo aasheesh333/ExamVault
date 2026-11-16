@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -6,6 +8,7 @@ import '../../core/config/app_config.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/theme_tokens.dart';
 import '../../data/services/app_logger.dart';
+import '../../domain/entities/exam_category.dart';
 import '../../domain/entities/live_update.dart';
 import '../../providers/app_providers.dart';
 import '../../shared/widgets/ev_controls.dart';
@@ -170,6 +173,11 @@ class _AboutSheet extends ConsumerWidget {
                     'Roll numbers you type are checked on your device and are not '
                     'sent to us.',
                   ),
+
+                  const SizedBox(height: 20),
+
+                  // --- Notifications ------------------------------------------------
+                  const _NotificationCategories(),
 
                   const SizedBox(height: 20),
 
@@ -379,6 +387,74 @@ class _ThemePicker extends ConsumerWidget {
           ),
       ],
     );
+  }
+}
+
+/// The exam categories this device's push token is subscribed to.
+///
+/// The About sheet and the privacy policy both said the token was used "for the
+/// categories you follow", while every device was subscribed to all five and
+/// nothing let a student follow anything. These chips are that promise kept.
+///
+/// Hidden where a push cannot arrive: on the web and in a build without push
+/// credentials the switch would change nothing, and offering it would be a lie.
+/// The one-line note that replaces the section says why.
+class _NotificationCategories extends ConsumerWidget {
+  const _NotificationCategories();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (!ref.watch(pushServiceProvider).canDeliver) {
+      return _Paragraph(
+        'This build cannot deliver push notifications (web, or a build without '
+        'push credentials), so there are no categories to choose.',
+      );
+    }
+
+    final followed = ref.watch(followedCategoriesProvider);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const EvSectionHeader(label: 'Notifications', padding: EdgeInsets.zero),
+        const SizedBox(height: 8),
+        // What the token is for, before the switches: the policy's claim and
+        // this control must be the same sentence.
+        _Paragraph(
+          'Your push token is subscribed only to the categories you follow; '
+          'turning one off stops those alerts on this device.',
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 7,
+          runSpacing: 7,
+          children: [
+            for (final category in ExamCategory.values)
+              EvChip(
+                label: category.label,
+                selected: followed.contains(category),
+                onTap: () => _toggle(ref, category),
+              ),
+          ],
+        ),
+        if (followed.isEmpty) ...[
+          const SizedBox(height: 8),
+          // An empty set is a legal choice, but five unselected chips do not
+          // say what it means. State it, rather than leaving the user to guess.
+          _Paragraph('No categories — you will not get exam alerts.'),
+        ],
+      ],
+    );
+  }
+
+  /// Optimistic, log-only failure — the posture of the per-exam bells in
+  /// `command_center_screen.dart`: flip the state, then reconcile the backend.
+  /// `syncTopics` is idempotent, so a subscription dropped by a Play Services
+  /// update repairs itself on the next boot.
+  Future<void> _toggle(WidgetRef ref, ExamCategory category) async {
+    final next = await ref
+        .read(followedCategoriesProvider.notifier)
+        .toggle(category);
+    unawaited(ref.read(pushServiceProvider).syncTopics(next));
   }
 }
 
@@ -835,8 +911,10 @@ class _PolicySheet extends StatelessWidget {
     (
       'Notifications',
       'If you allow them, a push token is used only to send result alerts for '
-          'the categories you follow. It is not linked to your vault or your roll '
-          'number, and denying the permission changes nothing else.',
+          'the categories you follow. Pick those categories in About \u2192 '
+          'Notifications; turning one off unsubscribes it. It is not linked to '
+          'your vault or your roll number, and denying the permission changes '
+          'nothing else.',
     ),
     (
       'No analytics, no adverts',
@@ -845,8 +923,10 @@ class _PolicySheet extends StatelessWidget {
     ),
     (
       'Deleting your data',
-      'Delete a card in the app, or uninstall. Both remove everything — we hold '
-          'no copy, so there is nothing to request from us.',
+      'Delete a card to remove that card, or use Delete all data in About to '
+          'remove every card, every setting and the cached feed at once. '
+          'Uninstalling removes everything. We hold no copy, so there is nothing '
+          'to request from us.',
     ),
     (
       'Official documents',

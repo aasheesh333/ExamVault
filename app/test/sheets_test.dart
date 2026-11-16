@@ -135,9 +135,11 @@ void main() {
     LiveFeedNotifier Function()? feedOverride,
     ValueChanged<Future<bool>>? onAlertsResult,
     ValueChanged<WidgetRef>? onRef,
+    PushService? push,
   }) => ProviderScope(
     overrides: [
       settingsBoxProvider.overrideWithValue(settingsBox),
+      if (push != null) pushServiceProvider.overrideWithValue(push),
       liveFeedProvider.overrideWith(
         feedOverride ??
             () => _StaticLiveFeed(
@@ -1839,6 +1841,7 @@ void main() {
       await settingsBox.put('theme', 'light');
       await settingsBox.put('exam_alerts', ['exam_1']);
       await settingsBox.put('alerts_seen_at', '2026-11-15T10:00:00Z');
+      await settingsBox.put('followed_categories', ['ssc']);
       await cacheBox.put('feed', {'revision': 1, 'updates': <dynamic>[]});
       await cacheBox.put('https://cdn.test/v1/x.gz', {
         'b': Uint8List(2),
@@ -2039,6 +2042,163 @@ void main() {
       expect(find.textContaining('It cannot be undone.'), findsOneWidget);
     });
   });
+
+  /// The About sheet told the user the push token was used "for the categories
+  /// you follow" while `_bootPush` subscribed every device to all five. These
+  /// pin the control that makes the sentence true, and its two honest absences:
+  /// a build that cannot deliver, and a student who turned everything off.
+  group('About notification categories', () {
+    // In-memory box for this group: the file-backed pair opened in the outer
+    // setUp cannot be written from inside `testWidgets` — Hive's disk I/O
+    // completes on the real event loop, which the fake test clock never drains,
+    // so the chip's `put` would hang and the re-sync would never run.
+    setUp(() async {
+      settingsBox = await Hive.openBox<dynamic>(
+        'notif_s${DateTime.now().microsecondsSinceEpoch}',
+        bytes: Uint8List(0),
+      );
+    });
+
+    Future<void> openWith(WidgetTester tester, PushService push) async {
+      await tester.pumpWidget(host(push: push));
+      await tester.pump();
+      await tester.tap(find.text('open about'));
+      await tester.pumpAndSettle();
+    }
+
+    /// The section sits below "What we store" and the sheet's ListView is lazy.
+    Future<void> scrollToSection(WidgetTester tester) async {
+      await tester.scrollUntilVisible(
+        find.text('NOTIFICATIONS'),
+        300,
+        scrollable: find.byType(Scrollable).last,
+      );
+      await tester.ensureVisible(find.text('NOTIFICATIONS'));
+      await tester.pumpAndSettle();
+    }
+
+    List<EvChip> categoryChips(WidgetTester tester) => tester
+        .widgetList<EvChip>(find.byType(EvChip))
+        .where((c) => ExamCategory.values.any((e) => e.label == c.label))
+        .toList();
+
+    testWidgets('one chip per category, all selected by default', (
+      tester,
+    ) async {
+      smallPhone(tester, textScale: 1.0);
+      await openWith(tester, _SpyPush(canDeliverValue: true));
+      await scrollToSection(tester);
+
+      final chips = categoryChips(tester);
+      expect(
+        chips.map((c) => c.label),
+        ExamCategory.values.map((e) => e.label),
+        reason: 'every category the backend can deliver needs a switch',
+      );
+      expect(
+        chips.every((c) => c.selected),
+        isTrue,
+        reason:
+            'an absent key means the user never chose — all five, as before',
+      );
+      // The one-line explanation of what the token is for.
+      expect(
+        find.textContaining('push token is subscribed only to the categories'),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('hidden, with the reason, when push cannot deliver', (
+      tester,
+    ) async {
+      smallPhone(tester, textScale: 1.0);
+      // The default double reports `canDeliver == false`, which is what a web
+      // build or a build without push credentials reports.
+      await openWith(tester, _SpyPush());
+
+      await tester.scrollUntilVisible(
+        find.textContaining('cannot deliver push notifications'),
+        300,
+        scrollable: find.byType(Scrollable).last,
+      );
+
+      expect(
+        find.text('NOTIFICATIONS'),
+        findsNothing,
+        reason: 'a switch that cannot deliver anything would be a lie',
+      );
+      expect(categoryChips(tester), isEmpty);
+      expect(
+        find.textContaining('cannot deliver push notifications'),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('lays out at 320x568 @ 2.0x with push enabled', (tester) async {
+      // The section only exists in a build that can deliver, so the 2.0x floor
+      // has to be exercised with the chips present — the default host hides it.
+      smallPhone(tester);
+      await openWith(tester, _SpyPush(canDeliverValue: true));
+      await scrollToSection(tester);
+      await tester.ensureVisible(find.text('Railways'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Railways').hitTestable(), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('an empty set says out loud that no alerts will arrive', (
+      tester,
+    ) async {
+      smallPhone(tester, textScale: 1.0);
+      await settingsBox.put('followed_categories', <String>[]);
+      await openWith(tester, _SpyPush(canDeliverValue: true));
+      await scrollToSection(tester);
+
+      expect(
+        find.text('No categories — you will not get exam alerts.'),
+        findsOneWidget,
+        reason: 'five unselected chips alone do not say "you will get nothing"',
+      );
+      expect(categoryChips(tester).every((c) => !c.selected), isTrue);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets(
+      'a tap persists the choice and re-syncs push with the new set',
+      (tester) async {
+        smallPhone(tester, textScale: 1.0);
+        final push = _SpyPush(canDeliverValue: true);
+        await openWith(tester, push);
+        await scrollToSection(tester);
+        await tester.ensureVisible(find.text('Railways'));
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Railways'));
+        await tester.pumpAndSettle();
+
+        expect(
+          settingsBox.get('followed_categories'),
+          isNot(contains('railways')),
+          reason: 'the toggle must reach the settings box, not just the chip',
+        );
+        expect(
+          push.topics,
+          {
+            ExamCategory.ssc,
+            ExamCategory.upsc,
+            ExamCategory.banking,
+            ExamCategory.statePsc,
+          },
+          reason:
+              'push must be reconciled against the persisted set immediately',
+        );
+        expect(tester.takeException(), isNull);
+      },
+    );
+  });
 }
 
 /// A `PushService` that records `unsubscribeAll()` without touching a backend.
@@ -2047,12 +2207,30 @@ void main() {
 /// counted it is the whole assertion, and the throwing variant proves the wipe
 /// does not depend on the network.
 class _SpyPush extends PushService {
+  _SpyPush({this.canDeliverValue = false});
+
+  /// Whether this double pretends a push can arrive. The About picker is
+  /// hidden when it cannot; the delete-all tests leave it false.
+  final bool canDeliverValue;
+
   int unsubscribed = 0;
   bool throwOnUnsubscribe = false;
 
   /// Models a network call that never returns. `deleteAll` must bound it itself
   /// rather than consuming the caller's whole budget.
   bool hangOnUnsubscribe = false;
+
+  /// The last set handed to `syncTopics`, so a chip tap can be proved to
+  /// reconcile push rather than merely repaint.
+  Set<ExamCategory>? topics;
+
+  @override
+  bool get canDeliver => canDeliverValue;
+
+  @override
+  Future<void> syncTopics(Set<ExamCategory> categories) async {
+    topics = categories;
+  }
 
   @override
   Future<void> unsubscribeAll() async {

@@ -446,9 +446,9 @@ class PushService {
   /// the wipe re-subscribes the category default immediately afterwards
   /// (`DataWiper.deleteAll`), so leaving them alone is both correct and one
   /// round trip cheaper. An `exam_<id>` that happens to name a category id is
-  /// indistinguishable from that category (the deferred collision in
-  /// `docs/AUDIT_2026-11-16.md`) and unsubscribing it there is harmless for the
-  /// same reason.
+  /// indistinguishable from that category (a deferred collision recorded in
+  /// `continue.md` § 7) and unsubscribing it there is harmless for the same
+  /// reason.
   ///
   /// Pure, like [categoryTopicDiff] and [bellTopicDiff]: `FirebaseMessaging`'s
   /// instance cannot be faked in a unit test, so the decision lives here where

@@ -7,7 +7,7 @@ this environment can re-derive, it says so.
 ## Release notes — 1.0.1
 
 Written for the student, not for us. Every line describes behaviour the shipped
-code has; the commit-level record is in `docs/AUDIT_2026-11-16.md` § *Disposition*.
+code has; the commit-level record is in `continue.md` § 4.
 
 **Paste-ready for the Console's "What's new" field** (the field caps it at 500
 characters per language — re-check the counter at submission):

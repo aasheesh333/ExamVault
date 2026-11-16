@@ -141,6 +141,7 @@ Audit: `docs/AUDIT_2026-11-16.md`. Ledger: `.superpowers/sdd/PLAN_play_store_rea
 - [x] `manifest.json`: add stable `"id": "/"`
 - [x] `exam_detail_sheet.dart:410` `fontSize: 10` ⇒ 11
 - [x] `exam_calendar_screen.dart:392` `fontSize: 10` ⇒ 11
+- [ ] `DayTickNotifier.build()`: dispose the previous `_lifecycle` before reassigning (Task 10 owns the file)
 - [x] Re-check both rows at 320@2.0× after the size bump
 - [x] Commit `chore(cleanup):`
 

@@ -30,7 +30,7 @@ Audit: `docs/AUDIT_2026-11-16.md`. Ledger: `.superpowers/sdd/PLAN_play_store_rea
 - [x] `ev_surfaces.dart` `EvCard` — 8th site found by the implementer: wrapper now carries `onTap`
 - [x] `a11y_matrix_test.dart`: assert every `isButton` node has a tap/longPress action, all 5 tabs @320@2.0×
 - [x] Guard exemption for explicitly disabled nodes (`isEnabled == false`), verified narrow
-- [ ] DEFERRED → Task 9: `EvCard` inner `InkWell` still yields a second focus stop (`excludeFromSemantics` fix)
+- [x] DEFERRED → Task 9: `EvCard` inner `InkWell` still yields a second focus stop (`excludeFromSemantics` fix)
 - [x] New test: activate `EvTextAction` through the semantics layer, assert callback ran
 - [x] Verify the new matrix assertion FAILS on pre-fix code
 - [x] Commit `fix(a11y):`
@@ -46,58 +46,58 @@ Audit: `docs/AUDIT_2026-11-16.md`. Ledger: `.superpowers/sdd/PLAN_play_store_rea
 - [x] Commit `fix(vault):`
 
 ## Task 4 — Alerts inbox honest + survives 2.0×
-- [~] Branch body: loading ⇒ "Checking for updates…" + progress
-- [~] Branch body: error & no value ⇒ "Could not check for updates." + reason + Retry (`invalidate`)
-- [~] Branch body: loaded & empty ⇒ current copy
-- [~] Branch body: loaded & rows ⇒ list
-- [~] Header subtitle matches body state (no "Nothing needs your attention" over spinner/error)
-- [~] Preserve `onLoadedAlertsRendered` contract exactly (loaded, non-empty, not loading)
-- [~] Wrap `_AlertRow` pill in `Flexible` + `FittedBox(scaleDown)` right-aligned
-- [~] Tests: loading / error+Retry / empty / 320@2.0× no overflow + name wider than pill
-- [~] Commit `fix(alerts):`
+- [x] Branch body: loading ⇒ "Checking for updates…" + progress
+- [x] Branch body: error & no value ⇒ "Could not check for updates." + reason + Retry (`invalidate`)
+- [x] Branch body: loaded & empty ⇒ current copy
+- [x] Branch body: loaded & rows ⇒ list
+- [x] Header subtitle matches body state (no "Nothing needs your attention" over spinner/error)
+- [x] Preserve `onLoadedAlertsRendered` contract exactly (loaded, non-empty, not loading)
+- [x] Wrap `_AlertRow` pill in `Flexible` + `FittedBox(scaleDown)` right-aligned
+- [x] Tests: loading / error+Retry / empty / 320@2.0× no overflow + name wider than pill
+- [x] Commit `fix(alerts):`
 
 ## Task 5 — Share: right card, fresh facts, honest result, bounded export
-- [~] `_cardFor`: explicit selection wins when `examId` differs from pinned update
-- [~] Show the shared exam's name in the header
-- [~] Resolve the feed row by `examId` every build; use fresh status/headline/subline/URL/pdf size
-- [~] Keep the tapped row as fallback only before the feed loads
-- [~] Branch on `ShareResult.status`; dismissed/unavailable ⇒ "Nothing was sent — your caption is still here."
-- [~] Constrain captured card to ≤400 dp; derive `pixelRatio` from laid-out width (~1080 px)
-- [~] Share tile label: no word truncated at 2.0×
-- [~] Tests: pinned-vs-selected; stale `awaited`→`result_out`; dismissed share message; capture ratio at wide viewport
-- [~] Commit `fix(share):`
+- [x] `_cardFor`: explicit selection wins when `examId` differs from pinned update
+- [x] Show the shared exam's name in the header
+- [x] Resolve the feed row by `examId` every build; use fresh status/headline/subline/URL/pdf size
+- [x] Keep the tapped row as fallback only before the feed loads
+- [x] Branch on `ShareResult.status`; dismissed/unavailable ⇒ "Nothing was sent — your caption is still here."
+- [x] Constrain captured card to ≤400 dp; derive `pixelRatio` from laid-out width (~1080 px)
+- [x] Share tile label: no word truncated at 2.0×
+- [x] Tests: pinned-vs-selected; stale `awaited`→`result_out`; dismissed share message; capture ratio at wide viewport
+- [x] Commit `fix(share):`
 
 ## Task 6 — Detail sheet: no invented link, no foreign card, no overflow
-- [~] Remove the invented "Apply online" duplicate row; update the comment
-- [~] Gate "Exam date (your card)" + "Your card" section on `card.examId == examId`
-- [~] When a foreign card is present: omit it and show a one-line note
-- [~] `_LinkTile`: `Semantics(link: true)`
-- [~] Sheet gets its own `ScaffoldMessenger` + transparent `Scaffold` (About pattern) so the copy-fallback toast is visible
-- [~] `_DateRowView`: date `Flexible` + ellipsis
-- [~] `_DateRowView`: countdown no longer a hard 76 px box
-- [~] `_DateRowView`: stacked layout above ~1.4× text scale
-- [~] Tests: no duplicate URL; foreign card hidden; `link: true` trait; 320@2.0× zero overflow
-- [~] Commit `fix(detail):`
+- [x] Remove the invented "Apply online" duplicate row; update the comment
+- [x] Gate "Exam date (your card)" + "Your card" section on `card.examId == examId`
+- [x] When a foreign card is present: omit it and show a one-line note
+- [x] `_LinkTile`: `Semantics(link: true)`
+- [x] Sheet gets its own `ScaffoldMessenger` + transparent `Scaffold` (About pattern) so the copy-fallback toast is visible
+- [x] `_DateRowView`: date `Flexible` + ellipsis
+- [x] `_DateRowView`: countdown no longer a hard 76 px box
+- [x] `_DateRowView`: stacked layout above ~1.4× text scale
+- [x] Tests: no duplicate URL; foreign card hidden; `link: true` trait; 320@2.0× zero overflow
+- [x] Commit `fix(detail):`
 
 ## Task 7 — Vault form: labelled fields, announced errors, no trapped save
-- [~] `_Field`: `labelText` (floating never) so the accessible name is the label; keep the visual label
-- [~] Verify the label does not render twice; drop the sibling `Text` if it does
-- [~] Password toggle: `tooltip: 'Show password' / 'Hide password'`
-- [~] `_validationNotice` + `_error`: `liveRegion` + `SemanticsService.sendAnnouncement`
-- [~] `_DateField` gets a key; added to `_revealFirstInvalidField`; `Scrollable.ensureVisible`
-- [~] `save()` bounded with `.timeout(15s)` inside the existing try/catch ⇒ `_error` + Retry
-- [~] Close during `_saving` says "Still saving your card…" instead of silently returning
-- [~] Duplicate check: handle non-`AsyncData` explicitly (await load or say unavailable)
-- [~] Tests: field semantics label; error announcement; date scrolled into view; hanging save surfaces error; duplicate waits for load
-- [~] Commit `fix(vault-form):`
+- [x] `_Field`: `labelText` (floating never) so the accessible name is the label; keep the visual label
+- [x] Verify the label does not render twice; drop the sibling `Text` if it does
+- [x] Password toggle: `tooltip: 'Show password' / 'Hide password'`
+- [x] `_validationNotice` + `_error`: `liveRegion` + `SemanticsService.sendAnnouncement`
+- [x] `_DateField` gets a key; added to `_revealFirstInvalidField`; `Scrollable.ensureVisible`
+- [x] `save()` bounded with `.timeout(15s)` inside the existing try/catch ⇒ `_error` + Retry
+- [x] Close during `_saving` says "Still saving your card…" instead of silently returning
+- [x] Duplicate check: handle non-`AsyncData` explicitly (await load or say unavailable)
+- [x] Tests: field semantics label; error announcement; date scrolled into view; hanging save surfaces error; duplicate waits for load
+- [x] Commit `fix(vault-form):`
 
 ## Task 8 — Clipboard: fail loudly, never eat someone else's copy
-- [~] Wrap `Clipboard.setData` + haptic in try/catch ⇒ error toast, no wipe scheduled
-- [~] Before wiping, read the clipboard and only clear when it still holds our secret
-- [~] Skip/cancel the timer when the app is not foregrounded
-- [~] `context.mounted` check ahead of the empty-value toast
-- [~] Tests: foreign content survives; own content cleared; throwing clipboard ⇒ error toast + no timer; background cancels timer
-- [~] Commit `fix(clipboard):`
+- [x] Wrap `Clipboard.setData` + haptic in try/catch ⇒ error toast, no wipe scheduled
+- [x] Before wiping, read the clipboard and only clear when it still holds our secret
+- [x] Skip/cancel the timer when the app is not foregrounded
+- [x] `context.mounted` check ahead of the empty-value toast
+- [x] Tests: foreign content survives; own content cleared; throwing clipboard ⇒ error toast + no timer; background cancels timer
+- [x] Commit `fix(clipboard):`
 
 ## Task 9 — About: real provenance, wrapping headings, no stacked sheets, real delete-all
 - [ ] Render `source.checkedAt` next to the row count ("17 items · checked 4h ago"; full date >24h)
@@ -128,18 +128,18 @@ Audit: `docs/AUDIT_2026-11-16.md`. Ledger: `.superpowers/sdd/PLAN_play_store_rea
 - [ ] Commit `feat(push):`
 
 ## Task 11 — Dead code + documentation drift
-- [ ] `status_pill.dart`: delete the unnamed constructor (zero callers, null-asserts)
-- [ ] `status_pill.dart`: delete uncalled `pillColor` and fix the class doc
-- [ ] Verify + delete unused: `CdnClient.peek`, `.evictAll` (unless Task 9 uses it), `ResultIndexRepository.pdfBytes`, `.pdfUrl`, `.clearMemo`, `LiveUpdate.countBy`, `.isNewerThan`, `LiveUpdateFormatting.relativeAge`, `.cdnPdfPath`, `.cdnRollIndexPath`, `primaryCardProvider`, `ExamCategoryFilter`
-- [ ] `build.gradle.kts`: remove Flutter's scaffold TODO above the real applicationId
-- [ ] `build.gradle.kts`: fix `minSdk = 23 // Android 6.0` ⇒ 24 / Android 7.0
-- [ ] `Info.plist`: `CFBundleDisplayName` `Examvault` ⇒ `ExamVault`
-- [ ] `Info.plist`: restrict to portrait (both idioms) or document landscape support
-- [ ] `manifest.json`: add stable `"id": "/"`
-- [ ] `exam_detail_sheet.dart:410` `fontSize: 10` ⇒ 11
-- [ ] `exam_calendar_screen.dart:392` `fontSize: 10` ⇒ 11
-- [ ] Re-check both rows at 320@2.0× after the size bump
-- [ ] Commit `chore(cleanup):`
+- [x] `status_pill.dart`: delete the unnamed constructor (zero callers, null-asserts)
+- [x] `status_pill.dart`: delete uncalled `pillColor` and fix the class doc
+- [x] Verify + delete unused: `CdnClient.peek`, `.evictAll` (unless Task 9 uses it), `ResultIndexRepository.pdfBytes`, `.pdfUrl`, `.clearMemo`, `LiveUpdate.countBy`, `.isNewerThan`, `LiveUpdateFormatting.relativeAge`, `.cdnPdfPath`, `.cdnRollIndexPath`, `primaryCardProvider`, `ExamCategoryFilter`
+- [x] `build.gradle.kts`: remove Flutter's scaffold TODO above the real applicationId
+- [x] `build.gradle.kts`: fix `minSdk = 23 // Android 6.0` ⇒ 24 / Android 7.0
+- [x] `Info.plist`: `CFBundleDisplayName` `Examvault` ⇒ `ExamVault`
+- [x] `Info.plist`: restrict to portrait (both idioms) or document landscape support
+- [x] `manifest.json`: add stable `"id": "/"`
+- [x] `exam_detail_sheet.dart:410` `fontSize: 10` ⇒ 11
+- [x] `exam_calendar_screen.dart:392` `fontSize: 10` ⇒ 11
+- [x] Re-check both rows at 320@2.0× after the size bump
+- [x] Commit `chore(cleanup):`
 
 ## Task 12 — Play Store assets + listing
 - [ ] Generator in `tools/branding/` for `design/exports/feature_graphic_1024x500.png`

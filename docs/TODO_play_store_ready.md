@@ -153,6 +153,18 @@ Audit: `docs/AUDIT_2026-11-16.md`. Ledger: `.superpowers/sdd/PLAN_play_store_rea
 - [ ] Final claim audit: no mirrored PDFs, no analytics, no account
 - [ ] Commit `docs(play):`
 
+## Task 14 — Radar "new since last look" divider + Dates grouping
+- [ ] Radar: hairline + "NEW" label at the first row newer than `alertsSeenAt`
+- [ ] Never draw it when nothing is unseen
+- [ ] Never draw it on a fresh install (`alertsSeenAt` == epoch)
+- [ ] Test: divider appears with unseen rows, absent when all seen
+- [ ] Dates: group under "This week" / "This month" / "Later"
+- [ ] Empty groups are not drawn; existing order preserved exactly
+- [ ] Each group header is `Semantics(header: true)`
+- [ ] Tests: ordering, absent empty groups, headings exposed
+- [ ] 320×568 @2.0× render of both, no overflow
+- [ ] Commit `feat(ux):`
+
 ## Task 13 — Final verification + release notes
 - [ ] `flutter analyze --fatal-infos` clean
 - [ ] `dart format --set-exit-if-changed` clean

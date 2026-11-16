@@ -547,6 +547,44 @@ required (prefer local generation).
 
 ---
 
+## Task 14 — The two usability gaps the audit ranked highest
+
+Two of the audit's "UI/UX improvements worth doing next" items are worth shipping
+in this release because they make an existing signal *legible*; the other two are
+deferred with reasons (see the disposition list).
+
+**Defect A — the radar's badge is meaningless on the list itself.**
+`liveRadarBadgeProvider` counts rows published after `alertsSeenAt`, and the tab
+bar shows a dot, but the list draws no boundary between seen and unseen. A
+student who opens the app after a week sees 40 rows in publication order with no
+indication which 6 are the ones the badge was counting. Insert a divider (a
+hairline plus a small "NEW" label) at the first row whose `publishedAt` is after
+`alertsSeenAt`, and only when at least one row is newer. It must never appear
+when the user has seen everything, and never when `alertsSeenAt` is the epoch
+(fresh install — everything is new, so a divider above the first row says
+nothing).
+
+**Defect B — the Dates tab is a flat list of up to ~20 rows.**
+`examCalendarProvider` already sorts nearest-first. Group the list under
+"This week", "This month" and "Later" headers, computed from the same
+`daysFrom` the row already uses. A group with no entries is not drawn. The
+grouping must not reorder anything, and each header must be a real
+`Semantics(header: true)` so a screen reader can jump between them.
+
+**Files:** `app/lib/features/command_center/command_center_screen.dart`,
+`app/lib/features/calendar/exam_calendar_screen.dart`,
+`app/test/sheets_test.dart` or `app/test/exam_calendar_test.dart`,
+`app/test/user_journey_test.dart`.
+
+**Do:** both changes, tests for both (divider appears only with unseen rows and
+not on a fresh install; groups are ordered, empty groups absent, headers exposed
+as headings), and a 320×568 @2.0× render of each to prove no overflow.
+
+**Acceptance:** the divider cannot appear without an unseen row; the grouped
+calendar preserves the existing order exactly; full suite green.
+
+---
+
 ## Task 13 — Final verification and release notes
 
 **Do:**

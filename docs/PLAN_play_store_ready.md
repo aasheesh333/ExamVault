@@ -764,6 +764,49 @@ citation resolves, and no doc still describes behaviour the app does not have.
 
 ---
 
+## Task 18 — The edge worker writes a cache entry it deliberately never reads
+
+**Defect (verified by reading `infra/src/index.js`).** The feed route is declared
+`noEdgeCache: true` because it must not be edge-cached (a publish has to be
+visible immediately). The read path honours that:
+
+```js
+if (!route.noEdgeCache) {
+  const cached = await cache.match(cacheKey);
+  ...
+}
+```
+
+But the write path does not — every successful response unconditionally does:
+
+```js
+ctx.waitUntil(
+  cache.put(cacheKey, cacheable.clone()).catch(...)
+);
+```
+
+So every feed request performs a Cache API write for an entry that no request
+will ever read. At the documented 60-second poll this is one wasted write per
+active device per minute, for a cache entry that is dead by construction, and it
+also pollutes the per-PoP cache namespace that the roll indexes rely on.
+
+**Files:** `infra/src/index.js` only.
+
+**Do:**
+- Skip the `cache.put` when `route.noEdgeCache` is true, and say why in the
+  comment (the write is not merely useless — it is a per-request cost on the one
+  route that is supposed to be a cheap pass-through).
+- Leave the `x-examvault-cache` header behaviour, the ETag/304 path, the
+  buffering, and every other route untouched.
+- Verify with `node --check infra/src/index.js` (there is no test harness for the
+  worker) and re-read the surrounding block to confirm the conditional is placed
+  so `cacheable` is still constructed for the 200 response.
+
+**Acceptance:** the feed route performs no `cache.put`; the roll and PDF routes
+still cache; nothing else changes.
+
+---
+
 ## Task 13 — Final verification and release notes
 
 **Do:**

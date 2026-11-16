@@ -187,6 +187,13 @@ Audit: `docs/AUDIT_2026-11-16.md`. Ledger: `.superpowers/sdd/PLAN_play_store_rea
 - [~] Test: the 320@1.0× arrangement is unchanged
 - [~] Commit `fix(a11y):`
 
+## Task 18 — Edge worker caches the uncacheable feed route
+- [ ] Skip `cache.put` when `route.noEdgeCache` is true
+- [ ] Comment why: a write nobody reads is a per-request cost on the pass-through route
+- [ ] Leave ETag/304, buffering, headers and other routes untouched
+- [ ] `node --check infra/src/index.js`
+- [ ] Commit `fix(infra):`
+
 ## Task 13 — Final verification + release notes
 - [ ] `flutter analyze --fatal-infos` clean
 - [ ] `dart format --set-exit-if-changed` clean

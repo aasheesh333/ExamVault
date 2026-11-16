@@ -409,6 +409,14 @@ class CdnClient {
     return _readCache(url);
   }
 
+  /// Drops every cached payload and forgets the single-flight/generation maps.
+  ///
+  /// Used by "Delete all data". It is not a *guarantee* that the box stays
+  /// empty: `_attempt` writes its response unconditionally, so a fetch that was
+  /// already in flight when this ran can land its bytes afterwards. That copy is
+  /// a public feed/index document, not user data, and the app immediately
+  /// refreshes the public feed anyway — so the delete-all confirmation says
+  /// "may be downloaded again" rather than promising a permanently empty cache.
   Future<void> evictAll() async {
     _inflight.clear();
     _generation.clear();

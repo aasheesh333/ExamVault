@@ -166,7 +166,12 @@ class SecureVaultStore {
 
   Future<Map<String, String>> readAllRaw() => _storage.readAll();
 
-  /// Wipes every key this app owns. Used by "Delete all data".
+  /// Wipes every key this app owns in secure storage.
+  ///
+  /// This is the vault half of "Delete all data": `AdmitCardRepository.wipe()`
+  /// calls it, and the settings keys, cached feed and HTTP cache are wiped
+  /// alongside it by `DataWiper`. Only keys under [AppConfig.secureNamespace]
+  /// are deleted — the Keystore is shared with plugins that own other keys.
   Future<void> wipe() async {
     final all = await _storage.readAll();
     for (final key in all.keys) {

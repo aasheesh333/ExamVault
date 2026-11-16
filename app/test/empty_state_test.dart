@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:examvault/app.dart';
+import 'package:examvault/core/theme/app_theme.dart';
 import 'package:examvault/data/local/secure_vault_store.dart';
 import 'package:examvault/data/models/live_feed_dto.dart';
 import 'package:examvault/data/remote/cdn_client.dart';
@@ -10,7 +11,9 @@ import 'package:examvault/domain/entities/exam_category.dart';
 import 'package:examvault/domain/entities/live_update.dart';
 import 'package:examvault/features/command_center/widgets/live_radar_tile.dart';
 import 'package:examvault/providers/app_providers.dart';
+import 'package:examvault/shared/widgets/ev_surfaces.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_ce/hive.dart';
@@ -184,6 +187,63 @@ void main() {
 
       expect(find.text('Nothing to share yet'), findsOneWidget);
       expect(tester.takeException(), isNull);
+    });
+  });
+
+  /// One tappable focus stop per card.
+  ///
+  /// `EvCard` gained a labelled, actionable wrapper node in Task 2 while the
+  /// inner `InkWell` kept emitting its own `focus, tap` node, so a screen reader
+  /// read the summary label and then the raw content — both activating the same
+  /// callback. `InkWell(excludeFromSemantics: ...)` drops only the InkWell's own
+  /// tap action and leaves the child text nodes intact.
+  group('EvCard semantics', () {
+    testWidgets('a labelled tappable card exposes exactly one tap action', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      var taps = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.dark(),
+          home: Scaffold(
+            body: Center(
+              child: EvCard(
+                semanticLabel: 'Open notice details',
+                onTap: () => taps++,
+                child: const Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('SSC CGL Tier-1 2026'),
+                    Text('Result out \u00b7 ssc.gov.in'),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final card = tester.getSemantics(
+        find.bySemanticsLabel('Open notice details'),
+      );
+      expect(card.flagsCollection.isButton, isTrue);
+      expect(
+        card.getSemanticsData().hasAction(SemanticsAction.tap),
+        isTrue,
+        reason: 'the labelled node is the one the screen reader activates',
+      );
+
+      // The content node is still announced, but it must not offer a second,
+      // identical tap action.
+      final content = tester.getSemantics(find.text('SSC CGL Tier-1 2026'));
+      expect(
+        content.getSemanticsData().hasAction(SemanticsAction.tap),
+        isFalse,
+        reason: 'the inner InkWell must not duplicate the card action',
+      );
+
+      handle.dispose();
     });
   });
 

@@ -2,19 +2,32 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:examvault/core/theme/app_theme.dart';
+import 'package:examvault/data/local/secure_vault_store.dart';
+import 'package:examvault/data/remote/cdn_client.dart';
+import 'package:examvault/data/repositories/admit_card_repository.dart';
 import 'package:examvault/data/repositories/live_feed_repository.dart';
+import 'package:examvault/data/services/push_service.dart';
+import 'package:examvault/domain/entities/admit_card.dart';
 import 'package:examvault/domain/entities/exam_category.dart';
 import 'package:examvault/domain/entities/live_update.dart';
 import 'package:examvault/features/about/about_sheet.dart';
+import 'package:examvault/features/command_center/command_center_screen.dart';
 import 'package:examvault/features/command_center/widgets/alerts_sheet.dart';
 import 'package:examvault/providers/app_providers.dart';
 import 'package:examvault/shared/widgets/ev_controls.dart';
+import 'package:examvault/shared/widgets/ev_surfaces.dart';
 import 'package:examvault/shared/widgets/status_pill.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_ce/hive.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+
+import 'support/fake_vault_store.dart';
+import 'support/matrix.dart';
 
 /// The two bottom sheets, at the worst size the app supports.
 ///
@@ -24,6 +37,7 @@ import 'package:hive_ce/hive.dart';
 void main() {
   late Directory dir;
   late Box<dynamic> settingsBox;
+  late Box<dynamic> cacheBox;
 
   setUpAll(() async {
     TestWidgetsFlutterBinding.ensureInitialized();
@@ -61,6 +75,9 @@ void main() {
   setUp(() async {
     settingsBox = await Hive.openBox<dynamic>(
       'sheet_settings_${DateTime.now().microsecondsSinceEpoch}',
+    );
+    cacheBox = await Hive.openBox<dynamic>(
+      'sheet_cache_${DateTime.now().microsecondsSinceEpoch}',
     );
   });
 
@@ -173,6 +190,13 @@ void main() {
     addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
   }
 
+  /// 393x852 — the reference device the geometry defect was measured on.
+  void defaultPhone(WidgetTester tester) {
+    tester.view.physicalSize = const Size(393, 852);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+  }
+
   /// The sheet's own surface must clip, or scrolled text paints over the page
   /// above the rounded corners.
   void expectClipped(WidgetTester tester) {
@@ -235,6 +259,11 @@ void main() {
         400,
         scrollable: find.byType(Scrollable).last,
       );
+      // scrollUntilVisible counts a row whose top edge merely intersects the
+      // viewport as visible, which can leave its centre below the screen (the
+      // sheet gained a "Your data" section). ensureVisible finishes the job.
+      await tester.ensureVisible(find.textContaining('not affiliated'));
+      await tester.pumpAndSettle();
 
       expect(
         find.textContaining('not affiliated').hitTestable(),
@@ -1089,6 +1118,582 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   });
+
+  /// Provenance. The doc comment promised "the time each was last checked" while
+  /// `SourceHealth.checkedAt` was parsed and read by nothing, so a stale cache's
+  /// health was presented as current — the one thing the panel exists to prevent.
+  group('About sheet source provenance', () {
+    /// The real document's shape: `checked_at` per source, one source without.
+    LiveFeed feedWithChecks({DateTime? sscChecked, DateTime? upscChecked}) =>
+        LiveFeed(
+          generatedAt: DateTime.now(),
+          revision: 1,
+          updates: const [],
+          sources: [
+            SourceHealth(
+              id: 'ssc',
+              label: 'Staff Selection Commission',
+              status: 'ok',
+              rows: 17,
+              homepage: 'https://ssc.gov.in/',
+              checkedAt: sscChecked,
+            ),
+            SourceHealth(
+              id: 'upsc',
+              label: 'Union Public Service Commission',
+              status: 'ok',
+              rows: 7,
+              homepage: 'https://www.upsc.gov.in/',
+              checkedAt: upscChecked,
+            ),
+          ],
+        );
+
+    Future<void> openWith(WidgetTester tester, LiveFeed f) async {
+      await tester.pumpWidget(
+        host(
+          feedOverride: () => _StaticLiveFeed(
+            LiveFeedSnapshot(
+              feed: f,
+              source: FeedSource.network,
+              fetchedAt: DateTime.now(),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.tap(find.text('open about'));
+      await tester.pumpAndSettle();
+    }
+
+    test('the age label is exact against a fixed clock', () {
+      final now = DateTime(2026, 11, 16, 12);
+      expect(
+        sourceCheckedLabel(now.subtract(const Duration(hours: 4)), now),
+        'checked 4h ago',
+      );
+      expect(
+        sourceCheckedLabel(now.subtract(const Duration(minutes: 30)), now),
+        'checked 30m ago',
+      );
+      expect(
+        sourceCheckedLabel(now.subtract(const Duration(seconds: 20)), now),
+        'checked just now',
+      );
+      // Beyond a day the relative label stops being useful: the date is.
+      expect(
+        sourceCheckedLabel(now.subtract(const Duration(hours: 30)), now),
+        'checked 15 Nov 2026',
+      );
+      // Clock skew is not freshness — never "just now" for a future stamp.
+      expect(
+        sourceCheckedLabel(now.add(const Duration(hours: 3)), now),
+        'checked 16 Nov 2026',
+      );
+    });
+
+    testWidgets('a source row shows its observed age next to the row count', (
+      tester,
+    ) async {
+      smallPhone(tester, textScale: 1.0);
+      final now = DateTime.now();
+      await openWith(
+        tester,
+        feedWithChecks(sscChecked: now.subtract(const Duration(hours: 4))),
+      );
+
+      expect(
+        find.text('17 items \u00b7 checked 4h ago'),
+        findsOneWidget,
+        reason: 'the count alone presents a stale check as current',
+      );
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('a source with no checked_at says nothing about time', (
+      tester,
+    ) async {
+      smallPhone(tester, textScale: 1.0);
+      await openWith(tester, feedWithChecks());
+
+      expect(find.text('17 items'), findsOneWidget);
+      expect(
+        find.textContaining('checked'),
+        findsNothing,
+        reason: 'never invent a check time the feed does not carry',
+      );
+    });
+
+    testWidgets('the commission link uses the feed homepage when present', (
+      tester,
+    ) async {
+      smallPhone(tester, textScale: 1.0);
+      final now = DateTime.now();
+      await openWith(
+        tester,
+        LiveFeed(
+          generatedAt: now,
+          revision: 1,
+          updates: const [],
+          sources: [
+            SourceHealth(
+              id: 'ssc',
+              label: 'SSC',
+              status: 'ok',
+              rows: 17,
+              // A moved site: the feed is the source of truth, the label is not.
+              homepage: 'https://ssc.gov.in/new-home',
+            ),
+          ],
+        ),
+      );
+
+      await tester.scrollUntilVisible(
+        find.textContaining('SSC \u2014 Staff Selection'),
+        300,
+        scrollable: find.byType(Scrollable).last,
+      );
+      final link = tester.widget<InkWell>(
+        find
+            .ancestor(
+              of: find.textContaining('SSC \u2014 Staff Selection'),
+              matching: find.byType(InkWell),
+            )
+            .first,
+      );
+      expect(link.onTap, isNotNull);
+      // The row is driven by `source.homepage`; the fallback only applies when
+      // the publisher supplied none (covered by the rows without a homepage).
+      expect(find.textContaining('SSC \u2014 Staff Selection'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  });
+
+  /// The About sheet was wrapped in ScaffoldMessenger + Scaffold as the modal
+  /// route's *direct* child, so the Scaffold filled the route and the
+  /// shrink-wrapped surface sat at the top edge (measured (1,1)-(392,766) at
+  /// 393x852). It must be bottom-anchored like every other sheet.
+  group('About sheet geometry', () {
+    testWidgets('sits on the bottom edge, not the top', (tester) async {
+      defaultPhone(tester);
+      await openAbout(tester);
+
+      // The decorated surface reaches the bottom edge; the sheet's own box sits
+      // inside its 1px border. Measured after the fix: surface (0,85)-(393,852),
+      // sheet (1,86)-(392,851). Before it was (1,1)-(392,766) — top-anchored.
+      final surface = tester.getRect(
+        find
+            .ancestor(
+              of: find.byType(DraggableScrollableSheet),
+              matching: find.byType(Container),
+            )
+            .first,
+      );
+      expect(surface.bottom, closeTo(852, 0.5));
+      expect(surface.top, closeTo(85, 1));
+
+      final rect = tester.getRect(find.byType(DraggableScrollableSheet));
+      expect(
+        rect.bottom,
+        closeTo(852, 1),
+        reason: 'the sheet must end at the screen edge, not 10% above it',
+      );
+      expect(
+        rect.top,
+        greaterThan(60),
+        reason:
+            'a sheet starting at the top edge means the route child was '
+            'not shrink-wrapped (the barrier above it is then unreachable)',
+      );
+      // 0.9 of the screen, minus the 1px border on each side of the surface.
+      expect(
+        rect.top,
+        closeTo(852 * 0.1, 3),
+        reason: 'the surface must still open at its designed 90% extent',
+      );
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('the barrier above the sheet still dismisses it', (
+      tester,
+    ) async {
+      defaultPhone(tester);
+      await openAbout(tester);
+      final rect = tester.getRect(find.byType(DraggableScrollableSheet));
+
+      // The strip above the sheet is the barrier: tapping it closes the sheet.
+      // When the surface sat at the top there was no such strip.
+      await tester.tapAt(Offset(196, rect.top / 2));
+      await tester.pumpAndSettle();
+
+      expect(find.text('About ExamVault'), findsNothing);
+    });
+  });
+
+  /// Section headings had `maxLines: 1` whenever there was no trailing widget,
+  /// so "WHERE THE DATA COMES FROM" and "WHY WE NEVER HOST THE PDF" ellipsised
+  /// mid-phrase at 320px @ 2.0x.
+  group('Section headings at 320px @ 2.0x', () {
+    for (final label in [
+      'WHERE THE DATA COMES FROM',
+      'WHY WE NEVER HOST THE PDF',
+      'YOUR DATA',
+    ]) {
+      testWidgets('"$label" wraps instead of ellipsising', (tester) async {
+        smallPhone(tester);
+        await openAbout(tester);
+        await tester.scrollUntilVisible(
+          find.text(label),
+          200,
+          scrollable: find.byType(Scrollable).last,
+        );
+
+        final text = tester.widget<Text>(find.text(label));
+        expect(
+          text.maxLines,
+          2,
+          reason:
+              'a heading without a trailing action '
+              'still has to wrap at large text',
+        );
+        final paragraph = tester.renderObject<RenderParagraph>(
+          find.text(label),
+        );
+        expect(
+          paragraph.didExceedMaxLines,
+          isFalse,
+          reason: '"$label" is still ellipsised at 320 @2.0x',
+        );
+        expect(tester.takeException(), isNull);
+      });
+    }
+  });
+
+  /// A fast double tap used to stack a second sheet, because the modal barrier
+  /// appears a frame after the open call. The bell got a synchronous guard for
+  /// exactly this; About and the detail sheet had none.
+  group('About opens once per double tap', () {
+    testWidgets('two taps in the same frame open one sheet', (tester) async {
+      final env = await MatrixEnv.open();
+      addTearDown(env.close);
+      await pumpMatrix(
+        tester,
+        const CommandCenterScreen(),
+        matrixPoints.firstWhere((p) => p.name == 'default'),
+        env: env,
+      );
+
+      final about = find.byIcon(Icons.info_outline_rounded);
+      expect(about, findsOneWidget);
+
+      // Invoking the button's callback twice without awaiting models the only
+      // window a synchronous guard can close: two taps delivered before the
+      // modal barrier exists. (Two `tester.tap` calls cannot reach the button —
+      // the test binding builds the barrier for the first tap before the second
+      // hit test runs, so that shape passes with or without a guard.)
+      final button = tester.widget<InkWell>(
+        find.ancestor(of: about, matching: find.byType(InkWell)).first,
+      );
+      button.onTap!();
+      button.onTap!();
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('About ExamVault'),
+        findsOneWidget,
+        reason: 'a second tap must not push a second About sheet',
+      );
+      await disposeMatrix(tester);
+    });
+
+    test(
+      'the guard ignores a second call until the first sheet closes',
+      () async {
+        final guard = SheetOpenGuard();
+        var opened = 0;
+        final first = Completer<int>();
+        final a = guard.run<int>(() {
+          opened++;
+          return first.future;
+        });
+        // The second call happens while the first sheet is still open.
+        expect(
+          await guard.run<int>(() async {
+            opened++;
+            return 2;
+          }),
+          isNull,
+        );
+        expect(opened, 1);
+        expect(guard.isOpen, isTrue);
+
+        first.complete(1);
+        expect(await a, 1);
+        expect(guard.isOpen, isFalse);
+
+        // And the guard releases even when opening throws.
+        await expectLater(
+          guard.run<int>(() async => throw StateError('boom')),
+          throwsStateError,
+        );
+        expect(guard.isOpen, isFalse);
+        expect(
+          await guard.run<int>(() async {
+            opened++;
+            return 3;
+          }),
+          3,
+        );
+        expect(opened, 2);
+      },
+    );
+  });
+
+  /// "Delete all data" was documented in two `wipe()` doc comments with no
+  /// caller and no UI.
+  group('Delete all data', () {
+    late FakeVaultStore store;
+    late _SpyPush push;
+
+    // In-memory boxes for this group. The file-backed pair opened in the outer
+    // setUp cannot be written from inside `testWidgets`: Hive's disk I/O
+    // completes on the real event loop, which the fake test clock never drains,
+    // so the wipe's `delete()` calls would hang the sheet on "Deleting…".
+    setUp(() async {
+      final stamp = DateTime.now().microsecondsSinceEpoch;
+      settingsBox = await Hive.openBox<dynamic>(
+        'wipe_s$stamp',
+        bytes: Uint8List(0),
+      );
+      cacheBox = await Hive.openBox<dynamic>(
+        'wipe_c$stamp',
+        bytes: Uint8List(0),
+      );
+      store = FakeVaultStore(
+        seed: {
+          '__index': 'card_a',
+          'card_a': AdmitCardCodec.encode(
+            AdmitCard(
+              id: 'card_a',
+              examId: 'ssc_cgl_2026',
+              category: ExamCategory.ssc,
+              examName: 'SSC CGL Tier-1 2026',
+              conductingBody: 'Staff Selection Commission',
+              examCode: 'CGL',
+              rollNumber: '2201098765',
+              registrationId: 'SSC-CHSL-26-441122',
+              dobOrPortalPassword: '11/05/1998',
+              centerCode: 'DL-07-2210',
+              centerAddress: 'Sector 9, Rohini',
+              gate: 'Gate 2',
+              reportBy: '08:00 AM',
+              examDate: DateTime(2026, 12, 1),
+              shift: '10:00 AM',
+              createdAt: DateTime(2026, 11, 1),
+              updatedAt: DateTime(2026, 11, 1),
+            ),
+          ),
+        },
+      );
+      push = _SpyPush();
+    });
+
+    Widget dataHost() => ProviderScope(
+      overrides: [
+        settingsBoxProvider.overrideWithValue(settingsBox),
+        httpCacheBoxProvider.overrideWithValue(cacheBox),
+        admitCardRepositoryProvider.overrideWith(
+          (ref) => AdmitCardRepository(store: store),
+        ),
+        cdnClientProvider.overrideWithValue(
+          CdnClient(
+            cache: cacheBox,
+            client: MockClient((_) async => http.Response('', 404)),
+            baseUrl: 'https://cdn.test',
+          ),
+        ),
+        pushServiceProvider.overrideWithValue(push),
+        liveFeedProvider.overrideWith(
+          () => _StaticLiveFeed(
+            LiveFeedSnapshot(
+              feed: LiveFeed(
+                generatedAt: DateTime.now(),
+                revision: 1,
+                updates: const [],
+                sources: const [
+                  SourceHealth(
+                    id: 'ssc',
+                    label: 'Staff Selection Commission',
+                    status: 'ok',
+                    rows: 17,
+                  ),
+                ],
+              ),
+              source: FeedSource.network,
+              fetchedAt: DateTime.now(),
+            ),
+          ),
+        ),
+      ],
+      child: MaterialApp(
+        theme: AppTheme.dark(),
+        home: Scaffold(
+          body: Consumer(
+            builder: (context, ref, _) {
+              final cards = ref.watch(admitCardsProvider);
+              return Column(
+                children: [
+                  Text('cards: ${cards.value?.length ?? -1}'),
+                  TextButton(
+                    onPressed: () => showAboutSheet(context),
+                    child: const Text('open about'),
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
+      ),
+    );
+
+    Future<void> seedEverything() async {
+      await settingsBox.put('theme', 'light');
+      await settingsBox.put('exam_alerts', ['exam_1']);
+      await settingsBox.put('alerts_seen_at', '2026-11-15T10:00:00Z');
+      await cacheBox.put('feed', {'revision': 1, 'updates': <dynamic>[]});
+      await cacheBox.put('https://cdn.test/v1/x.gz', {
+        'b': Uint8List(2),
+        't': DateTime.now().millisecondsSinceEpoch,
+      });
+    }
+
+    testWidgets('wipes vault, settings, cache and push topics', (tester) async {
+      await seedEverything();
+      await tester.pumpWidget(dataHost());
+      await tester.pumpAndSettle();
+      expect(find.text('cards: 1'), findsOneWidget);
+
+      await tester.tap(find.text('open about'));
+      await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(
+        find.text('Delete all data'),
+        300,
+        scrollable: find.byType(Scrollable).last,
+      );
+      await tester.ensureVisible(find.text('Delete all data'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Delete all data'));
+      await tester.pumpAndSettle();
+
+      // The confirmation states exactly what happens, including that it cannot
+      // be undone.
+      expect(find.text('Delete all data?'), findsOneWidget);
+      expect(
+        find.textContaining(
+          'This removes every admit card and every setting on this device. It '
+          'cannot be undone.',
+        ),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.text('Delete'));
+      await tester.pumpAndSettle();
+
+      // Vault.
+      expect(store.raw, isEmpty);
+      // Settings.
+      for (final key in settingsKeys) {
+        expect(settingsBox.get(key), isNull, reason: '$key survived the wipe');
+      }
+      // Cached feed + HTTP cache.
+      expect(cacheBox.isEmpty, isTrue, reason: 'the HTTP cache survived');
+      // Push subscriptions — a deleted setting in every sense the user cares
+      // about: leaving them live keeps pinging them about data they deleted.
+      expect(push.unsubscribed, 1);
+      // And the UI emptied without a restart.
+      expect(find.text('cards: 0'), findsOneWidget);
+      expect(
+        find.text('Your admit cards and settings were deleted.'),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('a failing push unsubscribe still completes the wipe', (
+      tester,
+    ) async {
+      await seedEverything();
+      push.throwOnUnsubscribe = true;
+      await tester.pumpWidget(dataHost());
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('open about'));
+      await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(
+        find.text('Delete all data'),
+        300,
+        scrollable: find.byType(Scrollable).last,
+      );
+      await tester.ensureVisible(find.text('Delete all data'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Delete all data'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Delete'));
+      await tester.pumpAndSettle();
+
+      // The local data is what the user asked to remove, and it is gone.
+      expect(store.raw, isEmpty);
+      expect(settingsBox.get('theme'), isNull);
+      expect(find.text('cards: 0'), findsOneWidget);
+      expect(
+        find.text('Your admit cards and settings were deleted.'),
+        findsOneWidget,
+        reason: 'a push failure must not report the wipe as unsuccessful',
+      );
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('Keep my data leaves everything in place', (tester) async {
+      await seedEverything();
+      await tester.pumpWidget(dataHost());
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('open about'));
+      await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(
+        find.text('Delete all data'),
+        300,
+        scrollable: find.byType(Scrollable).last,
+      );
+      await tester.ensureVisible(find.text('Delete all data'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Delete all data'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Keep my data'));
+      await tester.pumpAndSettle();
+
+      expect(store.raw, isNotEmpty);
+      expect(settingsBox.get('theme'), 'light');
+      expect(find.text('cards: 1'), findsOneWidget);
+      expect(push.unsubscribed, 0);
+    });
+  });
+}
+
+/// A `PushService` that records `unsubscribeAll()` without touching a backend.
+///
+/// `unsubscribeAll` is the one call delete-all makes into push; a fake that
+/// counted it is the whole assertion, and the throwing variant proves the wipe
+/// does not depend on the network.
+class _SpyPush extends PushService {
+  int unsubscribed = 0;
+  bool throwOnUnsubscribe = false;
+
+  @override
+  Future<void> unsubscribeAll() async {
+    unsubscribed++;
+    if (throwOnUnsubscribe) throw StateError('push backend unavailable');
+  }
 }
 
 class _StaticLiveFeed extends LiveFeedNotifier {

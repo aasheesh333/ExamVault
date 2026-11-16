@@ -237,6 +237,12 @@ class AdmitCardRepository {
     return _cache.first;
   }
 
+  /// Deletes every card and the index, then empties the in-memory copy.
+  ///
+  /// This is the vault half of "Delete all data": the settings keys, the cached
+  /// feed and the HTTP cache are wiped alongside it by `DataWiper`
+  /// (`providers/app_providers.dart`). The change stream emits the empty list,
+  /// so every screen empties without a restart.
   Future<void> wipe() async {
     await _enqueue(() async {
       await _store.wipe();

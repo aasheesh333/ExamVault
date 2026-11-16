@@ -11,7 +11,7 @@ import '../../providers/app_providers.dart';
 import '../../shared/widgets/ev_controls.dart';
 import '../../shared/widgets/ev_surfaces.dart';
 
-/// About, data provenance and privacy.
+/// About, data provenance, privacy and "Delete all data".
 ///
 /// ## Why this is a screen and not a footnote
 ///
@@ -19,7 +19,9 @@ import '../../shared/widgets/ev_surfaces.dart';
 /// those documents to hashes rather than redistributing them. That is a claim
 /// users are entitled to check, and a store reviewer is entitled to see. So the
 /// sources are listed with the exact URLs and the time each was last checked,
-/// taken from the feed's own health block rather than written by hand.
+/// taken from the feed's own health block rather than written by hand. A source
+/// the feed carries no `checked_at` for simply does not show a time: a stale
+/// cache must never read as a fresh check.
 ///
 /// It also replaces the fake "A" avatar that used to sit in the top bar of an app
 /// with no accounts: a letter in a circle reads as "you are signed in", which was
@@ -42,37 +44,45 @@ class _AboutSheet extends ConsumerWidget {
     final p = context.ev;
     final snapshot = ref.watch(liveFeedProvider).value;
     final sources = snapshot?.feed.sources ?? const <SourceHealth>[];
+    final byId = {for (final s in sources) s.id: s};
 
-    return ScaffoldMessenger(
-      // The sheet's own messenger: a SnackBar shown through the root one
-      // renders *under* the modal barrier and the 90%-tall sheet, so a failed
-      // link tap gave zero feedback — the row looked dead.
-      child: Scaffold(
-        // A messenger with no descendant Scaffold has nothing to present to:
-        // showSnackBar asserted in debug and was a *silent no-op* in release —
-        // the failed-link feedback this messenger exists for never rendered.
-        // Transparent so the sheet surface below keeps its own colour and
-        // rounded corners.
-        backgroundColor: Colors.transparent,
-        body: Container(
-          decoration: BoxDecoration(
-            color: p.surface,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-            border: Border.all(color: p.border),
-          ),
-          // A rounded decoration does not clip its child, so scrolled text painted
-          // over the dimmed page outside the sheet's corners.
-          clipBehavior: Clip.antiAlias,
-          child: DraggableScrollableSheet(
-            expand: false,
-            initialChildSize: 0.9,
-            minChildSize: 0.5,
-            maxChildSize: 0.95,
+    return Container(
+      decoration: BoxDecoration(
+        color: p.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        border: Border.all(color: p.border),
+      ),
+      // A rounded decoration does not clip its child, so scrolled text painted
+      // over the dimmed page outside the sheet's corners.
+      clipBehavior: Clip.antiAlias,
+      child: DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.9,
+        minChildSize: 0.5,
+        maxChildSize: 0.95,
+        // The messenger lives *inside* the builder, never around the route
+        // child. The route child is what the modal bottom sheet bottom-anchors
+        // at 90%; a Scaffold wrapping it fills the route's full height instead,
+        // so the decorated Container shrink-wrapped to the top edge and the
+        // whole surface — rounded corners, border, barrier — moved to the top of
+        // the screen (measured at 393x852: sheet (1,1)-(392,766) instead of
+        // (1,76)-(392,851)), with the bottom tenth showing the dimmed page.
+        builder: (context, controller) => ScaffoldMessenger(
+          // The sheet's own messenger: a SnackBar shown through the root one
+          // renders *under* the modal barrier and the 90%-tall sheet, so a
+          // failed link tap gave zero feedback — the row looked dead.
+          child: Scaffold(
+            // A messenger with no descendant Scaffold has nothing to present to:
+            // showSnackBar asserted in debug and was a *silent no-op* in release
+            // — the failed-link feedback this messenger exists for never
+            // rendered. Transparent so the sheet surface outside keeps its own
+            // colour and rounded corners.
+            backgroundColor: Colors.transparent,
             // Ink canvas above the sheet's opaque surface: the link rows'
             // InkWell splashes painted on the bottom-sheet route's Material
             // *underneath* the Container, so presses gave no feedback
             // (pattern: command_center radar rows).
-            builder: (context, controller) => Material(
+            body: Material(
               type: MaterialType.transparency,
               child: ListView(
                 controller: controller,
@@ -162,28 +172,36 @@ class _AboutSheet extends ConsumerWidget {
                   ),
 
                   const SizedBox(height: 20),
+
+                  // --- Your data ----------------------------------------------------
+                  const EvSectionHeader(
+                    label: 'Your data',
+                    padding: EdgeInsets.zero,
+                  ),
+                  const SizedBox(height: 8),
+                  _Paragraph(
+                    'Your admit cards and your settings live only on this device. '
+                    'You can remove them here without uninstalling the app.',
+                  ),
+                  const SizedBox(height: 8),
+                  _DeleteAllData(),
+
+                  const SizedBox(height: 20),
                   const EvSectionHeader(
                     label: 'Official sources',
                     padding: EdgeInsets.zero,
                   ),
                   const SizedBox(height: 8),
-                  _Link(
-                    label: 'SSC \u2014 Staff Selection Commission',
-                    url: 'https://ssc.gov.in/',
-                  ),
-                  _Link(
-                    label: 'UPSC \u2014 Union Public Service Commission',
-                    url: 'https://www.upsc.gov.in/',
-                  ),
-                  _Link(label: 'IBPS', url: 'https://www.ibps.in/'),
-                  _Link(
-                    label: 'RRB Chennai',
-                    url: 'https://rrbchennai.gov.in/',
-                  ),
-                  _Link(
-                    label: 'TNPSC \u2014 Tamil Nadu Public Service Commission',
-                    url: 'https://www.tnpsc.gov.in/',
-                  ),
+                  for (final link in _commissionLinks)
+                    _Link(
+                      // The hand-written label stays: the feed carries a short
+                      // code ("SSC"), not a full commission name. The URL comes
+                      // from the publisher's own health block when it supplies
+                      // one, so a moved site is fixed in the feed rather than in
+                      // an app release.
+                      label: link.label,
+                      url: byId[link.id]?.homepage ?? link.url,
+                    ),
 
                   const SizedBox(height: 16),
                   const EvSectionHeader(
@@ -422,29 +440,266 @@ class _SourceRow extends StatelessWidget {
     final p = context.ev;
     final ok = source.isAvailable;
     final colour = ok ? p.success : p.warning;
+    // The publisher's own observation time. Without it the panel presented a
+    // stale cache's health as current — the one thing it exists to prevent.
+    // Absent stays absent: no "checked recently" guess.
+    final checkedAt = source.checkedAt;
+    final checked = checkedAt == null
+        ? null
+        : sourceCheckedLabel(checkedAt, DateTime.now());
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 7),
+      padding: const EdgeInsets.only(bottom: 9),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 6,
-            height: 6,
-            decoration: BoxDecoration(color: colour, shape: BoxShape.circle),
+          Padding(
+            padding: const EdgeInsets.only(top: 5),
+            child: Container(
+              width: 6,
+              height: 6,
+              decoration: BoxDecoration(color: colour, shape: BoxShape.circle),
+            ),
           ),
           const SizedBox(width: 8),
+          // The label and its metadata are stacked rather than two Row cells:
+          // "17 items · checked 4h ago" plus a commission name does not fit one
+          // line at 320px @2.0x, and a `Row` would have ellipsised the age —
+          // the fact this panel exists to show.
           Expanded(
-            child: Text(source.label, style: context.type.tileTitle.copyWith()),
-          ),
-          Text(
-            // Never "OK" when it is not: the count and the status come from the
-            // publisher's own refresh, so a quiet or broken source is visible.
-            ok ? '${source.rows} items' : source.status,
-            style: context.type.microLabel.copyWith(
-              color: ok ? p.textTertiary : p.warningText,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(source.label, style: context.type.tileTitle.copyWith()),
+                const SizedBox(height: 2),
+                Text(
+                  // Never "OK" when it is not: the count and the status come
+                  // from the publisher's own refresh, so a quiet or broken
+                  // source is visible.
+                  [
+                    ok ? '${source.rows} items' : source.status,
+                    ?checked,
+                  ].join(' \u00b7 '),
+                  style: context.type.microLabel.copyWith(
+                    // 11, not the token's 10.5: the theme's own floor.
+                    fontSize: 11,
+                    letterSpacing: 0.4,
+                    color: ok ? p.textTertiary : p.warningText,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// `checked 4h ago`, or the full date once the observation is over a day old.
+///
+/// Relative labels are only useful while they are short; "checked 32d ago" is
+/// harder to place than the date. [now] is a parameter so a test can pin the
+/// label to a fixed clock — a function of `DateTime.now()` alone could not be
+/// asserted exactly.
+@visibleForTesting
+String sourceCheckedLabel(DateTime checkedAt, DateTime now) {
+  final age = now.difference(checkedAt);
+  // A timestamp in the future is clock skew, not freshness: fall back to the
+  // date instead of claiming the source was checked "just now".
+  if (age.isNegative) return 'checked ${_fullDate(checkedAt)}';
+  if (age.inMinutes < 1) return 'checked just now';
+  if (age.inHours < 1) return 'checked ${age.inMinutes}m ago';
+  if (age.inHours < 24) return 'checked ${age.inHours}h ago';
+  return 'checked ${_fullDate(checkedAt)}';
+}
+
+const _monthNames = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+];
+
+/// Day, month and year in the device's own zone — `checked_at` arrives as UTC.
+String _fullDate(DateTime at) {
+  final local = at.toLocal();
+  return '${local.day} ${_monthNames[local.month - 1]} ${local.year}';
+}
+
+/// The commissions the app covers, with the label each is listed under.
+///
+/// `url` is only the fallback: the feed's `sources[].homepage` wins whenever the
+/// publisher supplied one (see the "Official sources" section).
+const _commissionLinks = <({String id, String label, String url})>[
+  (
+    id: 'ssc',
+    label: 'SSC \u2014 Staff Selection Commission',
+    url: 'https://ssc.gov.in/',
+  ),
+  (
+    id: 'upsc',
+    label: 'UPSC \u2014 Union Public Service Commission',
+    url: 'https://www.upsc.gov.in/',
+  ),
+  (id: 'ibps', label: 'IBPS', url: 'https://www.ibps.in/'),
+  (id: 'railways', label: 'RRB Chennai', url: 'https://rrbchennai.gov.in/'),
+  (
+    id: 'tnpsc',
+    label: 'TNPSC \u2014 Tamil Nadu Public Service Commission',
+    url: 'https://www.tnpsc.gov.in/',
+  ),
+];
+
+/// "Delete all data", under the "Your data" heading.
+///
+/// The vault's `wipe()` was documented as "used by Delete all data" with no
+/// caller and no UI: a documented promise the app never kept. It now wipes the
+/// vault, every settings key, the cached feed and the HTTP cache, drops the push
+/// topic subscriptions, and resets the in-memory providers so the screens empty
+/// without a restart.
+class _DeleteAllData extends ConsumerStatefulWidget {
+  const _DeleteAllData();
+
+  @override
+  ConsumerState<_DeleteAllData> createState() => _DeleteAllDataState();
+}
+
+class _DeleteAllDataState extends ConsumerState<_DeleteAllData> {
+  /// A dialog is a route too: a fast double tap used to stack two confirms.
+  final _guard = SheetOpenGuard();
+  bool _busy = false;
+
+  Future<void> _confirmAndDelete() async {
+    await _guard.run<void>(() async {
+      final confirmed = await _confirm();
+      if (!confirmed || !mounted) return;
+
+      setState(() => _busy = true);
+      try {
+        // Bounded like every other storage path in this app: a hung Keystore
+        // wipe would otherwise leave the button a permanent "Deleting…" with no
+        // way to know whether anything happened.
+        await ref
+            .read(dataWiperProvider)
+            .deleteAll()
+            .timeout(const Duration(seconds: 15));
+        if (!mounted) return;
+        // Says what the code actually did. It does not claim the public feed
+        // cache is gone for good: a refresh already in flight can repopulate it,
+        // and that copy holds no personal data.
+        _toast('Your admit cards and settings were deleted.');
+      } catch (e, st) {
+        AppLogger.e('about', 'delete-all failed', e, st);
+        if (!mounted) return;
+        _toast('Could not delete everything. Try again.');
+      } finally {
+        if (mounted) setState(() => _busy = false);
+      }
+    });
+  }
+
+  Future<bool> _confirm() async {
+    final p = context.ev;
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: p.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(color: p.border),
+        ),
+        title: Text('Delete all data?', style: context.type.sectionTitle),
+        content: Text(
+          'This removes every admit card and every setting on this device. It '
+          'cannot be undone.\n\nCached copies of the public feed and result '
+          'indexes hold none of your data and may be downloaded again.',
+          style: context.type.body,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(
+              'Keep my data',
+              style: context.type.label.copyWith(color: p.textSecondary),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(
+              'Delete',
+              style: context.type.label.copyWith(
+                color: p.dangerText,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    return result ?? false;
+  }
+
+  void _toast(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(
+            message,
+            style: context.type.label.copyWith(color: Colors.white),
+          ),
+        ),
+      );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.ev;
+    return Semantics(
+      button: true,
+      enabled: !_busy,
+      // The child Text is the name (codebase rule: a composed label on top of
+      // un-excluded children double-announces).
+      child: InkWell(
+        borderRadius: BorderRadius.circular(EvRadius.inner),
+        onTap: _busy ? null : _confirmAndDelete,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: EvSize.minTapTarget),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 9),
+            child: Row(
+              children: [
+                if (_busy)
+                  SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: p.danger,
+                    ),
+                  )
+                else
+                  Icon(Icons.delete_outline_rounded, size: 14, color: p.danger),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    _busy ? 'Deleting…' : 'Delete all data',
+                    style: context.type.bodyMuted.copyWith(color: p.dangerText),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

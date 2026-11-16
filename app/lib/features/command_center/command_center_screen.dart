@@ -274,8 +274,19 @@ class _VaultMark extends StatelessWidget {
 /// app with no accounts, implying a signed-in user who did not exist and doing
 /// nothing when tapped. It now leads somewhere real — provenance, the copyright
 /// stance and what the app stores.
-class _AboutButton extends StatelessWidget {
+class _AboutButton extends StatefulWidget {
   const _AboutButton();
+
+  @override
+  State<_AboutButton> createState() => _AboutButtonState();
+}
+
+class _AboutButtonState extends State<_AboutButton> {
+  /// The modal barrier appears a frame after `showAboutSheet` is called, so a
+  /// double tap used to push a second About sheet on top of the first — and the
+  /// same shape was reachable from the exam detail sheet's call site. The flag
+  /// is set synchronously, before the first await.
+  final _guard = SheetOpenGuard();
 
   @override
   Widget build(BuildContext context) {
@@ -285,7 +296,7 @@ class _AboutButton extends StatelessWidget {
       label: 'About ExamVault, data sources and privacy',
       child: InkWell(
         borderRadius: BorderRadius.circular(22),
-        onTap: () => showAboutSheet(context),
+        onTap: () => _guard.run<void>(() => showAboutSheet(context)),
         // 44x44 hit area around a 32px visual: the circle was both the drawing
         // and the tap target, which is 12px under the minimum.
         child: SizedBox(

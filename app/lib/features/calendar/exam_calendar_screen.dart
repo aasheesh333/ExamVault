@@ -11,6 +11,87 @@ import '../../shared/widgets/ev_surfaces.dart';
 import '../shell/root_shell.dart';
 import 'exam_detail_sheet.dart';
 
+/// The three date windows the calendar groups under.
+///
+/// The list is up to ~20 rows of nearest-first dates; without headings it is a
+/// flat scroll with no way to tell "tomorrow" from "next month" except by
+/// reading every countdown.
+///
+/// The labels name **rolling day counts**, not calendar periods. `NEXT 7 DAYS`
+/// is literally `daysFrom(now) <= 7`: a heading that said "This week" would be
+/// wrong for a Sunday date six days out, and would contradict the nearest-first
+/// order the rows are already in.
+enum CalendarBucket {
+  next7Days('Next 7 days'),
+  next30Days('Next 30 days'),
+  later('Later');
+
+  const CalendarBucket(this.label);
+
+  final String label;
+}
+
+/// Which window [entry] falls in, from the same whole-day distance the row's
+/// countdown already uses.
+///
+/// Day windows, not calendar weeks or months: the provider sorts nearest-first,
+/// and a calendar week would file a date six days out on a Sunday under "Later"
+/// while a date seven days out on a Monday sat under "This week" — a heading
+/// that contradicts the order the rows are in. The same reasoning rules out
+/// calendar months for the 30-day window.
+CalendarBucket calendarBucketFor(CalendarEntry entry, DateTime now) {
+  final days = entry.daysFrom(now);
+  if (days <= 7) return CalendarBucket.next7Days;
+  if (days <= 30) return CalendarBucket.next30Days;
+  return CalendarBucket.later;
+}
+
+/// One non-empty bucket of the calendar.
+class CalendarGroup {
+  const CalendarGroup(this.bucket, this.entries);
+
+  final CalendarBucket bucket;
+
+  /// The provider's entries for this bucket, in the provider's order.
+  final List<CalendarEntry> entries;
+}
+
+/// [entries] grouped into [CalendarBucket] order.
+///
+/// **Precondition:** [entries] is in non-decreasing date order — which is what
+/// `examCalendarProvider` returns. The walk below appends per bucket, so it
+/// preserves order *within* each bucket and only produces a correctly ordered
+/// whole when the input is already bucket-sorted. It never re-sorts: grouping a
+/// nearest-first list must not be a second ordering pass that could disagree
+/// with the provider's.
+///
+/// Empty buckets are dropped rather than drawn as a heading over nothing.
+List<CalendarGroup> groupCalendarEntries(
+  List<CalendarEntry> entries,
+  DateTime now,
+) {
+  final byBucket = <CalendarBucket, List<CalendarEntry>>{};
+  for (final entry in entries) {
+    byBucket.putIfAbsent(calendarBucketFor(entry, now), () => []).add(entry);
+  }
+  final groups = <CalendarGroup>[];
+  for (final bucket in CalendarBucket.values) {
+    final rows = byBucket[bucket];
+    if (rows == null || rows.isEmpty) continue;
+    groups.add(CalendarGroup(bucket, List.unmodifiable(rows)));
+  }
+  return groups;
+}
+
+/// One row of the grouped calendar list: a bucket heading, or a dated entry.
+class _CalendarItem {
+  const _CalendarItem.heading(this.bucket) : entry = null;
+  const _CalendarItem.entry(this.entry) : bucket = null;
+
+  final CalendarBucket? bucket;
+  final CalendarEntry? entry;
+}
+
 /// Screen — Exam Calendar.
 ///
 /// Answers one question: *what is coming up, for which exam, and how soon.*
@@ -41,6 +122,15 @@ class _ExamCalendarScreenState extends ConsumerState<ExamCalendarScreen> {
     final entries = ref.watch(examCalendarProvider);
     final now = DateTime.now();
     final alerts = ref.watch(examAlertsProvider);
+    // Grouped, not re-sorted: the headings only break the provider's
+    // nearest-first list into readable windows. Flattened into one lazy list so
+    // the screen stays a single scrollable, with an 8px rhythm between rows.
+    final items = [
+      for (final group in groupCalendarEntries(entries, now)) ...[
+        _CalendarItem.heading(group.bucket),
+        for (final entry in group.entries) _CalendarItem.entry(entry),
+      ],
+    ];
 
     return Scaffold(
       backgroundColor: p.bg,
@@ -52,39 +142,66 @@ class _ExamCalendarScreenState extends ConsumerState<ExamCalendarScreen> {
             Expanded(
               child: entries.isEmpty
                   ? const _NoDates()
-                  : ListView.separated(
+                  : ListView.builder(
                       padding: EdgeInsets.fromLTRB(
                         EvSpace.gutter,
                         EvSpace.x2,
                         EvSpace.gutter,
-                        // Clear the floating tab bar: the bar's height follows
-                        // the text scale, so this must be measured, not guessed.
+                        // Clear the floating tab bar: the bar's height
+                        // follows the text scale, so this must be measured,
+                        // not guessed.
                         EvChrome.bottomInset(context),
                       ),
-                      itemCount: entries.length,
-                      separatorBuilder: (_, _) => const SizedBox(height: 8),
-                      itemBuilder: (context, i) => _EntryCard(
-                        entry: entries[i],
-                        now: now,
-                        onOpen: () => _detailGuard.run<void>(
-                          () => showExamDetailSheet(
-                            context,
-                            update: entries[i].update,
-                            card: entries[i].card,
-                          ),
-                        ),
-                        alerting: alerts.contains(entries[i].examId),
-                        onAlertToggle:
-                            entries[i].update == null ||
-                                !ref.watch(pushServiceProvider).canDeliver
-                            ? null
-                            : () => _toggleAlert(
+                      itemCount: items.length,
+                      itemBuilder: (context, i) {
+                        final item = items[i];
+                        final bucket = item.bucket;
+                        // Spacing carries the grouping: rows keep the 8px
+                        // rhythm, but a heading takes 16px above it and only
+                        // the usual 8px below. With one uniform gap the
+                        // heading sat equidistant from the previous group's
+                        // last card and its own first row, and read as
+                        // belonging to neither.
+                        final gapAbove = i == 0
+                            ? 0.0
+                            : bucket != null
+                            ? EvSpace.x4
+                            : EvSpace.x2;
+                        if (bucket != null) {
+                          return Padding(
+                            padding: EdgeInsets.only(top: gapAbove),
+                            child: EvSectionHeader(
+                              label: bucket.label,
+                              // The list already sits inside the page gutter;
+                              // the header's own gutter would indent the
+                              // heading 16px past the cards it introduces.
+                              padding: EdgeInsets.zero,
+                            ),
+                          );
+                        }
+                        final entry = item.entry!;
+                        return Padding(
+                          padding: EdgeInsets.only(top: gapAbove),
+                          child: _EntryCard(
+                            entry: entry,
+                            now: now,
+                            onOpen: () => _detailGuard.run<void>(
+                              () => showExamDetailSheet(
                                 context,
-                                ref,
-                                entries[i],
-                                alerts,
+                                update: entry.update,
+                                card: entry.card,
                               ),
-                      ),
+                            ),
+                            alerting: alerts.contains(entry.examId),
+                            onAlertToggle:
+                                entry.update == null ||
+                                    !ref.watch(pushServiceProvider).canDeliver
+                                ? null
+                                : () =>
+                                      _toggleAlert(context, ref, entry, alerts),
+                          ),
+                        );
+                      },
                     ),
             ),
           ],

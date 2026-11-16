@@ -1,11 +1,14 @@
 import 'dart:typed_data';
 
+import 'package:examvault/core/theme/app_theme.dart';
 import 'package:examvault/data/repositories/live_feed_repository.dart';
 import 'package:examvault/domain/entities/admit_card.dart';
 import 'package:examvault/domain/entities/exam_category.dart';
 import 'package:examvault/domain/entities/live_update.dart';
+import 'package:examvault/features/calendar/exam_calendar_screen.dart';
 import 'package:examvault/providers/app_providers.dart';
 import 'package:examvault/providers/exam_calendar_provider.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_ce/hive.dart';
@@ -166,6 +169,293 @@ void main() {
       expect(entries.map((e) => e.examId), ['today', 'soon', 'far']);
       expect(entries.first.countdown(now), 'TODAY');
       expect(entries[1].countdown(now), 'IN 2 DAYS');
+    });
+  });
+
+  group('calendar grouping', () {
+    CalendarEntry entry(String id, int daysFromNow) => CalendarEntry(
+      examId: id,
+      examName: 'Exam $id',
+      category: ExamCategory.ssc,
+      date: DateTime.now().add(Duration(days: daysFromNow)),
+      kind: CalendarKind.exam,
+      source: CalendarSource.notice,
+    );
+
+    test(
+      'buckets are rolling day windows, so a heading cannot contradict the order',
+      () {
+        final now = DateTime.now();
+        expect(calendarBucketFor(entry('a', 0), now), CalendarBucket.next7Days);
+        expect(calendarBucketFor(entry('a', 7), now), CalendarBucket.next7Days);
+        expect(
+          calendarBucketFor(entry('a', 8), now),
+          CalendarBucket.next30Days,
+        );
+        expect(
+          calendarBucketFor(entry('a', 30), now),
+          CalendarBucket.next30Days,
+        );
+        expect(calendarBucketFor(entry('a', 31), now), CalendarBucket.later);
+      },
+    );
+
+    test('groups preserve the provider order and drop empty buckets', () {
+      final now = DateTime.now();
+      final entries = [
+        entry('a', 0),
+        entry('b', 2),
+        entry('c', 8),
+        entry('d', 30),
+        entry('e', 31),
+        entry('f', 45),
+      ];
+      final groups = groupCalendarEntries(entries, now);
+
+      expect(groups.map((g) => g.bucket), [
+        CalendarBucket.next7Days,
+        CalendarBucket.next30Days,
+        CalendarBucket.later,
+      ]);
+      expect(groups.expand((g) => g.entries).map((e) => e.examId), [
+        'a',
+        'b',
+        'c',
+        'd',
+        'e',
+        'f',
+      ]);
+
+      // No entry in the next 8-30 days: the "Next 30 days" heading must not be
+      // drawn over nothing.
+      final sparse = groupCalendarEntries([entry('a', 1), entry('b', 40)], now);
+      expect(sparse.map((g) => g.bucket), [
+        CalendarBucket.next7Days,
+        CalendarBucket.later,
+      ]);
+    });
+
+    /// The order guarantee is conditional on bucket-sorted input — this pins
+    /// what the function actually promises for the other case, so the doc
+    /// comment's precondition cannot silently become a lie.
+    test('within a bucket, the input order survives even when unsorted', () {
+      final now = DateTime.now();
+      // Deliberately not date-ordered inside the bucket.
+      final groups = groupCalendarEntries([
+        entry('late', 6),
+        entry('early', 1),
+        entry('mid', 3),
+      ], now);
+
+      expect(groups, hasLength(1));
+      expect(groups.single.entries.map((e) => e.examId), [
+        'late',
+        'early',
+        'mid',
+      ]);
+    });
+  });
+
+  group('Dates tab grouping', () {
+    Future<void> mountDates(WidgetTester tester, ProviderContainer c) async {
+      tester.view.physicalSize = const Size(800, 1400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: c,
+          child: MaterialApp(
+            theme: AppTheme.dark(),
+            home: const ExamCalendarScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    /// The cards' own exam dates, in the order the provider sorts them.
+    List<String> providerOrder(ProviderContainer c) =>
+        c.read(examCalendarProvider).map((e) => e.examName).toList();
+
+    testWidgets('headings are ordered and an empty group is not drawn', (
+      tester,
+    ) async {
+      final c = container(
+        cards: [
+          card(
+            id: 'card_a',
+            examId: 'exam_a',
+            name: 'Week card',
+            examDate: DateTime.now().add(const Duration(days: 2)),
+          ),
+          card(
+            id: 'card_b',
+            examId: 'exam_b',
+            name: 'Month card',
+            examDate: DateTime.now().add(const Duration(days: 10)),
+          ),
+          card(
+            id: 'card_c',
+            examId: 'exam_c',
+            name: 'Later card',
+            examDate: DateTime.now().add(const Duration(days: 40)),
+          ),
+        ],
+      );
+      await settle(c);
+      await mountDates(tester, c);
+
+      final week = tester.getRect(find.text('NEXT 7 DAYS'));
+      final month = tester.getRect(find.text('NEXT 30 DAYS'));
+      final later = tester.getRect(find.text('LATER'));
+      expect(week.top, lessThan(month.top));
+      expect(month.top, lessThan(later.top));
+
+      // A second screen with nothing in the 8-30 day window: no heading.
+      final sparse = container(
+        cards: [
+          card(
+            id: 'card_a',
+            examId: 'exam_a',
+            name: 'Week card',
+            examDate: DateTime.now().add(const Duration(days: 2)),
+          ),
+          card(
+            id: 'card_c',
+            examId: 'exam_c',
+            name: 'Later card',
+            examDate: DateTime.now().add(const Duration(days: 40)),
+          ),
+        ],
+      );
+      await settle(sparse);
+      await mountDates(tester, sparse);
+
+      expect(find.text('NEXT 7 DAYS'), findsOneWidget);
+      expect(find.text('LATER'), findsOneWidget);
+      expect(find.text('NEXT 30 DAYS'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('a heading sits closer to its own rows than to the group above', (
+      tester,
+    ) async {
+      final c = container(
+        cards: [
+          card(
+            id: 'card_a',
+            examId: 'exam_a',
+            name: 'Week card',
+            examDate: DateTime.now().add(const Duration(days: 2)),
+          ),
+          card(
+            id: 'card_b',
+            examId: 'exam_b',
+            name: 'Month card',
+            examDate: DateTime.now().add(const Duration(days: 10)),
+          ),
+        ],
+      );
+      await settle(c);
+      await mountDates(tester, c);
+
+      final previousRowBottom = tester.getRect(find.text('Week card')).bottom;
+      final headingTop = tester.getRect(find.text('NEXT 30 DAYS')).top;
+      final headingBottom = tester.getRect(find.text('NEXT 30 DAYS')).bottom;
+      final ownRowTop = tester.getRect(find.text('Month card')).top;
+
+      // Uniform 8px gaps made the heading equidistant from the group above and
+      // the group it introduces, so it read as belonging to neither. The extra
+      // x4 above is what binds it downward.
+      expect(
+        headingTop - previousRowBottom,
+        greaterThan(ownRowTop - headingBottom),
+        reason: 'a heading must sit closer to its own rows',
+      );
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('the rows are in the provider order, unchanged', (
+      tester,
+    ) async {
+      final c = container(
+        cards: [
+          // Inserted out of order on purpose: the provider sorts nearest-first,
+          // and the grouping must not move anything again.
+          card(
+            id: 'card_c',
+            examId: 'exam_c',
+            name: 'Third',
+            examDate: DateTime.now().add(const Duration(days: 40)),
+          ),
+          card(
+            id: 'card_a',
+            examId: 'exam_a',
+            name: 'First',
+            examDate: DateTime.now().add(const Duration(days: 2)),
+          ),
+          card(
+            id: 'card_b',
+            examId: 'exam_b',
+            name: 'Second',
+            examDate: DateTime.now().add(const Duration(days: 10)),
+          ),
+        ],
+      );
+      await settle(c);
+      final order = providerOrder(c);
+      expect(order, ['First', 'Second', 'Third']);
+
+      await mountDates(tester, c);
+
+      final rendered = [
+        for (final name in order) (name, tester.getRect(find.text(name)).top),
+      ]..sort((a, b) => a.$2.compareTo(b.$2));
+      expect(rendered.map((e) => e.$1), order);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('each heading is exposed as a heading', (tester) async {
+      final handle = tester.ensureSemantics();
+      try {
+        final c = container(
+          cards: [
+            card(
+              id: 'card_a',
+              examId: 'exam_a',
+              name: 'Week card',
+              examDate: DateTime.now().add(const Duration(days: 2)),
+            ),
+            card(
+              id: 'card_b',
+              examId: 'exam_b',
+              name: 'Month card',
+              examDate: DateTime.now().add(const Duration(days: 10)),
+            ),
+            card(
+              id: 'card_c',
+              examId: 'exam_c',
+              name: 'Later card',
+              examDate: DateTime.now().add(const Duration(days: 40)),
+            ),
+          ],
+        );
+        await settle(c);
+        await mountDates(tester, c);
+
+        for (final label in ['NEXT 7 DAYS', 'NEXT 30 DAYS', 'LATER']) {
+          final node = tester.getSemantics(find.text(label));
+          final data = node.getSemanticsData();
+          expect(
+            data.flagsCollection.isHeader,
+            isTrue,
+            reason: '"$label" must be a heading a screen reader can jump to',
+          );
+          expect(data.label, label);
+        }
+      } finally {
+        handle.dispose();
+      }
     });
   });
 

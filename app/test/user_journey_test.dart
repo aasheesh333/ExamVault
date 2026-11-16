@@ -138,6 +138,45 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('the filter and grouping signals read on real app data', (
+    tester,
+  ) async {
+    // Task 14's two visible changes, exercised end to end rather than against a
+    // fixture: the vault header's fraction while a query narrows it, and the
+    // Dates tab's group heading over the card's own exam date.
+    await store.writeRaw(card().id, AdmitCardCodec.encode(card()));
+    await store.writeIndex([card().id]);
+
+    await pumpPhone(tester, app());
+
+    // Unfiltered: the wording the vault header has always used.
+    expect(find.text('1 saved'), findsOneWidget);
+
+    await tester.enterText(find.byType(TextField), 'zzz');
+    await tester.pump();
+
+    // A query that matches nothing still has a card in the vault, so the
+    // fraction says "0 of 1" instead of claiming the vault is empty — and the
+    // empty state can finally explain itself.
+    expect(find.text('0 of 1'), findsOneWidget);
+    expect(find.text('1 saved'), findsNothing);
+    expect(find.textContaining('No cards match'), findsOneWidget);
+
+    await tester.tap(find.byIcon(Icons.close_rounded));
+    await tester.pump();
+    expect(find.text('1 saved'), findsOneWidget);
+
+    // The card's exam is 9 days out, so it groups under the rolling 30-day
+    // heading, not the 7-day one.
+    await tester.tap(find.text('Dates'));
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.text('NEXT 30 DAYS'), findsOneWidget);
+    expect(find.text('NEXT 7 DAYS'), findsNothing);
+    expect(find.textContaining('SSC CHSL Tier-1 2026'), findsWidgets);
+
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('deleting the only card returns every screen to empty', (
     tester,
   ) async {

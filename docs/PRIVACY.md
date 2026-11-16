@@ -63,8 +63,9 @@ Three things, and nothing else:
    receive no **category** alerts (per-exam bells you switched on separately are
    a different subscription and keep working), and the app says so on that
    screen. The token is not linked to your vault, your roll number, or any other
-   data in the app, and it goes away when you turn notifications off or
-   uninstall.
+   data in the app, and it is deleted when you uninstall the app. Turning
+   notifications off in Android settings stops alerts being shown on this
+   device; it does not delete the token, which goes with the uninstall.
 3. **Nothing else.** No crash reports, no usage events, no device fingerprint.
    (The in-app error logger writes to the Dart VM's debug sink only; a release
    build has no such sink, and nothing is uploaded.)
@@ -97,7 +98,7 @@ None of these receive your vault contents or your roll number. The push
 providers **do** hold the token itself — that is exactly what the
 "Device or other IDs" answer in the Play data-safety form below discloses. The
 token is not sold, is used only to deliver the alerts you opted into, and is
-dropped when you unsubscribe (notifications off) or uninstall.
+deleted when you uninstall the app.
 
 ## Children
 
@@ -152,9 +153,11 @@ device-level encryption alone.
 ## Your choices
 
 - **Notifications:** deny the permission, or turn them off in Android settings —
-  either unsubscribes the device, and the provider's token for it goes away.
-  The About sheet's **Notifications** section also lets you choose which exam
-  categories to follow; turning every category off stops category alerts without
+  either stops alerts being shown on this device. There is **no in-app master
+  switch**: the OS setting is the only way to silence notifications wholesale,
+  and it does not delete the push token (only uninstalling does). The About
+  sheet's **Notifications** section chooses which exam categories the token is
+  subscribed to; turning every category off stops category alerts without
   changing the OS permission (per-exam bells are a separate subscription).
 - **Your data:** delete individual cards in the app, use **Delete all data** in
   About to remove every card and setting at once (it also drops the per-exam
@@ -187,8 +190,11 @@ none): open an issue at <https://github.com/aasheesh333/ExamVault/issues>.
   - Sold to third parties? **No.**
   - Purpose: **App functionality** (notifications the user opted into by
     allowing notifications).
-  - Deletion: the token is deleted when the user turns notifications off
-    (unsubscribe) or uninstalls the app.
+  - Deletion: the token is deleted when the user uninstalls the app. Turning
+    notifications off in Android settings stops alerts being displayed on the
+    device but does not delete the token; the in-app category and per-exam
+    switches change which topics the token is subscribed to, not whether it
+    exists.
   No other data type is collected or shared: no personal info, health, financial
   info, photos, location, activity, web history, or advertising ID. (Answering
   "No" here while FCM/OneSignal ship in the binary was the previous — wrong —
@@ -198,6 +204,5 @@ none): open an issue at <https://github.com/aasheesh333/ExamVault/issues>.
 - Does your app provide a way for users to request that their data be deleted?
   **Yes** — **Delete all data** in the About sheet removes every card, setting
   and cached public file on the device, deleting a card removes that card, and
-  uninstalling removes everything; uninstalling or disabling notifications
-  unsubscribes the push token.
+  uninstalling removes everything; the push token is deleted on uninstall.
 - Are you using a third-party analytics or advertising SDK? **No.**

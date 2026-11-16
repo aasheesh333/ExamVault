@@ -233,12 +233,15 @@ Then answer the Console form:
 
 - Collects or shares required user data? **Yes — "Device or other IDs" only**:
   the push token held by FCM/OneSignal to deliver exam alerts. Not sold;
-  purpose "App functionality"; deleted on unsubscribe (notifications off) or
-  uninstall. Answering "No" is wrong: the push SDKs ship in the binary and
-  provably transmit a device-scoped token.
+  purpose "App functionality"; deleted when the app is uninstalled. Answering
+  "No" is wrong: the push SDKs ship in the binary and provably transmit a
+  device-scoped token.
 - Encrypted in transit? **Yes** (`usesCleartextTraffic="false"`, HTTPS only).
-- Deletion request path? **Yes** — delete a card in-app, uninstall, or turn off
-  notifications (which drops the push token).
+- Deletion request path? **Yes** — delete a card in-app, or uninstall (which
+  also deletes the push token). There is no in-app master notification switch:
+  turning notifications off in Android settings stops them being displayed but
+  does not delete the token, and the in-app category and per-exam switches
+  change the token's topic subscriptions, not its existence.
 - Analytics/advertising SDK? **No.** (OneSignal's own dashboard reports push
   delivery — that is the token disclosure above, server-side, not in-app
   analytics. The binary contains no analytics or advertising SDK.)

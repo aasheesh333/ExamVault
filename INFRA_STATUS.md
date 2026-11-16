@@ -5,10 +5,11 @@ Verified 2026-11-10 against the live services.
 This file is a **dated snapshot**, not a live dashboard. It records what was
 verified on the date above; the feed's own `sources[].status` block is the live
 answer for any given day, and a commission's site being down is not a change to
-the code. Re-observed while preparing 1.0.1 (2026-11-16): `ssc` ok with 17 rows,
-`upsc` unavailable, `ibps` empty, `tnpsc` ok with 10 rows, `railways`
-unavailable — 33 published updates in total. Nothing below has been rewritten to
-match that observation; it stays as the record of 2026-11-10.
+the code. Re-observed while preparing 1.0.1 (2026-11-16, feed `revision 13`,
+`fetched_at 2026-11-16T11:01:50Z`): `ssc` ok with 17 rows, `upsc` unavailable,
+`ibps` empty, `tnpsc` ok with 10 rows, `railways` unavailable — 33 published
+updates in total. Nothing below has been rewritten to match that observation; it
+stays as the record of 2026-11-10.
 
 | Service | State | Evidence |
 |---|---|---|

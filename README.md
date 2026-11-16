@@ -101,8 +101,8 @@ Five tabs, in the order they appear in the tab bar (`EvTab` in
 |---|---|---|---|
 | 1 | **Home** | `CommandCenterScreen` | Alerts bell, a hero count, search across the radar and your saved cards, category chips, a preview of the saved cards, and the live radar with its `LIVE · EDGE` / `CACHED · 2h` provenance and status pills. The per-commission health panel lives in About |
 | 2 | **Vault** | `AdmitCardDetailScreen` | Saved cards as swipeable boarding passes — per-field tap-to-copy, the exam-day checklist, centre address, and the "Check my result" shortcut |
-| 3 | **Dates** | `ExamCalendarScreen` | Only dates the app can point at: the exam date on your own admit card, and dates a commission stated in a notice — each with a countdown and a per-exam alert bell. An exam with no published date is simply absent; the empty state says "No dates announced yet" rather than guessing |
-| 4 | **Radar** | `InstantResultCheckerScreen` | The instant result checker: auto-fills the saved roll, `Check` → edge index → local hash lookup → "YOUR ROLL IS IN THE LIST" or an honest "not in this list" with the reason |
+| 3 | **Dates** | `ExamCalendarScreen` | Only dates the app can point at: the exam date on your own admit card, and dates a commission stated in a notice — each with a countdown; the notice dates also get a per-exam alert bell, because a card-derived date has no feed row to subscribe to. An exam with no published date is simply absent; the empty state says "No dates announced yet" rather than guessing |
+| 4 | **Radar** | `InstantResultCheckerScreen` | The instant result checker: auto-fills the saved roll, `Check` → edge index → local hash lookup → "YOUR ROLL IS IN THE LIST" or an honest "Not in this list yet" with the reason |
 | 5 | **Share** | `WhatsappShareCardScreen` | `RepaintBoundary` → PNG → share sheet, with an editable caption and a switch for whether the roll number appears — turning it off scrubs the roll from the caption as well as the card |
 
 Pass cards stay deep navy in **both** themes on purpose — they are physical

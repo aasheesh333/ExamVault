@@ -188,8 +188,11 @@ Console's APK analysis see the merged set, so paste attributions, not guesses.
 and its merger report
 (`app/build/app/outputs/logs/manifest-merger-release-report.txt`) at the time
 this document was written. **They cannot be regenerated in the environment that
-maintained this document** — it has no Android SDK and no `app/build/` directory,
-so nothing here was re-derived for 1.0.1. Treat the count and the attributions as
+maintained this document**: there is no Android SDK there and no *release* build
+output — `app/build/` exists but holds only `flutter test` artefacts
+(`native_assets`, `test_cache`, `unit_test_assets`), and neither the merged
+release manifest nor the merger report is present. Nothing here was re-derived
+for 1.0.1. Treat the count and the attributions as
 a record of that build, and re-derive both from a fresh `flutter build appbundle`
 (or `flutter build apk`) before pasting anything into the Console: a new plugin
 version can add or drop a permission, and the number in particular is expected to
@@ -237,11 +240,11 @@ the listing copy changes in the same commit as the code.
 
 | Claim | Verified by |
 |---|---|
-| **No PDF is mirrored or re-hosted.** Result documents open on the commission's own site. | `app/lib/domain/entities/live_update.dart:81` — `officialPdf`/`officialPage` are links, and the only use of them is `launchUrl(..., LaunchMode.externalApplication)` (`instant_result_checker_screen.dart`'s `_openUrl`, `exam_detail_sheet.dart`'s `_LinkRow` onTap); `app/lib/features/result_checker/engine/hashed_index.dart:74-83` — the published index holds hashes only. `AppConfig.resultPdfPath` (the legacy mirror route) still exists but has **no callers anywhere in `lib/` or `test/`**, and the `pdfBytes`/`pdfUrl` wrappers that used to sit beside it were deleted — no code path downloads a PDF. |
+| **No PDF is mirrored or re-hosted.** Result documents open on the commission's own site. | `app/lib/domain/entities/live_update.dart:81` — `officialPdf`/`officialPage` are URLs the feed carries, and every use of them is a link the user taps or a URL printed as text: `launchUrl(..., LaunchMode.externalApplication)` in `instant_result_checker_screen.dart`'s `_openUrl` and `exam_detail_sheet.dart`'s `_LinkRow` onTap; copy-to-clipboard of the same URL (`instant_result_checker_screen.dart:550`); `LiveUpdate.officialUrl` (`officialPdf ?? officialPage`) passed to the share card (`whatsapp_share_card_screen.dart:129`), where `ShareInfographic.link` (`share_infographic.dart:47`) only feeds a hostname label in `_CtaBar` (`:519-568`) and the caption text; and re-serialised as `official_pdf`/`official_page` in `app/lib/data/models/live_feed_dto.dart:252-253`. None of those fetches, downloads or stores the document — the app never requests it. `app/lib/features/result_checker/engine/hashed_index.dart:74-83` — the published index holds hashes only. `AppConfig.resultPdfPath` (the legacy mirror route) still exists but has **no callers anywhere in `lib/` or `test/`**, and the `pdfBytes`/`pdfUrl` wrappers that used to sit beside it were deleted — no code path downloads a PDF. |
 | **No analytics, no crash reporting, no ad SDK.** | `app/pubspec.yaml` dependency list (no analytics/crash/ads package); `app/lib/data/services/app_logger.dart:5` — `developer.log` only, inert in a release AOT build; `app/lib/features/about/about_sheet.dart` — the `_PolicySheet._sections` entry "No analytics, no adverts" states it in-app |
 | **No account.** No email, phone, password, login, or profile field exists. | `app/lib/features/about/about_sheet.dart` — `_PolicySheet._sections` ("No account, no profile") and the "What we store" bullet "There is no account"; no auth dependency in `app/pubspec.yaml` |
 | **No location.** No location permission and no location code. | `app/android/app/src/main/AndroidManifest.xml:6` (comment) and the declared-permission block below it; `app/lib/features/about/about_sheet.dart` — `_PolicySheet._sections` ("No analytics, no adverts", which also says "no location permission") |
 | **Encrypted local vault.** Cards, roll numbers and portal passwords are encrypted at rest and excluded from backup. | `app/lib/data/local/secure_vault_store.dart:113-133`; `android:allowBackup="false"` + `dataExtractionRules` in the manifest |
-| **The only identifier that leaves the device is the push token.** | `app/lib/data/services/push_service.dart` — `_syncOneSignalTags` (`:176`) and `syncTopics` (`:261`) send only category tags/topics; `bootPush` in `app/lib/main.dart` (`:150`) feeds them the student's chosen set |
+| **The only identifier that leaves the device is the push token.** | `app/lib/data/services/push_service.dart` — `_syncOneSignalTags` (`:176`) and `syncTopics` (`:281`) send only category tags/topics; `bootPush` in `app/lib/main.dart` (`:150`) feeds them the student's chosen set |
 | **Roll numbers are checked on the device and never sent.** | `app/lib/features/result_checker/engine/hashed_index.dart:74-83` (hashes only) and `roll_index_engine.dart` (local binary search) |
 

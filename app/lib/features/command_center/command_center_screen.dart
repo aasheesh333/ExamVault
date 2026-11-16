@@ -166,10 +166,12 @@ class _TopBarState extends ConsumerState<_TopBar> {
       final renderedAlerts = await showAlertsSheet(context, ref);
       // Mark seen only when the sheet actually rendered a loaded, non-empty
       // list. The unconditional markSeen meant that opening the bell early in
-      // a cold start — while the feed was still loading and the sheet said
-      // "Nothing needs your attention." — permanently suppressed every alert
-      // published before that instant: the badge could never come back for
-      // them, which is the one signal that has to work on result day.
+      // a cold start — before the first check had finished — permanently
+      // suppressed every alert published before that instant: the badge could
+      // never come back for them, which is the one signal that has to work on
+      // result day. The sheet now says it is checking instead of claiming an
+      // empty inbox, but the gate is still this flag: neither a spinner nor a
+      // failed check may ever count as read.
       if (renderedAlerts && mounted) {
         await ref.read(alertsSeenProvider.notifier).markSeen();
       }

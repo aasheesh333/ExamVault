@@ -73,9 +73,9 @@ class _AlertsSheet extends ConsumerWidget {
     // storage fault reading the Hive cache); a *network* failure never lands
     // there, because `LiveFeedRepository.refresh` catches it and returns a
     // snapshot with `error` set. Both are the same fact to the reader — the
-    // check did not complete — so both resolve to one reason below.
-    const providerFailure =
-        'The live feed could not be read. Try again in a moment.';
+    // check did not complete — so both resolve to one reason below. Neither
+    // sentence names a cause: a provider rejection is storage, not the network.
+    const providerFailure = 'The live feed could not be read.';
     final repositoryFailure = feedAsync.value?.error;
 
     // `hasError` is checked even when a value survived: Riverpod keeps the
@@ -309,9 +309,21 @@ class _FeedFailureCard extends ConsumerWidget {
 
   final String reason;
 
+  /// The repository's diagnostic, minus any instruction to *pull*.
+  ///
+  /// `LiveFeedRepository.refresh` ends its message with "Pull to retry." — true
+  /// of the radar, which has a `RefreshIndicator`, and false here: a modal sheet
+  /// has nothing to pull, so that sentence described a gesture that did
+  /// nothing. The diagnostic half is kept verbatim (it is the only text that
+  /// knows why the check failed); only the instruction is replaced, by the one
+  /// this card can honour.
+  static String diagnosticOf(String reason) =>
+      reason.replaceFirst(RegExp(r'\s*Pull to retry\.?\s*$'), '').trim();
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final p = context.ev;
+    final diagnostic = diagnosticOf(reason);
     return EvCard(
       color: p.warning.withValues(alpha: 0.07),
       borderColor: p.warning.withValues(alpha: 0.35),
@@ -330,9 +342,18 @@ class _FeedFailureCard extends ConsumerWidget {
               ),
             ],
           ),
-          const SizedBox(height: 6),
+          if (diagnostic.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              diagnostic,
+              style: context.type.bodyMuted.copyWith(color: p.warningText),
+            ),
+          ],
+          const SizedBox(height: 2),
+          // The affordance the reader actually has. Without it the only
+          // instruction on screen was the repository's "Pull to retry."
           Text(
-            reason,
+            'Tap Retry to check again.',
             style: context.type.bodyMuted.copyWith(color: p.warningText),
           ),
           Align(

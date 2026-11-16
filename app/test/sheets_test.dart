@@ -554,12 +554,16 @@ void main() {
       tester,
     ) async {
       smallPhone(tester);
-      const reason = 'Could not reach the live feed. Check your connection.';
+      // The repository's literal message (`live_feed_repository.dart:138`),
+      // instruction and all: it is the text production actually shows.
+      const repositoryMessage =
+          'The live feed could not be read. Pull to retry.';
       final reads = _ReadCounter();
 
       await tester.pumpWidget(
         host(
-          feedOverride: () => _CountingLiveFeed(reads, failedSnapshot(reason)),
+          feedOverride: () =>
+              _CountingLiveFeed(reads, failedSnapshot(repositoryMessage)),
         ),
       );
       await tester.pump();
@@ -567,9 +571,18 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Could not check for updates.'), findsNWidgets(2));
-      // The repository's own words, not a paraphrase: it is the only text that
-      // knows *why* the check failed.
-      expect(find.text(reason), findsOneWidget);
+      // The diagnostic half is kept verbatim: it is the only text that knows
+      // *why* the check failed.
+      expect(
+        find.text('The live feed could not be read.'),
+        findsOneWidget,
+        reason: 'the repository diagnostic must survive unedited',
+      );
+      // …but its "Pull to retry." instruction describes the radar's gesture, not
+      // this sheet's: there is nothing to pull in a modal, so it must not reach
+      // the reader.
+      expect(find.textContaining('Pull to retry'), findsNothing);
+      expect(find.text('Tap Retry to check again.'), findsOneWidget);
       expect(
         find.textContaining('Nothing needs your attention'),
         findsNothing,
@@ -606,11 +619,18 @@ void main() {
       await tester.pumpAndSettle();
 
       // A usable list outranks the failure: the rows stay, and the failure is
-      // reported above them instead of replacing them.
-      expect(find.text('SSC CGL Tier-1 2026 notice 0'), findsOneWidget);
+      // reported above them instead of replacing them. At 320@2.0x the card
+      // pushes row 1 past the fold, and the sheet's ListView is lazy, so scroll
+      // it into existence before asserting.
+      expect(find.text('6 updates need a look'), findsOneWidget);
       expect(find.text(reason), findsOneWidget);
       expect(find.text('Retry'), findsOneWidget);
-      expect(find.text('6 updates need a look'), findsOneWidget);
+      await tester.scrollUntilVisible(
+        find.text('SSC CGL Tier-1 2026 notice 0'),
+        200,
+        scrollable: find.byType(Scrollable).last,
+      );
+      expect(find.text('SSC CGL Tier-1 2026 notice 0'), findsOneWidget);
 
       await tester.tap(find.byIcon(Icons.close_rounded));
       await tester.pumpAndSettle();

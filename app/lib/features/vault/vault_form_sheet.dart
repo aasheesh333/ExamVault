@@ -15,6 +15,7 @@ import '../../domain/entities/live_update.dart';
 import '../../domain/services/exam_matcher.dart';
 import '../../providers/app_providers.dart';
 import '../../shared/widgets/ev_controls.dart';
+import '../../shared/widgets/ev_surfaces.dart';
 import '../result_checker/engine/roll_index_engine.dart';
 
 /// The id the result checker will look the roll index up by.
@@ -62,20 +63,31 @@ String slugifyExamName(String examName) =>
 /// Portal passwords and DOBs are exactly the fields people mistype, so every
 /// input here is `TextInputType.visiblePassword`, autocorrect is off, and the
 /// secret field is masked by default — a vault screen is often opened in public.
+///
+/// One guard for the whole app, not one per call site: a second copy of this
+/// form is never legitimate (two twelve-field credential forms, each with its
+/// own discard guard, means cancelling one leaves the other behind describing
+/// edits nobody can see). Every caller would otherwise need its own flag, and
+/// five call sites is five chances to forget — so the guard lives here, where
+/// the invariant is.
+final _vaultFormGuard = SheetOpenGuard();
+
 Future<void> showVaultFormSheet(
   BuildContext context,
   WidgetRef ref, {
   AdmitCard? existing,
 }) {
-  return showModalBottomSheet<void>(
-    context: context,
-    isScrollControlled: true,
-    useSafeArea: true,
-    backgroundColor: Colors.transparent,
-    // Dragging the sheet down pops the route directly, bypassing PopScope — the
-    // unsaved-changes guard only works with the drag-dismiss disabled.
-    enableDrag: false,
-    builder: (_) => _VaultFormSheet(existing: existing),
+  return _vaultFormGuard.run<void>(
+    () => showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      // Dragging the sheet down pops the route directly, bypassing PopScope —
+      // the unsaved-changes guard only works with the drag-dismiss disabled.
+      enableDrag: false,
+      builder: (_) => _VaultFormSheet(existing: existing),
+    ),
   );
 }
 
@@ -342,6 +354,12 @@ class _VaultFormSheetState extends ConsumerState<_VaultFormSheet> {
 
   @override
   void dispose() {
+    // The form is gone, so the app-wide guard must not stay locked. `run`'s
+    // `finally` normally does this, but a route future can be left unresolved
+    // when the Navigator is torn down with the sheet still open (every widget
+    // test does exactly that) — and a wedged guard would leave "Add admit card"
+    // dead for the life of the process, which is worse than a stacked sheet.
+    _vaultFormGuard.release();
     for (final c in [
       _name,
       _examName,

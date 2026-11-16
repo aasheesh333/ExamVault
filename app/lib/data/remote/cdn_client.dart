@@ -403,12 +403,17 @@ class CdnClient {
     await _cache.deleteAll(oldest.take(excess));
   }
 
-  /// Drops every cached payload and forgets in-flight reads.
+  /// Drops every cached payload and forgets the single-flight/generation maps.
   ///
-  /// Deliberately kept although nothing calls it yet: the Settings "Delete all
-  /// data" action must clear the CDN cache as well as the vault, and this is the
-  /// only path that does. Removing it would leave that flow with no way to
-  /// honour the promise it makes.
+  /// This is the only path that clears the CDN cache, and "Delete all data" in
+  /// About calls it — so it is load-bearing even though it has just one caller.
+  ///
+  /// It is not a *guarantee* that the box stays empty: `_attempt` writes its
+  /// response unconditionally, so a fetch that was already in flight when this
+  /// ran can land its bytes afterwards. That copy is a public feed/index
+  /// document, not user data, and the app immediately refreshes the public feed
+  /// anyway — so the delete-all confirmation says "may be downloaded again"
+  /// rather than promising a permanently empty cache.
   Future<void> evictAll() async {
     _inflight.clear();
     _generation.clear();

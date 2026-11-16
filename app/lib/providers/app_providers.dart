@@ -29,6 +29,21 @@ final settingsBoxProvider = Provider<Box<dynamic>>(
   (ref) => throw UnimplementedError('override settingsBoxProvider in main()'),
 );
 
+/// Settings-box keys.
+///
+/// One list, so "Delete all data" wipes every key it knows about in one place
+/// instead of three separate literals: a new setting is one line away from being
+/// included, not a grep. (Nothing *forces* a future key into this list — this is
+/// a convenience, not a guarantee.)
+const themeSettingKey = 'theme';
+const examAlertsSettingKey = 'exam_alerts';
+const alertsSeenSettingKey = 'alerts_seen_at';
+const settingsKeys = <String>[
+  themeSettingKey,
+  examAlertsSettingKey,
+  alertsSeenSettingKey,
+];
+
 /// Light / dark / follow-system.
 ///
 /// The palette already shipped both modes with contrast verified for each, but
@@ -62,14 +77,12 @@ enum ThemePreference {
 }
 
 class ThemePreferenceNotifier extends Notifier<ThemePreference> {
-  static const _key = 'theme';
-
   @override
   ThemePreference build() {
     final box = ref.watch(settingsBoxProvider);
     // A non-String value used to throw TypeError here, escaping into the app
     // build and bricking the theme; treat anything unexpected as "system".
-    final raw = box.get(_key);
+    final raw = box.get(themeSettingKey);
     return ThemePreference.fromId(raw is String ? raw : null);
   }
 
@@ -77,7 +90,7 @@ class ThemePreferenceNotifier extends Notifier<ThemePreference> {
     final previous = state;
     state = pref;
     try {
-      await ref.read(settingsBoxProvider).put(_key, pref.id);
+      await ref.read(settingsBoxProvider).put(themeSettingKey, pref.id);
     } catch (_) {
       // A failed settings write must not leave the UI claiming a preference
       // that will be gone on next launch, so roll the state back.
@@ -121,6 +134,76 @@ final pushServiceProvider = Provider<PushService>((ref) {
 });
 
 final shareServiceProvider = Provider<ShareService>((ref) => ShareService());
+
+/// Removes everything ExamVault stored on this device.
+///
+/// "Delete all data" is a promise, not a vault-only action: the secure vault,
+/// every settings key, the cached feed document and the raw HTTP cache. The
+/// in-memory providers are reset too, so the screens empty immediately instead
+/// of continuing to render data that no longer exists on disk until the next
+/// restart — which made the old no-op look like a complete wipe.
+///
+/// The push **token is kept** (re-registering on every wipe only churns the
+/// backend for no privacy gain — the token carries no exam or vault data) but
+/// every **subscription is dropped** via `PushService.unsubscribeAll()`, so no
+/// alert arrives for an exam the app now says it knows nothing about. A live
+/// notification subscription is a setting in every sense the user cares about.
+///
+/// Deliberately not touched: the installed app and the bundled seed feed.
+class DataWiper {
+  DataWiper(this._ref);
+
+  final Ref _ref;
+
+  Future<void> deleteAll() async {
+    try {
+      // The vault first: it is the only copy of the user's own data.
+      await _ref.read(admitCardRepositoryProvider).wipe();
+
+      final settings = _ref.read(settingsBoxProvider);
+      for (final key in settingsKeys) {
+        await settings.delete(key);
+      }
+
+      // `clear()` also drops the repository's in-memory snapshot; without it the
+      // next cold read resurrects the document that was just deleted.
+      await _ref.read(liveFeedRepositoryProvider).clear();
+      await _ref.read(cdnClientProvider).evictAll();
+    } finally {
+      // Always, on every path. If a settings delete throws, the disk state is
+      // already gone for the keys that were deleted, so the providers must not
+      // keep showing a theme or a bell set that will not survive a restart.
+      _ref.invalidate(admitCardsProvider);
+      _ref.invalidate(themePreferenceProvider);
+      _ref.invalidate(examAlertsProvider);
+      _ref.invalidate(alertsSeenProvider);
+      _ref.invalidate(liveFeedProvider);
+      _ref.invalidate(resultCheckerProvider);
+      _ref.invalidate(selectedCardIdProvider);
+      _ref.invalidate(resultExamIdProvider);
+    }
+
+    // Best effort, and last: the local data is already gone, so a push failure
+    // must not make the wipe look unsuccessful. Keeps the token (no
+    // re-register churn) but drops every topic, so no alert arrives for data
+    // that no longer exists.
+    //
+    // Bounded to 2s on its own clock, not the caller's 15s budget: a hung
+    // network unsubscribe would otherwise consume the whole allowance and
+    // report "Could not delete everything" after a completely successful local
+    // wipe — the exact wrong answer the ordering above exists to avoid.
+    try {
+      await _ref
+          .read(pushServiceProvider)
+          .unsubscribeAll()
+          .timeout(const Duration(seconds: 2), onTimeout: () {});
+    } catch (e) {
+      AppLogger.w('wipe', 'could not unsubscribe push topics: $e');
+    }
+  }
+}
+
+final dataWiperProvider = Provider<DataWiper>(DataWiper.new);
 
 /// ---------------------------------------------------------------------------
 /// Vault
@@ -560,12 +643,10 @@ final resultExamIdProvider = NotifierProvider<ResultExamNotifier, LiveUpdate?>(
 /// "9+" permanently and stopped meaning anything. It now counts updates published
 /// since the inbox was last opened.
 class AlertsSeenNotifier extends Notifier<DateTime> {
-  static const _key = 'alerts_seen_at';
-
   @override
   DateTime build() {
     final box = ref.watch(settingsBoxProvider);
-    final raw = box.get(_key);
+    final raw = box.get(alertsSeenSettingKey);
     final parsed = raw is String ? DateTime.tryParse(raw) : null;
     return parsed ?? DateTime.fromMillisecondsSinceEpoch(0);
   }
@@ -574,7 +655,9 @@ class AlertsSeenNotifier extends Notifier<DateTime> {
     final value = at ?? DateTime.now();
     state = value;
     try {
-      await ref.read(settingsBoxProvider).put(_key, value.toIso8601String());
+      await ref
+          .read(settingsBoxProvider)
+          .put(alertsSeenSettingKey, value.toIso8601String());
     } catch (_) {
       // A failed write only means the badge reappears; not worth interrupting.
     }
@@ -593,12 +676,10 @@ final alertsSeenProvider = NotifierProvider<AlertsSeenNotifier, DateTime>(
 /// toggle, so a subscription silently dropped by a Play Services update repairs
 /// itself.
 class ExamAlertsNotifier extends Notifier<Set<String>> {
-  static const _key = 'exam_alerts';
-
   @override
   Set<String> build() {
     final box = ref.watch(settingsBoxProvider);
-    final raw = box.get(_key);
+    final raw = box.get(examAlertsSettingKey);
     if (raw is! List) return const <String>{};
     return {
       for (final v in raw)
@@ -612,7 +693,9 @@ class ExamAlertsNotifier extends Notifier<Set<String>> {
     if (!next.remove(examId)) next.add(examId);
     state = Set.unmodifiable(next);
     try {
-      await ref.read(settingsBoxProvider).put(_key, next.toList());
+      await ref
+          .read(settingsBoxProvider)
+          .put(examAlertsSettingKey, next.toList());
     } catch (e) {
       // A failed write must not leave the UI claiming a subscription that will
       // be gone on next launch — same rule as the theme preference.

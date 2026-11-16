@@ -182,6 +182,31 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  /// Captures the messages the form sends to the platform screen reader.
+  List<String> captureAnnouncements() {
+    final messages = <String>[];
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockDecodedMessageHandler<dynamic>(
+      SystemChannels.accessibility,
+      (message) async {
+        final event = message as Map<dynamic, dynamic>;
+        if (event['type'] == 'announce') {
+          final data = event['data'] as Map<dynamic, dynamic>;
+          messages.add(data['message'] as String);
+        }
+        return null;
+      },
+    );
+    addTearDown(
+      () => messenger.setMockDecodedMessageHandler<dynamic>(
+        SystemChannels.accessibility,
+        null,
+      ),
+    );
+    return messages;
+  }
+
   String rollValue(WidgetTester tester) {
     final field = find.byType(TextFormField).at(4);
     return tester
@@ -262,13 +287,14 @@ void main() {
 
   group('field semantics', () {
     /// The semantics node a screen reader focuses for the field at [index].
-    SemanticsNode nodeFor(WidgetTester tester, int index) =>
-        tester.getSemantics(
+    SemanticsData nodeFor(WidgetTester tester, int index) => tester
+        .getSemantics(
           find.descendant(
             of: find.byType(TextFormField).at(index),
             matching: find.byType(EditableText),
           ),
-        );
+        )
+        .getSemanticsData();
 
     testWidgets('every field is named by its label, not its hint', (
       tester,
@@ -290,6 +316,18 @@ void main() {
         expect(nodeFor(tester, 4).label, 'Roll number');
         expect(nodeFor(tester, 8).label, 'Centre address');
         expect(nodeFor(tester, 11).label, 'Gate');
+
+        // The label has to merge *onto* the field, not replace it: a wrapper
+        // that took the name but dropped the text-field role would leave the
+        // label readable and the field unusable.
+        final examName = nodeFor(tester, 1);
+        expect(examName.flagsCollection.isTextField, isTrue);
+        await tester.enterText(find.byType(TextFormField).at(1), 'SSC CHSL');
+        await tester.pump();
+        final typed = nodeFor(tester, 1);
+        expect(typed.label, 'Exam name');
+        expect(typed.value, 'SSC CHSL');
+        expect(typed.flagsCollection.isTextField, isTrue);
       } finally {
         handle.dispose();
       }
@@ -514,6 +552,35 @@ void main() {
       expect(index, ['chsl']);
     });
 
+    testWidgets('an unreadable vault refuses the save and says so', (
+      tester,
+    ) async {
+      final announced = captureAnnouncements();
+      useTallViewport(tester);
+      // The Keystore read throws: the duplicate check cannot run at all.
+      store = _MemoryStore(failIndex: true);
+
+      await tester.pumpWidget(harness(const _FormHost()));
+      await tester.tap(find.text('Open form'));
+      await tester.pumpAndSettle();
+
+      await fill(tester, ['', 'SSC CHSL 2026', '', '', 'A1234567']);
+      await pickToday(tester);
+      await tester.tap(find.text('Save to vault'));
+      await tester.pumpAndSettle();
+
+      // The refusal names the outcome (not saved) as well as the cause, and it
+      // is spoken, not only painted.
+      expect(find.textContaining('has not been saved yet'), findsOneWidget);
+      expect(
+        announced.any((m) => m.contains('has not been saved yet')),
+        isTrue,
+      );
+      // Nothing was written: an unchecked save is not a save.
+      expect(store.raw, isEmpty);
+      expect(store.attemptedWriteIds, isEmpty);
+    });
+
     testWidgets('an optional name survives save', (tester) async {
       useTallViewport(tester);
       await tester.pumpWidget(harness(const _FormHost()));
@@ -596,31 +663,6 @@ void main() {
     });
   });
 
-  /// Captures the messages the form sends to the platform screen reader.
-  List<String> captureAnnouncements() {
-    final messages = <String>[];
-    final messenger =
-        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-    messenger.setMockDecodedMessageHandler<dynamic>(
-      SystemChannels.accessibility,
-      (message) async {
-        final event = message as Map<dynamic, dynamic>;
-        if (event['type'] == 'announce') {
-          final data = event['data'] as Map<dynamic, dynamic>;
-          messages.add(data['message'] as String);
-        }
-        return null;
-      },
-    );
-    addTearDown(
-      () => messenger.setMockDecodedMessageHandler<dynamic>(
-        SystemChannels.accessibility,
-        null,
-      ),
-    );
-    return messages;
-  }
-
   group('save bounds', () {
     testWidgets('a hung write times out into the error path with Retry', (
       tester,
@@ -647,10 +689,11 @@ void main() {
       );
 
       // A close attempt during the save must say what is happening instead of
-      // hitting `if (_saving) return;` in silence.
+      // hitting `if (_saving) return;` in silence. "Working", not "saving":
+      // the same wait can be the duplicate check reading the vault.
       await tester.binding.handlePopRoute();
       await tester.pump();
-      expect(find.text('Still saving your card…'), findsOneWidget);
+      expect(find.text('Still working on your card…'), findsOneWidget);
       expect(find.text('Add admit card'), findsOneWidget);
 
       // Past the 15 s ceiling the write is abandoned: an error with Retry, not
@@ -686,6 +729,91 @@ void main() {
 
       // A screen-reader user tapping Save used to hear nothing at all.
       expect(announced, contains('Choose the exam date before saving.'));
+    });
+
+    testWidgets('the refusal and the error rows are live regions', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      try {
+        useTallViewport(tester);
+        store = _MemoryStore(hangWrites: true);
+        await tester.pumpWidget(harness(const _FormHost()));
+        await tester.tap(find.text('Open form'));
+        await tester.pumpAndSettle();
+
+        await fill(tester, ['', 'SSC CHSL 2026', '', '', 'A1234567']);
+        await tester.tap(find.text('Save to vault'));
+        await tester.pumpAndSettle();
+        final notice = find.text('Choose the exam date before saving.');
+        expect(
+          tester
+              .getSemantics(notice)
+              .getSemanticsData()
+              .flagsCollection
+              .isLiveRegion,
+          isTrue,
+        );
+
+        await pickToday(tester);
+        await tester.tap(find.text('Save to vault'));
+        await tester.pump();
+        await tester.pump(const Duration(seconds: 16));
+        await tester.pump();
+        final error = find.textContaining('Saving took too long');
+        expect(
+          tester
+              .getSemantics(error)
+              .getSemanticsData()
+              .flagsCollection
+              .isLiveRegion,
+          isTrue,
+        );
+      } finally {
+        handle.dispose();
+      }
+    });
+
+    testWidgets('a retry after a timeout saves one card, not two', (
+      tester,
+    ) async {
+      useTallViewport(tester);
+      store = _MemoryStore();
+      // The first write takes 20 s: the form stops waiting at 15 s, but the
+      // write still lands. This is the race a Retry has to survive — a slow
+      // Keystore write that arrives after the user has tapped again.
+      store.nextWriteDelay = const Duration(seconds: 20);
+
+      await tester.pumpWidget(harness(const _FormHost()));
+      await tester.tap(find.text('Open form'));
+      await tester.pumpAndSettle();
+
+      await fill(tester, ['', 'SSC CHSL 2026', '', '', 'A1234567']);
+      await pickToday(tester);
+      await tester.tap(find.text('Save to vault'));
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 16));
+      await tester.pump();
+
+      expect(find.textContaining('Saving took too long'), findsOneWidget);
+      // The write is still in flight: nothing in the vault yet.
+      expect(store.raw.containsKey('__index'), isFalse);
+
+      // Retry while the first write is still pending, then let it land.
+      await tester.tap(find.text('Retry'));
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 6));
+      await tester.pumpAndSettle();
+
+      final cards = store.raw.keys.where((k) => k != '__index').toList();
+      expect(cards, hasLength(1));
+      // Retry reused the id the first attempt used, so its write overwrote that
+      // card instead of minting a second one for the same exam + roll.
+      expect(store.attemptedWriteIds, hasLength(2));
+      expect(store.attemptedWriteIds.toSet(), {cards.single});
+      expect(jsonDecode(store.raw['__index']!) as List<dynamic>, [
+        cards.single,
+      ]);
     });
   });
 
@@ -978,7 +1106,11 @@ class _FormHost extends ConsumerWidget {
 
 /// In-memory stand-in for the Keystore-backed store.
 class _MemoryStore implements SecureVaultStore {
-  _MemoryStore({this.indexGate, this.hangWrites = false});
+  _MemoryStore({
+    this.indexGate,
+    this.hangWrites = false,
+    this.failIndex = false,
+  });
 
   final Map<String, String> raw = {};
 
@@ -986,12 +1118,26 @@ class _MemoryStore implements SecureVaultStore {
   /// still in flight when the form opens.
   final Completer<void>? indexGate;
 
+  /// Makes [readIndex] throw: a vault the form cannot read at all.
+  final bool failIndex;
+
   /// Makes [writeRaw] never complete: simulates the hung Keystore write that
-  /// used to leave the form saving forever.
-  final bool hangWrites;
+  /// used to leave the form saving forever. Mutable so a test can let a stalled
+  /// write through on a later attempt.
+  bool hangWrites;
+
+  /// How long the *next* [writeRaw] takes before it lands. A write slower than
+  /// the form's 15 s ceiling: the form gives up waiting but the card still
+  /// reaches the store, which is what a Retry has to cope with.
+  Duration? nextWriteDelay;
+
+  /// Every id [writeRaw] was called with, in order — including calls that never
+  /// completed, so a test can prove a Retry reused the first attempt's id.
+  final List<String> attemptedWriteIds = [];
 
   @override
   Future<List<String>> readIndex() async {
+    if (failIndex) throw StateError('keystore unavailable');
     final gate = indexGate;
     if (gate != null) await gate.future;
     final value = raw['__index'];
@@ -1009,6 +1155,12 @@ class _MemoryStore implements SecureVaultStore {
 
   @override
   Future<void> writeRaw(String id, String payload) async {
+    attemptedWriteIds.add(id);
+    final delay = nextWriteDelay;
+    if (delay != null) {
+      nextWriteDelay = null;
+      await Future<void>.delayed(delay);
+    }
     if (hangWrites) return Completer<void>().future;
     raw[id] = payload;
   }

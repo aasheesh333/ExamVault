@@ -145,6 +145,16 @@ class _VaultFormSheetState extends ConsumerState<_VaultFormSheet> {
   /// distinct from [_error], which is a failed write and offers Retry.
   String? _validationNotice;
 
+  /// The id minted for a save that has not been confirmed yet.
+  ///
+  /// A timed-out write is only abandoned by the *waiter*: the Keystore call can
+  /// still land seconds later. Minting a fresh id on Retry would then leave two
+  /// cards for one exam and one roll — the exact duplicate this form exists to
+  /// prevent. Holding the id makes Retry converge on one card, because
+  /// `writeRaw` overwrites and the repository only appends an id the index does
+  /// not already contain.
+  String? _pendingCardId;
+
   @override
   void initState() {
     super.initState();
@@ -181,9 +191,10 @@ class _VaultFormSheetState extends ConsumerState<_VaultFormSheet> {
   Future<void> _requestClose() async {
     // A close tap during a save used to vanish: the sheet stayed up and the
     // only sign anything happened was the spinner it was already showing. Say
-    // what is going on and stay put until the bounded write finishes.
+    // what is going on and stay put. "Working", not "saving": the wait may be
+    // the duplicate check reading a slow vault rather than the write itself.
     if (_saving) {
-      _showNotice('Still saving your card…', saving: true);
+      _showNotice('Still working on your card…', saving: true);
       return;
     }
     if (_confirmingDiscard) return;
@@ -236,6 +247,15 @@ class _VaultFormSheetState extends ConsumerState<_VaultFormSheet> {
     _announce(message);
   }
 
+  /// Forgets the id of an unconfirmed save.
+  ///
+  /// Called when the card's identity changes (exam name, roll, date): the user
+  /// is no longer retrying the same card, so it must get its own id rather than
+  /// overwrite the one the abandoned write may still be landing under.
+  void _forgetPendingCard() {
+    _pendingCardId = null;
+  }
+
   Future<bool> _confirmDiscard() async {
     final p = context.ev;
     final result = await showDialog<bool>(
@@ -286,6 +306,9 @@ class _VaultFormSheetState extends ConsumerState<_VaultFormSheet> {
   /// Mirrors the typed name into the category chip so a "UPSC CSE" card is not
   /// filed under SSC.
   void _onExamNameChanged(String value) {
+    // A renamed card is a different card: retrying the abandoned save under
+    // the old id would overwrite a card the user no longer describes.
+    _forgetPendingCard();
     final inferred = ExamMatcher.categoryFor(value);
     if (_categoryPicked || inferred == null) {
       // Still rebuild: the match banner is derived from the same text.
@@ -368,14 +391,19 @@ class _VaultFormSheetState extends ConsumerState<_VaultFormSheet> {
         if (_examDate == null) _dateFieldKey,
       ];
       if (invalid.isEmpty) return;
-      final fieldContext = invalid.first.currentContext;
-      if (fieldContext == null) return;
-      Scrollable.ensureVisible(
-        fieldContext,
-        duration: EvMotion.of(context, EvMotion.inline),
-        curve: EvMotion.curveOf(context, EvMotion.enter),
-        alignment: 0.1,
-      );
+      // Skip keys whose field is not mounted (an ancestor rebuilt it away)
+      // rather than giving up on the whole reveal.
+      for (final key in invalid) {
+        final fieldContext = key.currentContext;
+        if (fieldContext == null) continue;
+        Scrollable.ensureVisible(
+          fieldContext,
+          duration: EvMotion.of(context, EvMotion.inline),
+          curve: EvMotion.curveOf(context, EvMotion.enter),
+          alignment: 0.1,
+        );
+        return;
+      }
     });
   }
 
@@ -438,6 +466,14 @@ class _VaultFormSheetState extends ConsumerState<_VaultFormSheet> {
     final base = widget.existing;
     final roll = _roll.text.trim().toUpperCase();
 
+    // Mint the id once per card, not once per Save tap: a Retry after a
+    // timed-out write must land on the same card the first attempt may still
+    // be writing. See [_pendingCardId].
+    final cardId =
+        base?.id ??
+        _pendingCardId ??
+        '${_category.id}_${now.millisecondsSinceEpoch.toRadixString(36)}';
+
     // The checker looks the index up by this id, so a hand-derived slug could
     // never resolve. Re-resolve on every save: a fresh match first, then the id
     // the card already had — but only when the name is unchanged, because a
@@ -454,15 +490,20 @@ class _VaultFormSheetState extends ConsumerState<_VaultFormSheet> {
     if (!mounted) return;
     if (cards == null) {
       // Never claim the check passed when it could not run: the student would
-      // end up with two passes for one exam and one roll.
+      // end up with two passes for one exam and one roll. Say the card is still
+      // unsaved too — "could not check" alone left the outcome ambiguous.
       _showNotice(
-        'Could not check your vault for duplicates. Try again in a moment.',
+        'Your card has not been saved yet. Could not check your vault for '
+        'duplicates — try again in a moment.',
       );
       return;
     }
+    // `cardId` is excluded rather than `base?.id`: a retried save writes to the
+    // id the abandoned attempt used, so finding that id in the vault is this
+    // card, not a duplicate of it.
     final duplicate = cards.any(
       (c) =>
-          c.id != base?.id &&
+          c.id != cardId &&
           c.examId == examId &&
           normaliseRoll(c.rollNumber) == normaliseRoll(roll),
     );
@@ -487,9 +528,7 @@ class _VaultFormSheetState extends ConsumerState<_VaultFormSheet> {
 
     final card = AdmitCard(
       candidateName: _name.text.trim(),
-      id:
-          base?.id ??
-          '${_category.id}_${now.millisecondsSinceEpoch.toRadixString(36)}',
+      id: cardId,
       examId: examId,
       category: _category,
       examName: _examName.text.trim(),
@@ -511,6 +550,9 @@ class _VaultFormSheetState extends ConsumerState<_VaultFormSheet> {
     );
 
     try {
+      // Hold the id across the attempt so a Retry reuses it. An edit's id is
+      // stable already (`base.id`), so only a new card needs remembering.
+      if (base == null) _pendingCardId = cardId;
       // Loads are bounded (10 s in the repository); writes were not, and a
       // hung Keystore write left `_saving` true forever: a permanent spinner on
       // the primary button, with Cancel, back and the barrier all returning
@@ -520,6 +562,7 @@ class _VaultFormSheetState extends ConsumerState<_VaultFormSheet> {
           .read(admitCardsProvider.notifier)
           .save(card)
           .timeout(const Duration(seconds: 15));
+      _pendingCardId = null;
       if (!mounted) return;
       Navigator.of(context).pop();
       ScaffoldMessenger.of(context).showSnackBar(
@@ -533,11 +576,11 @@ class _VaultFormSheetState extends ConsumerState<_VaultFormSheet> {
     } on TimeoutException catch (e, st) {
       AppLogger.e('VaultForm', 'Admit card save timed out', e, st);
       if (!mounted) return;
-      // Honest about what is unknown: the write may still land after the
-      // ceiling, so this must not claim the card was not saved.
+      // Retry is safe and worth inviting: the id is held, so a write that
+      // landed after the ceiling is overwritten rather than duplicated.
       _showError(
-        'Saving took too long. Your details are still here — check your vault '
-        'before trying again.',
+        'Saving took too long. Your details are still here — tap Retry to '
+        'finish saving.',
       );
     } catch (e, st) {
       AppLogger.e('VaultForm', 'Admit card save failed', e, st);
@@ -570,6 +613,8 @@ class _VaultFormSheetState extends ConsumerState<_VaultFormSheet> {
     // alive by PopScope while the picker is open, but a system-initiated
     // teardown mid-picker would turn this setState into a crash.
     if (picked != null && mounted) {
+      // A new date is a different card; see [_forgetPendingCard].
+      _forgetPendingCard();
       setState(() {
         _examDate = picked;
         _validationNotice = null;
@@ -712,6 +757,8 @@ class _VaultFormSheetState extends ConsumerState<_VaultFormSheet> {
                       upperCase: true,
                       maxLength: 24,
                       validator: _validateRoll,
+                      // A different roll is a different card; see [_forgetPendingCard].
+                      onChanged: (_) => _forgetPendingCard(),
                     ),
                     _Field(
                       controller: _regId,
@@ -984,11 +1031,13 @@ class _Field extends StatelessWidget {
         FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z0-9\-/]')),
       if (upperCase) const _UpperCaseFormatter(),
     ];
-    // The theme's own hint style, so the example still looks exactly like the
-    // `hintText` it replaced (Material adds `height: 1` to the inline hint).
-    final hintStyle = Theme.of(
-      context,
-    ).inputDecorationTheme.hintStyle?.copyWith(height: 1);
+    // The theme's own hint style. Material resolves an inline hint as
+    // `bodyLarge.merge(baseStyle).merge(themeDefaults).merge(decoration.hintStyle)`,
+    // and this style is that last link — the mono face, 10.5 px and `height:
+    // 1.3` from `microLabel` — so reusing it keeps the example identical to what
+    // `hintText` painted. (An earlier version forced `height: 1` on the theory
+    // that Material added it; it does not, and the override shrank the line box.)
+    final hintStyle = Theme.of(context).inputDecorationTheme.hintStyle;
 
     return Padding(
       key: fieldKey,

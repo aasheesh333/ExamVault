@@ -100,20 +100,20 @@ Audit: `docs/AUDIT_2026-11-16.md`. Ledger: `.superpowers/sdd/PLAN_play_store_rea
 - [x] Commit `fix(clipboard):`
 
 ## Task 9 — About: real provenance, wrapping headings, no stacked sheets, real delete-all
-- [ ] Render `source.checkedAt` next to the row count ("17 items · checked 4h ago"; full date >24h)
-- [ ] No age shown when `checkedAt` is null (never invent one)
-- [ ] Use `source.homepage` for the source link when present
-- [ ] `EvSectionHeader`: wrap to 2 lines above ~1.4× regardless of `trailing`
-- [ ] **FIX the top-anchored About sheet** (verified: rect (1,1)-(392,766) at 393×852) — move ScaffoldMessenger/Scaffold inside the DraggableScrollableSheet builder; assert geometry
-- [ ] `EvCard` double focus stop: `InkWell(excludeFromSemantics: onTap != null && semanticLabel != null)`
-- [ ] Shared synchronous open-guard (`showOnceSheet` or `_opening` bool) for About + detail sheet
-- [ ] Implement "Delete all data" UI in About under "Your data" with a confirm dialog
-- [ ] Wipe secure vault + settings keys + cached feed + HTTP cache
-- [ ] Reset in-memory providers so the UI empties without a restart
-- [ ] Confirmation feedback after the wipe
-- [ ] Fix the doc comments on both `wipe()` methods so they are true
-- [ ] Tests: `checkedAt` rendered with correct age for a fixed clock; none when null; delete-all clears everything and lands in empty state; double-tap opens one sheet
-- [ ] Commit `feat(about):`
+- [x] Render `source.checkedAt` next to the row count ("17 items · checked 4h ago"; full date >24h)
+- [x] No age shown when `checkedAt` is null (never invent one)
+- [x] Use `source.homepage` for the source link when present
+- [x] `EvSectionHeader`: wrap to 2 lines above ~1.4× regardless of `trailing`
+- [x] **FIX the top-anchored About sheet** (verified: rect (1,1)-(392,766) at 393×852) — move ScaffoldMessenger/Scaffold inside the DraggableScrollableSheet builder; assert geometry
+- [x] `EvCard` double focus stop: `InkWell(excludeFromSemantics: onTap != null && semanticLabel != null)`
+- [x] Shared synchronous open-guard (`showOnceSheet` or `_opening` bool) for About + detail sheet
+- [x] Implement "Delete all data" UI in About under "Your data" with a confirm dialog
+- [x] Wipe secure vault + settings keys + cached feed + HTTP cache
+- [x] Reset in-memory providers so the UI empties without a restart
+- [x] Confirmation feedback after the wipe
+- [x] Fix the doc comments on both `wipe()` methods so they are true
+- [x] Tests: `checkedAt` rendered with correct age for a fixed clock; none when null; delete-all clears everything and lands in empty state; double-tap opens one sheet
+- [x] Commit `feat(about):`
 
 ## Task 10 — Notification categories: make the promise true
 - [ ] `FollowedCategoriesNotifier` persisted (`followed_categories`), default = all five
@@ -146,16 +146,16 @@ Audit: `docs/AUDIT_2026-11-16.md`. Ledger: `.superpowers/sdd/PLAN_play_store_rea
 - [x] Commit `chore(cleanup):`
 
 ## Task 12 — Play Store assets + listing
-- [ ] Generator in `tools/branding/` for `design/exports/feature_graphic_1024x500.png`
-- [ ] Feature graphic generated, exactly 1024×500, from brand tokens only
-- [ ] Screenshot pipeline (script or documented command) writing to `design/exports/screenshots/`
-- [ ] `docs/PLAY_STORE.md`: artefact list matches CI
-- [ ] `docs/PLAY_STORE.md`: feature graphic marked done with path
-- [ ] `docs/PLAY_STORE.md`: screenshot instructions with the real command
-- [ ] `docs/PLAY_STORE.md`: short description re-verified ≤80 chars
-- [ ] `docs/PLAY_STORE.md`: Data safety section consistent with Task 10
-- [ ] Final claim audit: no mirrored PDFs, no analytics, no account
-- [ ] Commit `docs(play):`
+- [x] Generator in `tools/branding/` for `design/exports/feature_graphic_1024x500.png`
+- [x] Feature graphic generated, exactly 1024×500, from brand tokens only
+- [x] Screenshot pipeline (script or documented command) writing to `design/exports/screenshots/`
+- [x] `docs/PLAY_STORE.md`: artefact list matches CI
+- [x] `docs/PLAY_STORE.md`: feature graphic marked done with path
+- [x] `docs/PLAY_STORE.md`: screenshot instructions with the real command
+- [x] `docs/PLAY_STORE.md`: short description re-verified ≤80 chars
+- [x] `docs/PLAY_STORE.md`: Data safety section consistent with Task 10
+- [x] Final claim audit: no mirrored PDFs, no analytics, no account
+- [x] Commit `docs(play):`
 
 ## Task 14 — Radar "new since last look" divider + Dates grouping
 - [ ] Radar: hairline + "NEW" label at the first row newer than `alertsSeenAt`

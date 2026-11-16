@@ -61,22 +61,31 @@ by design, so it exists only in the secrets and wherever you store the backup.
   It writes the PNG **and** the SVG it rendered (`design/exports/feature_graphic_1024x500.svg`),
   needs only `python3` (stdlib) and `google-chrome`, and fails if the result is
   not exactly 1024×500.
-- **Screenshots:** `design/exports/screenshots/` — five PNGs at **1179×2556**
-  (`01-home`, `02-vault`, `03-dates`, `04-radar`, `05-share`), above Play's
-  1080×2340 floor. Regenerate with:
+- **Screenshots:** `design/exports/screenshots/` — five PNGs at **1410×2808**
+  (`01-home`, `02-vault`, `03-dates`, `04-radar`, `05-share`). That is 1.99:1,
+  inside Play's **2:1** aspect ceiling, and above its 1080×2340 pixel floor —
+  both constraints matter, and the app's own 393×852 reference viewport fails
+  the second one (it is 2.17:1 and would be rejected at upload). Regenerate with:
   ```
   cd app && EV_SCREENSHOTS=1 flutter test test/screenshot_capture_test.dart
   ```
   **These are rendered from the real widgets, not captured on a device.** The
-  harness pumps the shipped `RootShell` at a 393×852 logical viewport and
+  harness pumps the shipped `RootShell` at a 470×936 logical viewport and
   rasterises the frame through `RepaintBoundary.toImage(pixelRatio: 3)`, so the
-  output is 3× the layout — the same pixel density a 3× phone reports — using the
-  same `app/test/support/matrix.dart` fixture the layout matrix asserts against
-  and the app's bundled fonts. Nothing is drawn by hand, so the pictures cannot
-  show a screen the app does not have — but they also carry no status bar, no
-  device chrome and no real network: the feed is the matrix's canned JSON. When a
-  physical device is available, re-capture on it and replace these; the pipeline
-  above stays the reproducible fallback and the regression check.
+  output is 3× the layout — the pixel density a 3× phone reports — using the same
+  `app/test/support/matrix.dart` fixture the layout matrix asserts against and
+  the app's bundled fonts. Nothing is drawn by hand, so the pictures cannot show
+  a screen the app does not have — but they also carry no status bar, no device
+  chrome and no real network: the feed is the matrix's canned JSON.
+
+  470 dp is a real Android width (foldables and small tablets report it; phones
+  report 320–448 dp), chosen because at the 2:1 ceiling the 393 dp reference has
+  only 786 dp of height and at that size Vault's floating dock and Share's fixed
+  CTA each cover the last row of their screen. Every shot is captured **at rest**
+  — no scroll offsets — with its title bar, content and tab bar all intact.
+
+  When a physical device is available, re-capture on it and replace these; the
+  pipeline above stays the reproducible fallback and the regression check.
 
 ## Version codes: sideloaded APKs vs the Play AAB
 
@@ -176,10 +185,11 @@ removed.
 - [ ] Replace the throwaway upload keystore with one you have backed up
 - [x] Feature graphic: `design/exports/feature_graphic_1024x500.png` (regen:
       `python3 tools/branding/make_feature_graphic.py`)
-- [x] Screenshots at ≥1080×2340: `design/exports/screenshots/` — 1179×2556,
-      rendered from the real widgets (regen: `cd app && EV_SCREENSHOTS=1 flutter
-      test test/screenshot_capture_test.dart`). Replace with device captures if a
-      phone is available; the widget pipeline is the reproducible fallback.
+- [x] Screenshots at ≥1080×2340 and ≤2:1: `design/exports/screenshots/` —
+      1410×2808 (1.99:1), rendered from the real widgets (regen: `cd app &&
+      EV_SCREENSHOTS=1 flutter test test/screenshot_capture_test.dart`). Replace
+      with device captures if a phone is available; the widget pipeline is the
+      reproducible fallback.
 - [ ] Host `docs/PRIVACY.md` at a public URL and paste it into the listing
 - [ ] Decide the licensing stance on any mirrored PDF (currently: link-only, no
       mirroring — see `docs/DATA_PIPELINE.md`)

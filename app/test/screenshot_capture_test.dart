@@ -31,9 +31,35 @@ import 'support/matrix.dart';
 /// warning on every run. The env var is the only gate that is both inert by
 /// default and warning-free.
 ///
-/// Output: `../design/exports/screenshots/NN-<tab>.png`, each exactly 1179x2556
-/// (393x852 logical at devicePixelRatio 3 — the app's reference viewport, above
-/// Play's 1080x2340 floor). See docs/PLAY_STORE.md.
+/// Output: `../design/exports/screenshots/NN-<tab>.png`, each exactly 1410x2808
+/// (470x936 logical at devicePixelRatio 3). See docs/PLAY_STORE.md.
+///
+/// ## Why this viewport, in full
+///
+/// Play imposes **two** constraints on a phone screenshot, and the app's 393x852
+/// reference viewport (`matrixPoints[1]`) satisfies only one:
+///
+///  * pixel floor — 1080x2340. 393x852 at 3x is 1179x2556, comfortably above.
+///  * aspect ceiling — **2:1** height/width. 1179x2556 is 2.17:1 and is rejected
+///    at upload, floor or no floor.
+///
+/// The ceiling therefore caps height at 2x the width, and the screens here are
+/// full-screen layouts with two pieces of *fixed* chrome: the floating tab bar,
+/// and on Vault a floating action dock, on Share a fixed CTA. At 393dp the cap is
+/// 786dp — and at that height both of those screens put a floating control over
+/// the last row of their scroll view, so no scroll offset can frame them without
+/// cutting something (a scroll that clears the dock also pushes the screen's own
+/// title bar out of frame, which reads as a broken render).
+///
+/// So the width is what moves: 470x936 at 3x is 1410x2808 = 1.99:1, inside the
+/// ceiling, and at that size all five screens fit at rest — title bar, content
+/// and tab bar all intact, no scrolling, no clipped row. 470dp is a real Android
+/// width (foldables and small tablets report it; phones report 320-448dp), so the
+/// layout is one the responsive code genuinely produces — nothing is faked or
+/// rearranged for the picture.
+///
+/// Both bounds are asserted below, so a future viewport edit cannot silently
+/// re-break the upload.
 void main() {
   final enabled = Platform.environment['EV_SCREENSHOTS'] == '1';
 
@@ -62,14 +88,13 @@ void main() {
     } catch (_) {}
   });
 
-  // 393x852 at 3x is 1179x2556 — the app's own reference viewport (matrixPoints[1])
-  // and comfortably above Play's 1080x2340 floor. The narrower 360x780 was tried
-  // first and produced exactly 1080x2340, but at that width the vault's floating
-  // "Check my result" dock covered the checklist it exists to explain.
+  // 470x936 at 3x is 1410x2808. See the file docstring for why this is not the
+  // app's 393x852 reference: Play's 2:1 aspect ceiling, and what it does to the
+  // two screens with fixed floating chrome.
   const point = MatrixPoint(
     name: 'store',
-    width: 393,
-    height: 852,
+    width: 470,
+    height: 936,
     textScale: 1.0,
     dark: true,
   );
@@ -128,6 +153,12 @@ void main() {
   ];
 
   /// Every shipped tab, in tab-bar order.
+  ///
+  /// Deliberately no scroll offsets: every one of these is captured at rest, so
+  /// the picture is the screen as it opens. An earlier revision scrolled Vault
+  /// and Share to clear their floating controls and produced two broken images —
+  /// Share opened on a bare red band with its title bar gone. Framing is the
+  /// viewport's job (see the file docstring), not a magic offset's.
   const tabs = <(String, String)>[
     ('01-home', 'Home'),
     ('02-vault', 'Vault'),
@@ -138,7 +169,7 @@ void main() {
 
   for (final (file, label) in tabs) {
     testWidgets(
-      'captures $label at 1179x2556',
+      'captures $label at 1410x2808',
       (tester) async {
         final boundaryKey = GlobalKey();
         await pumpMatrix(
@@ -148,7 +179,7 @@ void main() {
           env: env,
           cards: cards,
           fullFeed: true,
-          feedRows: 8,
+          feedRows: 2,
         );
 
         // The MockClient's response only completes on the real event loop (the
@@ -185,6 +216,15 @@ void main() {
           expect(image.height, (point.height * 3).round());
           expect(image.width, greaterThanOrEqualTo(1080));
           expect(image.height, greaterThanOrEqualTo(2340));
+          // Play's other constraint, and the one that actually bites: a phone
+          // screenshot taller than 2:1 is rejected at upload. 1179x2556 (the
+          // 852dp reference at 3x) is 2.17 and would be rejected for exactly
+          // this, while passing the pixel floor above.
+          expect(
+            image.height / image.width,
+            lessThanOrEqualTo(2.0),
+            reason: 'Play Store screenshots must be at most 2:1 (h/w)',
+          );
           final data = await image.toByteData(format: ui.ImageByteFormat.png);
           image.dispose();
           return data!.buffer.asUint8List();

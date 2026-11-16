@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:share_plus/share_plus.dart' show ShareResultStatus;
 
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/theme_tokens.dart';
@@ -21,9 +22,12 @@ import 'widgets/share_infographic.dart';
 
 /// Screen 4 — the viral share card.
 ///
-/// The card is rasterised at 3x inside a `RepaintBoundary`. 1080 px wide is the
-/// WhatsApp sweet spot: sharp on every phone, still under 200 KB so a 2G user in
-/// a hostel can actually send it.
+/// The card is rasterised inside a `RepaintBoundary` at a ratio derived from
+/// its *laid-out* width, so the exported PNG is ~1080 px wide on every device:
+/// 1080 px is the WhatsApp sweet spot — sharp on every phone, still under
+/// 200 KB so a 2G user in a hostel can actually send it. The old flat 3x made
+/// the width a property of the phone (1194 px at 430 dp, ~2300 px in a
+/// desktop-web window), which broke that contract and blew the bitmap budget.
 class WhatsappShareCardScreen extends ConsumerStatefulWidget {
   const WhatsappShareCardScreen({super.key});
 
@@ -34,6 +38,16 @@ class WhatsappShareCardScreen extends ConsumerStatefulWidget {
 
 class _WhatsappShareCardScreenState
     extends ConsumerState<WhatsappShareCardScreen> {
+  /// The PNG width the export contract promises.
+  static const double _exportWidthPx = 1080;
+
+  /// Widest the captured card may be laid out.
+  ///
+  /// At 400 dp the derived ratio lands at 2.7 and the PNG is still 1080 px;
+  /// without the cap a desktop-web window laid the card out at ~2300 dp and the
+  /// capture became a ~27 MB bitmap.
+  static const double _maxCardWidth = 400;
+
   final _boundaryKey = GlobalKey();
   final _captionController = TextEditingController();
 
@@ -63,12 +77,20 @@ class _WhatsappShareCardScreenState
   /// Null when there is genuinely nothing to share — no radar row and no saved
   /// card. The screen then shows an explainer instead of a card built on
   /// placeholders like "SSC CGL Tier-1 2026" + "Roll —".
+  ///
+  /// [preferCardName] is set when an explicit vault selection overrode the
+  /// pinned radar row: the student picked that card, so the card's own exam name
+  /// wins over a feed row that happens to share its `examId`.
   ShareCardData? _buildCard(
     LiveUpdate? update,
     AdmitCard? card,
-    RollLookupResult? lookup,
-  ) {
-    final examName = update?.examName ?? card?.examName;
+    RollLookupResult? lookup, {
+    bool preferCardName = false,
+  }) {
+    final examName =
+        (preferCardName ? card?.examName : null) ??
+        update?.examName ??
+        card?.examName;
     final examId = update?.examId ?? card?.examId;
     if (examName == null || examId == null) return null;
 
@@ -132,6 +154,12 @@ class _WhatsappShareCardScreenState
   ///
   /// Bug: this used `cards.first`, so tapping the UPSC result could render SSC's
   /// roll number under UPSC's headline and a false "IN THE LIST" badge.
+  ///
+  /// Bug: whenever a radar row was pinned this ignored `selectedCardIdProvider`
+  /// entirely, so after one radar tap the vault pager's selection was decorative
+  /// and Share exported the pinned exam's card. The caller now clears the
+  /// pinned row when an explicitly selected card names a different exam, so the
+  /// `update == null` branch below is the one that honours the selection.
   AdmitCard? _cardFor(
     List<AdmitCard> cards,
     LiveUpdate? update,
@@ -149,6 +177,44 @@ class _WhatsappShareCardScreenState
       if (c.id == selectedId) return c;
     }
     return cards.isEmpty ? null : cards.first;
+  }
+
+  /// The live feed's own row for [examId], falling back to the tapped row.
+  ///
+  /// The pinned `LiveUpdate` is a snapshot frozen at tap time while the feed
+  /// repolls every 60 s, so a row tapped while `awaited` kept exporting "UPDATE
+  /// AWAITED" after the result had dropped. The checker re-resolves for exactly
+  /// this reason (`instant_result_checker_screen.dart`); the share card must
+  /// too. The tapped row survives only as the fallback for the window before
+  /// the feed has loaded — and only when it describes this same exam, so a
+  /// selection that overrode the pinned row can never inherit its facts.
+  static LiveUpdate? _freshRow(
+    List<LiveUpdate> rows,
+    String? examId,
+    LiveUpdate? pinned,
+  ) {
+    if (examId == null) return pinned;
+    for (final row in rows) {
+      if (row.examId == examId) return row;
+    }
+    return pinned?.examId == examId ? pinned : null;
+  }
+
+  /// The capture ratio that lands the PNG at ~1080 px wide.
+  ///
+  /// Derived from the laid-out width instead of a flat 3x so the export size is
+  /// a property of the contract, not of the phone: a 393 dp phone lays the card
+  /// out at 361 dp → 2.99, a 430 dp phone at 398 dp → 2.71, and the 400 dp cap
+  /// keeps a desktop-web window at 2.7. A 320 dp phone's 288 dp card would need
+  /// 3.75, so the ratio is clamped to 3.0 (864 px) rather than rasterising a
+  /// bigger bitmap than the smallest phones can afford.
+  double _capturePixelRatio() {
+    final render = _boundaryKey.currentContext?.findRenderObject();
+    final width = render is RenderBox && render.hasSize
+        ? render.size.width
+        : 0.0;
+    if (width <= 0) return 3.0;
+    return (_exportWidthPx / width).clamp(1.0, 3.0);
   }
 
   static String _shortDate(DateTime d) {
@@ -251,9 +317,12 @@ class _WhatsappShareCardScreenState
     try {
       // Bug: one 3x capture either blew the bitmap budget on a low-memory phone
       // or silently dropped the image. Retry smaller before giving up on it.
+      // The base ratio comes from the laid-out width (≈1080 px PNG); the two
+      // retries are that same capture at two-thirds and one-third.
+      final base = _capturePixelRatio();
       Uint8List? png;
-      for (final ratio in const [3.0, 2.0, 1.0]) {
-        png = await share.capturePng(_boundaryKey, pixelRatio: ratio);
+      for (final scale in const [1.0, 2 / 3, 1 / 3]) {
+        png = await share.capturePng(_boundaryKey, pixelRatio: base * scale);
         if (png != null) break;
       }
 
@@ -312,6 +381,11 @@ class _WhatsappShareCardScreenState
   /// Sends the caption as plain text and says so. Both fallback paths (capture
   /// failed / image handoff failed) must be audible: a silent downgrade lets
   /// the user believe the image went out.
+  ///
+  /// Bug: the confirmation was unconditional, so dismissing the share sheet
+  /// still produced "shared the message text instead" — the app claimed a
+  /// handoff the platform had explicitly reported as not happening. Only a
+  /// `success` result may make that claim.
   Future<void> _shareTextFallback(
     ShareService share,
     String caption,
@@ -319,12 +393,16 @@ class _WhatsappShareCardScreenState
     Rect? origin, {
     required String reason,
   }) async {
-    await share.shareText(
+    final result = await share.shareText(
       caption: caption,
       subject: data.examName,
       origin: origin,
     );
-    _showSnack('$reason — shared the message text instead.');
+    if (result.status == ShareResultStatus.success) {
+      _showSnack('$reason — shared the message text instead.');
+    } else {
+      _showSnack('Nothing was sent — your caption is still here.');
+    }
   }
 
   void _showSnack(String message) {
@@ -344,10 +422,26 @@ class _WhatsappShareCardScreenState
   @override
   Widget build(BuildContext context) {
     final p = context.ev;
-    final update = ref.watch(resultExamIdProvider);
+    final pinned = ref.watch(resultExamIdProvider);
     final cardsAsync = ref.watch(admitCardsProvider);
     final cards = cardsAsync.value ?? const <AdmitCard>[];
     final selectedId = ref.watch(selectedCardIdProvider);
+    final selectedCard = selectedId == null
+        ? null
+        : cards.where((c) => c.id == selectedId).firstOrNull;
+
+    // Bug: a radar row pinned earlier in the session outranked the vault
+    // pager's selection unconditionally. Swiping from card A to card B and
+    // opening Share exported A's exam *and* A's roll; the preview was the only
+    // warning. An explicit selection now wins whenever it names a different
+    // exam. When it agrees with the pinned row — or nothing is selected — the
+    // radar row still drives the card, exactly as before.
+    final update =
+        pinned != null &&
+            selectedCard != null &&
+            selectedCard.examId != pinned.examId
+        ? null
+        : pinned;
     final card = _cardFor(cards, update, selectedId);
     final examId = update?.examId ?? card?.examId;
     final checkState = ref.watch(resultCheckerProvider);
@@ -356,7 +450,18 @@ class _WhatsappShareCardScreenState
     final lookup = examId != null && checkState.belongsTo(examId)
         ? checkState.result
         : null;
-    final built = _buildCard(update, card, lookup);
+    // Bug: status/headline/official URL/PDF size came from the frozen tapped
+    // row, so a row tapped while `awaited` still exported "UPDATE AWAITED"
+    // after the result dropped. Resolve the feed's current row for this exam
+    // on every build; the tapped row is only the pre-load fallback.
+    final feed = ref.watch(liveFeedProvider).value?.feed;
+    final fresh = _freshRow(feed?.updates ?? const [], examId, update);
+    final built = _buildCard(
+      fresh,
+      card,
+      lookup,
+      preferCardName: update == null && card != null,
+    );
     // Withholding the roll must also stop the caption from repeating it.
     final data = (built == null || _showRoll)
         ? built
@@ -409,7 +514,7 @@ class _WhatsappShareCardScreenState
         child: ListView(
           padding: EdgeInsets.zero,
           children: [
-            _ShareNavBar(),
+            _ShareNavBar(examName: data.examName),
             Padding(
               padding: const EdgeInsets.fromLTRB(
                 EvSpace.gutter,
@@ -421,9 +526,20 @@ class _WhatsappShareCardScreenState
                 children: [
                   // The captured widget. Everything inside is theme-independent
                   // so the exported PNG looks identical in any chat client.
-                  RepaintBoundary(
-                    key: _boundaryKey,
-                    child: ShareInfographic(data: data),
+                  //
+                  // Capped at 400 dp: the capture ratio is derived from this
+                  // laid-out width (see `_capturePixelRatio`), so an uncapped
+                  // card on a wide window produced a huge bitmap.
+                  Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(
+                        maxWidth: _maxCardWidth,
+                      ),
+                      child: RepaintBoundary(
+                        key: _boundaryKey,
+                        child: ShareInfographic(data: data),
+                      ),
+                    ),
                   ),
                   const SizedBox(height: EvSpace.x5),
                   _ShareTargets(
@@ -502,81 +618,115 @@ class _WhatsappShareCardScreenState
 }
 
 class _ShareNavBar extends ConsumerWidget {
-  const _ShareNavBar();
+  const _ShareNavBar({this.examName});
+
+  /// The exam whose card is on screen, shown under the title.
+  ///
+  /// The card itself carries the exam name, but only *inside* the exported
+  /// image; when the vault selection and a pinned radar row disagreed, the
+  /// preview was the only warning that the wrong card was about to be shared.
+  /// A plain text header names it before the user taps Share.
+  final String? examName;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final p = context.ev;
+    final name = examName;
     return ConstrainedBox(
       // A floor, not a fixed height. At a fixed 40px this bar squeezed its own
       // 44px icon buttons down to 40, so back/close missed the 44px minimum.
       constraints: const BoxConstraints(minHeight: EvSize.minTapTarget),
-      child: Stack(
-        alignment: Alignment.center,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Row(
+          Stack(
+            alignment: Alignment.center,
             children: [
-              const SizedBox(width: EvSpace.x2),
-              EvIconButton(
-                icon: Icons.close_rounded,
-                ghost: true,
-                iconSize: 18,
-                tooltip: 'Close',
-                // Same defect as the checker: a tab has no route to pop, so this
-                // × did nothing and system back quit the app instead.
-                onPressed: () =>
-                    ref.read(tabIndexProvider.notifier).select(EvTab.home),
-              ),
-              const Spacer(),
-              Padding(
-                padding: const EdgeInsets.only(right: EvSpace.x4),
-                child: Container(
-                  // minHeight + min-sized Row child, never `alignment:` — an
-                  // aligned Container inside a Row expands to the row's free
-                  // width; this pill was rendering hundreds of px wide, and a
-                  // fixed 24px height sliced the label at large text scales.
-                  constraints: const BoxConstraints(minHeight: 24),
-                  padding: const EdgeInsets.symmetric(horizontal: 9),
-                  decoration: BoxDecoration(
-                    color: p.surfaceSunken,
-                    borderRadius: BorderRadius.circular(EvRadius.pill),
-                    border: Border.all(color: p.border),
+              Row(
+                children: [
+                  const SizedBox(width: EvSpace.x2),
+                  EvIconButton(
+                    icon: Icons.close_rounded,
+                    ghost: true,
+                    iconSize: 18,
+                    tooltip: 'Close',
+                    // Same defect as the checker: a tab has no route to pop, so
+                    // this × did nothing and system back quit the app instead.
+                    onPressed: () =>
+                        ref.read(tabIndexProvider.notifier).select(EvTab.home),
                   ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        'PREVIEW',
-                        maxLines: 1,
-                        style: context.type.statusPill.copyWith(
-                          letterSpacing: 1.1,
-                          color: p.textTertiary,
-                        ),
+                  const Spacer(),
+                  Padding(
+                    padding: const EdgeInsets.only(right: EvSpace.x4),
+                    child: Container(
+                      // minHeight + min-sized Row child, never `alignment:` — an
+                      // aligned Container inside a Row expands to the row's free
+                      // width; this pill was rendering hundreds of px wide, and a
+                      // fixed 24px height sliced the label at large text scales.
+                      constraints: const BoxConstraints(minHeight: 24),
+                      padding: const EdgeInsets.symmetric(horizontal: 9),
+                      decoration: BoxDecoration(
+                        color: p.surfaceSunken,
+                        borderRadius: BorderRadius.circular(EvRadius.pill),
+                        border: Border.all(color: p.border),
                       ),
-                    ],
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'PREVIEW',
+                            maxLines: 1,
+                            style: context.type.statusPill.copyWith(
+                              letterSpacing: 1.1,
+                              color: p.textTertiary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              Positioned.fill(
+                child: Padding(
+                  // Same guard as the checker's nav bar: title and pill are
+                  // independent Stack children and overlapped on a 320px screen
+                  // at 2.0x text. The title owns only the space between × and
+                  // pill.
+                  padding: const EdgeInsets.symmetric(horizontal: 96),
+                  child: Center(
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        'Share Card',
+                        maxLines: 1,
+                        style: context.type.navTitle,
+                      ),
+                    ),
                   ),
                 ),
               ),
             ],
           ),
-          Positioned.fill(
-            child: Padding(
-              // Same guard as the checker's nav bar: title and pill are
-              // independent Stack children and overlapped on a 320px screen at
-              // 2.0x text. The title owns only the space between × and pill.
-              padding: const EdgeInsets.symmetric(horizontal: 96),
-              child: Center(
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Text(
-                    'Share Card',
-                    maxLines: 1,
-                    style: context.type.navTitle,
-                  ),
-                ),
+          if (name != null && name.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                EvSpace.x4,
+                0,
+                EvSpace.x4,
+                EvSpace.x2,
+              ),
+              child: Text(
+                name,
+                maxLines: 2,
+                textAlign: TextAlign.center,
+                // Two lines of a long official name is enough to tell one exam
+                // from another; an ellipsis here is honest (the card below
+                // carries the name in full), a silent clip is not.
+                overflow: TextOverflow.ellipsis,
+                style: context.type.bodyMuted.copyWith(color: p.textTertiary),
               ),
             ),
-          ),
         ],
       ),
     );
@@ -687,9 +837,11 @@ class _Target extends StatelessWidget {
           onTap: enabled ? onTap : null,
           borderRadius: BorderRadius.circular(EvRadius.inner),
           child: SizedBox(
-            // Wider than 76 so "Copy official link" can wrap to two honest
-            // lines instead of being clipped into an unreadable fragment.
-            width: 88,
+            // 96 rather than 76/88: "Copy official link" wraps to one word per
+            // line at 2.0x, and the longest word ("official") needs the extra
+            // width. Three tiles at 96 still fit the 288 dp content width of a
+            // 320 dp phone exactly.
+            width: 96,
             child: Column(
               children: [
                 Container(
@@ -711,7 +863,12 @@ class _Target extends StatelessWidget {
                 const SizedBox(height: 6),
                 Text(
                   label,
-                  maxLines: 2,
+                  // Bug: `maxLines: 2` + ellipsis turned "Copy official link"
+                  // into "Copy / officia…" at 2.0x. Three lines at 96 dp hold
+                  // every word of the current labels at the 2.0x clamp (pinned
+                  // by `share_flow_test`); the ellipsis stays only as a net so
+                  // a future, longer label is cut visibly instead of silently.
+                  maxLines: 3,
                   textAlign: TextAlign.center,
                   overflow: TextOverflow.ellipsis,
                   style: context.type.label.copyWith(

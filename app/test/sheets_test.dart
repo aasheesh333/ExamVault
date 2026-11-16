@@ -14,6 +14,8 @@ import 'package:examvault/features/about/about_sheet.dart';
 import 'package:examvault/features/calendar/exam_calendar_screen.dart';
 import 'package:examvault/features/command_center/command_center_screen.dart';
 import 'package:examvault/features/command_center/widgets/alerts_sheet.dart';
+import 'package:examvault/features/command_center/widgets/live_radar_tile.dart';
+import 'package:examvault/features/command_center/widgets/wallet_pass_card.dart';
 import 'package:examvault/features/result_checker/instant_result_checker_screen.dart';
 import 'package:examvault/providers/app_providers.dart';
 import 'package:examvault/shared/widgets/ev_controls.dart';
@@ -2037,6 +2039,390 @@ void main() {
       }
       // The body still reads in full: `scrollable: true` must not truncate it.
       expect(find.textContaining('It cannot be undone.'), findsOneWidget);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Task 14 — the signals that existed but could not be read.
+  // ---------------------------------------------------------------------------
+
+  /// The radar's badge counts rows published since the inbox was last opened,
+  /// and the tab bar shows a dot — but the list itself drew no boundary, so a
+  /// student returning after a week saw 40 rows in publication order with no
+  /// way to tell which 6 the dot was counting.
+  group('Radar seen/unseen boundary', () {
+    /// Newest first, like the real feed: `LiveFeedDto.decode` sorts descending,
+    /// so the unseen rows are a block at the top and the boundary is below it.
+    List<LiveUpdate> rows(int count) {
+      final now = DateTime.now();
+      return [
+        for (var i = 0; i < count; i++)
+          LiveUpdate(
+            examId: 'exam_$i',
+            category: ExamCategory.ssc,
+            examName: 'Radar row $i',
+            contextLine: 'Official notice',
+            status: UpdateStatus.resultOut,
+            publishedAt: now.subtract(Duration(hours: i)),
+          ),
+      ];
+    }
+
+    Widget radarHost(List<LiveUpdate> updates) => ProviderScope(
+      overrides: [
+        settingsBoxProvider.overrideWithValue(settingsBox),
+        liveFeedProvider.overrideWith(
+          () => _StaticLiveFeed(
+            LiveFeedSnapshot(
+              feed: LiveFeed(
+                generatedAt: DateTime.now(),
+                revision: 1,
+                updates: updates,
+              ),
+              source: FeedSource.network,
+              fetchedAt: DateTime.now(),
+            ),
+          ),
+        ),
+        admitCardsProvider.overrideWith(() => _StaticCards(const [])),
+      ],
+      child: MaterialApp(
+        theme: AppTheme.dark(),
+        home: const CommandCenterScreen(),
+      ),
+    );
+
+    /// Tall enough that the whole radar is laid out: a position assertion needs
+    /// the rows on screen, not sitting in a sliver's cache.
+    Future<void> mountRadar(
+      WidgetTester tester,
+      List<LiveUpdate> updates,
+    ) async {
+      tester.view.physicalSize = const Size(800, 1800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(radarHost(updates));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+      await tester.pump(const Duration(milliseconds: 400));
+    }
+
+    ProviderContainer containerOf(WidgetTester tester) =>
+        ProviderScope.containerOf(tester.element(find.text('Command Center')));
+
+    test('the boundary is the first row at or before the seen instant', () {
+      final feed = rows(6);
+      final seen = DateTime.now().subtract(
+        const Duration(hours: 3, minutes: 30),
+      );
+      // Rows 0-3 were published after the visit; row 4 is the first one seen,
+      // so the divider belongs immediately above it.
+      expect(radarNewBoundary(feed, seen), 4);
+    });
+
+    test('no boundary when every row has been seen', () {
+      final feed = rows(6);
+      expect(
+        radarNewBoundary(feed, DateTime.now().add(const Duration(minutes: 1))),
+        -1,
+      );
+    });
+
+    test('no boundary on a fresh install (epoch seen instant)', () {
+      expect(
+        radarNewBoundary(rows(6), DateTime.fromMillisecondsSinceEpoch(0)),
+        -1,
+      );
+    });
+
+    test('no boundary when every row is new', () {
+      // A visit a month ago: nothing in the feed predates it, so a line at the
+      // bottom of the list would introduce nothing.
+      expect(
+        radarNewBoundary(
+          rows(6),
+          DateTime.now().subtract(const Duration(days: 30)),
+        ),
+        -1,
+      );
+    });
+
+    testWidgets('the divider sits between the last unseen and first seen row', (
+      tester,
+    ) async {
+      // A Hive write completes on the real event loop, which the widget test's
+      // fake clock never advances; `runAsync` is the only way to await one.
+      await tester.runAsync(
+        () => settingsBox.put(
+          alertsSeenSettingKey,
+          DateTime.now()
+              .subtract(const Duration(hours: 3, minutes: 30))
+              .toIso8601String(),
+        ),
+      );
+      await mountRadar(tester, rows(6));
+
+      expect(find.text('NEW'), findsOneWidget);
+      final divider = tester.getRect(find.text('NEW'));
+
+      // Exactly the rows the badge counted are above the line. This is the
+      // property the divider exists for: the number and the boundary agree.
+      final above = tester
+          .widgetList(find.byType(LiveRadarTile))
+          .where(
+            (tile) => tester.getRect(find.byWidget(tile)).bottom <= divider.top,
+          )
+          .length;
+      expect(above, 4);
+      expect(containerOf(tester).read(liveRadarBadgeProvider), 4);
+
+      // The row above stays above, the row below stays below.
+      expect(
+        tester.getRect(find.text('Radar row 3')).bottom,
+        lessThan(divider.top),
+      );
+      expect(
+        tester.getRect(find.text('Radar row 4')).top,
+        greaterThan(divider.bottom),
+      );
+      expectClean(tester);
+    });
+
+    testWidgets('no divider when everything has been seen', (tester) async {
+      await tester.runAsync(
+        () => settingsBox.put(
+          alertsSeenSettingKey,
+          DateTime.now().add(const Duration(minutes: 1)).toIso8601String(),
+        ),
+      );
+      await mountRadar(tester, rows(6));
+
+      expect(find.text('NEW'), findsNothing);
+      expect(containerOf(tester).read(liveRadarBadgeProvider), 0);
+    });
+
+    testWidgets('no divider on a fresh install', (tester) async {
+      // No `alerts_seen_at` in the box: AlertsSeenNotifier falls back to the
+      // epoch and every row is new, so a line would mark the entire list.
+      await mountRadar(tester, rows(6));
+
+      expect(find.text('NEW'), findsNothing);
+      expect(
+        containerOf(tester).read(liveRadarBadgeProvider),
+        6,
+        reason:
+            'the rows really are new; the line is suppressed because a line '
+            'above the first row says nothing',
+      );
+    });
+
+    testWidgets('no divider when every row arrived since the last visit', (
+      tester,
+    ) async {
+      await tester.runAsync(
+        () => settingsBox.put(
+          alertsSeenSettingKey,
+          DateTime.now().subtract(const Duration(days: 30)).toIso8601String(),
+        ),
+      );
+      await mountRadar(tester, rows(6));
+
+      expect(find.text('NEW'), findsNothing);
+    });
+  });
+
+  /// The radar header printed "3 of 34" while a search ran, but the vault
+  /// header printed only the unfiltered "N saved": with a query matching one of
+  /// five cards it claimed five while the list showed one, and no empty state
+  /// appeared because the list was not empty.
+  group('Vault header while a filter narrows it', () {
+    AdmitCard card(
+      String id,
+      String examName,
+      String examCode, {
+      ExamCategory category = ExamCategory.ssc,
+    }) => AdmitCard(
+      id: id,
+      examId: 'exam_$id',
+      category: category,
+      examName: examName,
+      conductingBody: 'Staff Selection Commission',
+      examCode: examCode,
+      rollNumber: '2201098765',
+      registrationId: '',
+      dobOrPortalPassword: '',
+      centerCode: '',
+      centerAddress: '',
+      gate: '',
+      reportBy: '',
+      examDate: DateTime.now().add(const Duration(days: 9)),
+      shift: '',
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+
+    final cards = [
+      card('c0', 'SSC CGL Tier-1 2026', 'CGL-T1'),
+      card('c1', 'SSC CGL Tier-2 2026', 'CGL-T2'),
+      card('c2', 'SSC CHSL 2026', 'CHSL'),
+      card('c3', 'IBPS PO 2026', 'PO', category: ExamCategory.banking),
+      card('c4', 'RRB NTPC 2026', 'NTPC', category: ExamCategory.railways),
+    ];
+
+    Widget vaultHost() => ProviderScope(
+      overrides: [
+        settingsBoxProvider.overrideWithValue(settingsBox),
+        liveFeedProvider.overrideWith(
+          () => _StaticLiveFeed(
+            LiveFeedSnapshot(
+              feed: LiveFeed.empty,
+              source: FeedSource.none,
+              fetchedAt: DateTime.now(),
+            ),
+          ),
+        ),
+        admitCardsProvider.overrideWith(() => _StaticCards(cards)),
+      ],
+      child: MaterialApp(
+        theme: AppTheme.dark(),
+        home: const CommandCenterScreen(),
+      ),
+    );
+
+    Future<void> mountHome(WidgetTester tester) async {
+      tester.view.physicalSize = const Size(393, 852);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(vaultHost());
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+    }
+
+    ProviderContainer containerOf(WidgetTester tester) =>
+        ProviderScope.containerOf(tester.element(find.text('Command Center')));
+
+    testWidgets('a query prints the filtered fraction, not the vault size', (
+      tester,
+    ) async {
+      await mountHome(tester);
+      expect(find.text('5 saved'), findsOneWidget);
+
+      containerOf(tester).read(searchQueryProvider.notifier).set('cgl');
+      await tester.pump();
+
+      expect(find.text('2 of 5'), findsOneWidget);
+      expect(
+        find.text('5 saved'),
+        findsNothing,
+        reason: 'the header must not claim a vault the list is not showing',
+      );
+      // The fraction is honest: two cards, two rendered passes.
+      expect(find.byType(WalletPassCard), findsNWidgets(2));
+      expectClean(tester);
+    });
+
+    testWidgets('a category chip prints the filtered fraction too', (
+      tester,
+    ) async {
+      await mountHome(tester);
+
+      containerOf(
+        tester,
+      ).read(categoryFilterProvider.notifier).select(ExamCategory.banking);
+      await tester.pump();
+
+      expect(find.text('1 of 5'), findsOneWidget);
+      expect(find.byType(WalletPassCard), findsOneWidget);
+      expectClean(tester);
+    });
+
+    testWidgets('with nothing filtered the wording is unchanged', (
+      tester,
+    ) async {
+      await mountHome(tester);
+
+      expect(find.text('5 saved'), findsOneWidget);
+      expect(find.textContaining(' of 5'), findsNothing);
+      // The Add action beside the count is untouched.
+      expect(find.text('Add'), findsOneWidget);
+    });
+  });
+
+  /// The layout floor: the new divider and the new group headings at the
+  /// smallest supported phone with the largest supported text.
+  group('Task 14 at 320x568 @ 2.0x', () {
+    testWidgets('the radar divider does not overflow', (tester) async {
+      final env = (await tester.runAsync(MatrixEnv.open))!;
+      // The matrix feed is published 1h, 8h, 15h and 22h ago, so a visit 10
+      // hours ago leaves rows 0-1 new and the line immediately above row 2.
+      await tester.runAsync(
+        () => env.settingsBox.put(
+          alertsSeenSettingKey,
+          DateTime.now().subtract(const Duration(hours: 10)).toIso8601String(),
+        ),
+      );
+      await pumpMatrix(
+        tester,
+        const CommandCenterScreen(),
+        matrixPoints[5],
+        env: env,
+      );
+      // The mock feed only lands on the real event loop (see search_test).
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 150)),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      await tester.scrollUntilVisible(
+        find.text('NEW'),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.pump();
+
+      expect(find.text('NEW'), findsOneWidget);
+      expectClean(tester, because: 'the radar divider at 320x568 @ 2.0x');
+    });
+
+    testWidgets('the grouped Dates list does not overflow', (tester) async {
+      final env = await tester.runAsync(MatrixEnv.open);
+      await pumpMatrix(
+        tester,
+        const ExamCalendarScreen(),
+        matrixPoints[5],
+        env: env!,
+        cards: [
+          matrixCard(daysFromNow: 2),
+          matrixCard(
+            id: 'b',
+            daysFromNow: 10,
+            examName: 'UPSC Civil Services (Preliminary) Examination 2027',
+            category: ExamCategory.upsc,
+          ),
+          matrixCard(
+            id: 'c',
+            daysFromNow: 40,
+            examName: 'RRB NTPC CBT-2 2026',
+            category: ExamCategory.railways,
+          ),
+        ],
+      );
+
+      expect(find.text('THIS WEEK'), findsOneWidget);
+      expectClean(tester, because: 'the grouped Dates list at 320x568 @ 2.0x');
+
+      // The last heading is two screens down at this size; it must render as
+      // cleanly as the first.
+      await tester.scrollUntilVisible(
+        find.text('LATER'),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.pump();
+
+      expect(find.text('LATER'), findsOneWidget);
+      expectClean(tester, because: 'the last group at 320x568 @ 2.0x');
     });
   });
 }

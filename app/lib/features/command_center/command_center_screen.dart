@@ -42,6 +42,12 @@ class CommandCenterScreen extends ConsumerWidget {
     // rendered exactly like a quiet feed: "Nothing live right now" plus a
     // confident "0 live updates" in the hero, on result day.
     final feedError = feed?.error;
+    // A search or a category chip narrows the vault as well as the radar. The
+    // header must say so: with a query matching one of five cards it printed
+    // "5 saved" over a one-card list, and no empty state appears to explain the
+    // gap because the list is not empty. The radar header already answers this
+    // with a fraction, so the vault header answers with the same fraction.
+    final vaultNarrowed = searching || filter != null;
     final p = context.ev;
 
     return Scaffold(
@@ -80,7 +86,13 @@ class CommandCenterScreen extends ConsumerWidget {
                     children: [
                       if (allCards.isNotEmpty)
                         EvTextAction(
-                          label: '${allCards.length} saved',
+                          // While a filter runs, "N saved" describes a vault the
+                          // list below is not showing. The fraction keeps the
+                          // two numbers adjacent and legible; with no filter
+                          // the wording is unchanged.
+                          label: vaultNarrowed
+                              ? '${cards.length} of ${allCards.length}'
+                              : '${allCards.length} saved',
                           icon: Icons.chevron_right_rounded,
                           onPressed: () => ref
                               .read(tabIndexProvider.notifier)
@@ -940,6 +952,35 @@ class _RadarHeader extends StatelessWidget {
   }
 }
 
+/// Where the "NEW" divider belongs in the radar, or -1 for nowhere.
+///
+/// The badge counts rows published after the inbox was last opened, but the
+/// list itself drew no boundary, so a student returning after a week saw 40
+/// rows in publication order with no indication which 6 the dot was counting.
+///
+/// The feed is published newest-first (`LiveFeedDto.decode` sorts descending),
+/// so the unseen rows form a block at the top and the only boundary that says
+/// anything is the one *below* that block — the first row at or before [seen].
+/// Drawing the line above the first new row would put it above row zero every
+/// time, which is precisely the divider the fresh-install rule suppresses.
+///
+/// Returns -1 when nothing is new (the user has seen everything), when nothing
+/// is old (a fresh install, or a feed where every row arrived since the last
+/// visit — a line past the last row says nothing), and when [seen] is the epoch,
+/// the fresh-install sentinel: every row is new there, so the line would mean
+/// "everything".
+int radarNewBoundary(List<LiveUpdate> rows, DateTime seen) {
+  if (seen.millisecondsSinceEpoch == 0) return -1;
+  for (var i = 0; i < rows.length; i++) {
+    if (!rows[i].publishedAt.isAfter(seen)) {
+      // i == 0 means every row predates the last visit: nothing is new.
+      return i == 0 ? -1 : i;
+    }
+  }
+  // Every row is new: there is no seen row for the line to introduce.
+  return -1;
+}
+
 class _RadarSliver extends ConsumerWidget {
   const _RadarSliver({
     required this.updates,
@@ -1004,14 +1045,28 @@ class _RadarSliver extends ConsumerWidget {
     }
 
     final alerts = ref.watch(examAlertsProvider);
+    final seen = ref.watch(alertsSeenProvider);
+    final dividerAt = radarNewBoundary(updates, seen);
+    final hasDivider = dividerAt > 0;
 
     final list = SliverPadding(
       padding: const EdgeInsets.symmetric(horizontal: EvSpace.gutter),
       sliver: SliverList.builder(
-        itemCount: updates.length,
+        // One extra item when the seen/unseen boundary falls inside the list.
+        // It is a row of the same list, not a card of its own, so the rows on
+        // either side keep their own border/radius flags and the surface stays
+        // continuous.
+        itemCount: updates.length + (hasDivider ? 1 : 0),
         itemBuilder: (context, i) {
-          final first = i == 0;
-          final last = i == updates.length - 1;
+          if (hasDivider && i == dividerAt) return const _NewDivider();
+          final index = hasDivider && i > dividerAt ? i - 1 : i;
+          final first = index == 0;
+          final last = index == updates.length - 1;
+          // The divider is the boundary line, so the first seen row must not
+          // paint its own top hairline on top of it (a double line 6px apart).
+          // Only the hairline is suppressed — `first` still owns the corner
+          // radius, which is why this is not just `first ||= afterDivider`.
+          final afterDivider = hasDivider && index == dividerAt;
           return _RadarRowShell(
             first: first,
             last: last,
@@ -1020,19 +1075,19 @@ class _RadarSliver extends ConsumerWidget {
               // (the publisher does not promise uniqueness) would collide and
               // throw "duplicate keys" mid-list.
               key: ValueKey(
-                '${updates[i].examId}-${updates[i].publishedAt}-$i',
+                '${updates[index].examId}-${updates[index].publishedAt}-$index',
               ),
-              update: updates[i],
-              isFirst: first,
+              update: updates[index],
+              isFirst: first || afterDivider,
               isLast: last,
-              alerting: alerts.contains(updates[i].examId),
+              alerting: alerts.contains(updates[index].examId),
               // Hidden when this build cannot deliver a push: a bell that
               // cannot ring is a lie (web builds, and any build without push
               // credentials).
               onAlertToggle: ref.watch(pushServiceProvider).canDeliver
-                  ? () => _toggleAlert(context, ref, updates[i])
+                  ? () => _toggleAlert(context, ref, updates[index])
                   : null,
-              onTap: () => _openResult(context, ref, updates[i]),
+              onTap: () => _openResult(context, ref, updates[index]),
             ),
           );
         },
@@ -1182,6 +1237,66 @@ class _RadarRowShell extends StatelessWidget {
         // the Scaffold's Material — underneath — and the app's most-tapped list
         // gave zero press feedback.
         child: Material(type: MaterialType.transparency, child: child),
+      ),
+    );
+  }
+}
+
+/// The seen/unseen boundary in the radar.
+///
+/// A hairline with a small label, drawn between two rows — not a card of its
+/// own. It paints the card's surface and side borders so the rounded surface
+/// above and below it reads as one list; the rows on either side keep their own
+/// `first`/`last` flags, so their corner rounding is untouched.
+class _NewDivider extends StatelessWidget {
+  const _NewDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.ev;
+    Widget hairline() => Expanded(
+      child: Container(height: 1, color: p.accent.withValues(alpha: 0.35)),
+    );
+
+    return Semantics(
+      container: true,
+      // The line is the only sighted marker of the boundary; a screen reader
+      // gets the same fact in words, read once, between the two blocks.
+      label: 'New updates end here',
+      child: ExcludeSemantics(
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: p.surface,
+            border: Border(
+              left: BorderSide(color: p.border),
+              right: BorderSide(color: p.border),
+            ),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: EvSpace.x3,
+              vertical: EvSpace.x2,
+            ),
+            child: Row(
+              children: [
+                hairline(),
+                const SizedBox(width: EvSpace.x2),
+                Text(
+                  'NEW',
+                  style: context.type.statusPill.copyWith(
+                    // The 11px floor, not the pill's default: this is live UI
+                    // text, not a bitmap badge.
+                    fontSize: 11,
+                    letterSpacing: 1.4,
+                    color: p.accentText,
+                  ),
+                ),
+                const SizedBox(width: EvSpace.x2),
+                hairline(),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

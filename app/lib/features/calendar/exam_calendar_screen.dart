@@ -11,6 +11,77 @@ import '../../shared/widgets/ev_surfaces.dart';
 import '../shell/root_shell.dart';
 import 'exam_detail_sheet.dart';
 
+/// The three date windows the calendar groups under.
+///
+/// The list is up to ~20 rows of nearest-first dates; without headings it is a
+/// flat scroll with no way to tell "tomorrow" from "next month" except by
+/// reading every countdown.
+enum CalendarBucket {
+  thisWeek('This week'),
+  thisMonth('This month'),
+  later('Later');
+
+  const CalendarBucket(this.label);
+
+  final String label;
+}
+
+/// Which window [entry] falls in, from the same whole-day distance the row's
+/// countdown already uses.
+///
+/// Day windows, not calendar weeks: the provider sorts nearest-first, and a
+/// calendar week would file a date six days out on a Sunday under "Later" while
+/// a date seven days out on a Monday sat under "This week" — a heading that
+/// contradicts the order the rows are in. "This month" is the next 30 days for
+/// the same reason.
+CalendarBucket calendarBucketFor(CalendarEntry entry, DateTime now) {
+  final days = entry.daysFrom(now);
+  if (days <= 7) return CalendarBucket.thisWeek;
+  if (days <= 30) return CalendarBucket.thisMonth;
+  return CalendarBucket.later;
+}
+
+/// One non-empty bucket of the calendar.
+class CalendarGroup {
+  const CalendarGroup(this.bucket, this.entries);
+
+  final CalendarBucket bucket;
+
+  /// The provider's entries for this bucket, in the provider's order.
+  final List<CalendarEntry> entries;
+}
+
+/// [entries] grouped into [CalendarBucket] order.
+///
+/// Ordering is preserved exactly: this walks the provider's list once and
+/// appends, so it groups without re-sorting. Empty buckets are dropped rather
+/// than drawn as a heading over nothing.
+List<CalendarGroup> groupCalendarEntries(
+  List<CalendarEntry> entries,
+  DateTime now,
+) {
+  final byBucket = <CalendarBucket, List<CalendarEntry>>{};
+  for (final entry in entries) {
+    byBucket.putIfAbsent(calendarBucketFor(entry, now), () => []).add(entry);
+  }
+  final groups = <CalendarGroup>[];
+  for (final bucket in CalendarBucket.values) {
+    final rows = byBucket[bucket];
+    if (rows == null || rows.isEmpty) continue;
+    groups.add(CalendarGroup(bucket, List.unmodifiable(rows)));
+  }
+  return groups;
+}
+
+/// One row of the grouped calendar list: a bucket heading, or a dated entry.
+class _CalendarItem {
+  const _CalendarItem.heading(this.bucket) : entry = null;
+  const _CalendarItem.entry(this.entry) : bucket = null;
+
+  final CalendarBucket? bucket;
+  final CalendarEntry? entry;
+}
+
 /// Screen — Exam Calendar.
 ///
 /// Answers one question: *what is coming up, for which exam, and how soon.*
@@ -41,6 +112,15 @@ class _ExamCalendarScreenState extends ConsumerState<ExamCalendarScreen> {
     final entries = ref.watch(examCalendarProvider);
     final now = DateTime.now();
     final alerts = ref.watch(examAlertsProvider);
+    // Grouped, not re-sorted: the headings only break the provider's
+    // nearest-first list into readable windows. Flattened into one lazy list so
+    // the screen stays a single scrollable, with an 8px rhythm throughout.
+    final items = [
+      for (final group in groupCalendarEntries(entries, now)) ...[
+        _CalendarItem.heading(group.bucket),
+        for (final entry in group.entries) _CalendarItem.entry(entry),
+      ],
+    ];
 
     return Scaffold(
       backgroundColor: p.bg,
@@ -57,34 +137,44 @@ class _ExamCalendarScreenState extends ConsumerState<ExamCalendarScreen> {
                         EvSpace.gutter,
                         EvSpace.x2,
                         EvSpace.gutter,
-                        // Clear the floating tab bar: the bar's height follows
-                        // the text scale, so this must be measured, not guessed.
+                        // Clear the floating tab bar: the bar's height
+                        // follows the text scale, so this must be measured,
+                        // not guessed.
                         EvChrome.bottomInset(context),
                       ),
-                      itemCount: entries.length,
+                      itemCount: items.length,
                       separatorBuilder: (_, _) => const SizedBox(height: 8),
-                      itemBuilder: (context, i) => _EntryCard(
-                        entry: entries[i],
-                        now: now,
-                        onOpen: () => _detailGuard.run<void>(
-                          () => showExamDetailSheet(
-                            context,
-                            update: entries[i].update,
-                            card: entries[i].card,
+                      itemBuilder: (context, i) {
+                        final item = items[i];
+                        final bucket = item.bucket;
+                        if (bucket != null) {
+                          return EvSectionHeader(
+                            label: bucket.label,
+                            // The list already sits inside the page gutter;
+                            // the header's own gutter would indent the heading
+                            // 16px past the cards it introduces.
+                            padding: EdgeInsets.zero,
+                          );
+                        }
+                        final entry = item.entry!;
+                        return _EntryCard(
+                          entry: entry,
+                          now: now,
+                          onOpen: () => _detailGuard.run<void>(
+                            () => showExamDetailSheet(
+                              context,
+                              update: entry.update,
+                              card: entry.card,
+                            ),
                           ),
-                        ),
-                        alerting: alerts.contains(entries[i].examId),
-                        onAlertToggle:
-                            entries[i].update == null ||
-                                !ref.watch(pushServiceProvider).canDeliver
-                            ? null
-                            : () => _toggleAlert(
-                                context,
-                                ref,
-                                entries[i],
-                                alerts,
-                              ),
-                      ),
+                          alerting: alerts.contains(entry.examId),
+                          onAlertToggle:
+                              entry.update == null ||
+                                  !ref.watch(pushServiceProvider).canDeliver
+                              ? null
+                              : () => _toggleAlert(context, ref, entry, alerts),
+                        );
+                      },
                     ),
             ),
           ],

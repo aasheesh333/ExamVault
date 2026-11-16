@@ -220,23 +220,23 @@ Audit: `docs/AUDIT_2026-11-16.md`. Ledger: `.superpowers/sdd/PLAN_play_store_rea
 - [x] Commit `fix(a11y):`
 
 ## Task 13 — Final verification + release notes
-- [~] `flutter analyze --fatal-infos` clean
-- [~] `dart format --set-exit-if-changed` clean
-- [~] `flutter test` green
-- [~] `node --test test/*.mjs` green
-- [~] `flutter build web --release` succeeds
-- [~] `flutter build apk --release` succeeds (or document why not run here)
-- [~] Audit doc: every P0/P1/P2 dispositioned (fixed + commit, or deferred + reason)
-- [~] `docs/PLAY_STORE.md`: "Release notes — 1.0.1" section (the only doc item task 17 left)
-- [~] **Re-verify EVERY `file:line` citation in `docs/PLAY_STORE.md`** against the final merged tree — they drift (Task 9 rewrote `about_sheet.dart`; Task 11 deleted API)
-- [~] Fix the now-FALSE sentence at `docs/PLAY_STORE.md:206`: it says the legacy route "still has `pdfBytes`/`pdfUrl` wrappers" — Task 11 deleted both
-- [~] `AppConfig.resultPdfPath` is now uncalled (its only two callers were deleted) — delete it or document it as the future-PDF seam
-- [~] Reconcile `docs/PLAY_STORE.md`'s "the current release is 'all exam alerts' or 'none'" paragraph with Task 10's category picker
-- [~] Record that the 26-permission merged-manifest table cannot be regenerated in this environment (no Android SDK); state where it came from
-- [~] `app/pubspec.yaml` ⇒ `1.0.1+2`
-- [~] `app/ios/Runner/Info.plist`: restore landscape (probe: 852×393 / 900×500 / 393×852 all render cleanly; iPad Split View needs it) and correct the false "stretched portrait UI" comment
-- [~] Do NOT add `android:screenOrientation`; leave the web manifest `portrait-primary` (a PWA display preference, not a restriction)
-- [~] Commit `chore(release):`
+- [x] `flutter analyze --fatal-infos` clean
+- [x] `dart format --set-exit-if-changed` clean
+- [x] `flutter test` green
+- [x] `node --test test/*.mjs` green
+- [x] `flutter build web --release` succeeds
+- [x] `flutter build apk --release` succeeds (or document why not run here)
+- [x] Audit doc: every P0/P1/P2 dispositioned (fixed + commit, or deferred + reason)
+- [x] `docs/PLAY_STORE.md`: "Release notes — 1.0.1" section (the only doc item task 17 left)
+- [x] **Re-verify EVERY `file:line` citation in `docs/PLAY_STORE.md`** against the final merged tree — they drift (Task 9 rewrote `about_sheet.dart`; Task 11 deleted API)
+- [x] Fix the now-FALSE sentence at `docs/PLAY_STORE.md:206`: it says the legacy route "still has `pdfBytes`/`pdfUrl` wrappers" — Task 11 deleted both
+- [x] `AppConfig.resultPdfPath` is now uncalled (its only two callers were deleted) — delete it or document it as the future-PDF seam
+- [x] Reconcile `docs/PLAY_STORE.md`'s "the current release is 'all exam alerts' or 'none'" paragraph with Task 10's category picker
+- [x] Record that the 26-permission merged-manifest table cannot be regenerated in this environment (no Android SDK); state where it came from
+- [x] `app/pubspec.yaml` ⇒ `1.0.1+2`
+- [x] `app/ios/Runner/Info.plist`: restore landscape (probe: 852×393 / 900×500 / 393×852 all render cleanly; iPad Split View needs it) and correct the false "stretched portrait UI" comment
+- [x] Do NOT add `android:screenOrientation`; leave the web manifest `portrait-primary` (a PWA display preference, not a restriction)
+- [x] Commit `chore(release):`
 
 ---
 

@@ -65,7 +65,15 @@ class PushService {
   OnNotificationWillDisplayListener? _oneSignalForegroundListener;
 
   PushProvider _provider = PushProvider.disabled;
-  bool _initialised = false;
+
+  /// The single in-flight (or finished) init, shared by every caller.
+  ///
+  /// `_initialised` used to be set synchronously before the awaits, so a second
+  /// call during boot's init window returned `disabled` while the SDK was still
+  /// starting — and `DataWiper.deleteAll`'s wipe then unsubscribed nothing at
+  /// all while `exam_alerts` was deleted and every bell rendered OFF. One
+  /// future, so a caller that awaits this waits for the real answer.
+  Future<PushProvider>? _initialising;
 
   /// Foreground pushes, for an in-app banner.
   Stream<PushMessage> get messages => _messages.stream;
@@ -88,10 +96,12 @@ class PushService {
 
   /// OneSignal wins when both are configured: it is the one that still works
   /// without an MFA-gated Firebase project.
-  Future<PushProvider> initialise() async {
-    if (_initialised) return _provider;
-    _initialised = true;
+  ///
+  /// Idempotent *and* shared: concurrent callers all await the same future, so
+  /// "already called" never means "returned before the SDK was ready".
+  Future<PushProvider> initialise() => _initialising ??= _initialiseOnce();
 
+  Future<PushProvider> _initialiseOnce() async {
     // OneSignal needs a service worker on the web and a platform config in the
     // OneSignal dashboard. This app's OneSignal app is Android/iOS only, so on
     // web we skip straight to FCM rather than reporting a provider that cannot

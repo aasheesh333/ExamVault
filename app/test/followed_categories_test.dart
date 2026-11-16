@@ -250,6 +250,33 @@ void main() {
     });
   });
 
+  /// `initialise()` used to set its "already done" flag *before* the awaits, so
+  /// a second caller during boot's init window got `disabled` while the SDK was
+  /// still starting — and the wipe that followed unsubscribed nothing.
+  group('initialise is shared', () {
+    test(
+      'a second caller joins the same future instead of answering early',
+      () async {
+        // No configured backend: the body never awaits, so the only thing under
+        // test is the memoisation. Before the fix each call built a fresh future
+        // and the second one answered from a flag set before the SDK had booted.
+        final push = PushService(fcmEnabled: false);
+
+        final first = push.initialise();
+        final second = push.initialise();
+
+        expect(
+          identical(first, second),
+          isTrue,
+          reason:
+              'a caller that awaits initialise() must wait for the real answer, '
+              'not read a flag that was set before the SDK booted',
+        );
+        expect(await first, PushProvider.disabled);
+      },
+    );
+  });
+
   /// The real `_bootPush` path, not a re-implementation of it: what it hands
   /// `syncTopics` is the property the About claim depends on.
   group('boot push sync', () {

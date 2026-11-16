@@ -208,6 +208,20 @@ class DataWiper {
     // wipe — the exact wrong answer the ordering above exists to avoid.
     final push = _ref.read(pushServiceProvider);
     try {
+      // `initialise()` is unawaited in main(), so a wipe inside that window
+      // used to find the provider still `disabled` and `unsubscribeAll` returned
+      // without dropping anything — while `exam_alerts` was deleted and every
+      // bell rendered OFF over live subscriptions. Await the shared init future,
+      // bounded: a hung SDK must not turn a completed local wipe into a failed
+      // one, and the worst case is the old behaviour rather than a worse one.
+      await push.initialise().timeout(
+        const Duration(seconds: 2),
+        onTimeout: () => PushProvider.disabled,
+      );
+    } catch (e) {
+      AppLogger.w('wipe', 'could not initialise push: $e');
+    }
+    try {
       await push
           .unsubscribeAll(examIds: examIds)
           .timeout(const Duration(seconds: 2), onTimeout: () {});

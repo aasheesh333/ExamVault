@@ -677,6 +677,42 @@ empty result fails the job.
 
 ---
 
+## Task 16 — The radar status pill shrinks below the type floor at large text
+
+**Defect (measured in Task 4's review).** `LiveRadarTile` puts the status pill in a
+narrow right-hand column and wraps it in `FittedBox(fit: BoxFit.scaleDown)`. At
+320 dp with 2.0× text the pill's intrinsic width is 233 px while the column is
+~94 px, so the `FittedBox` scales it by **0.405** — an 11 px label paints at
+**≈8.9 logical px**, below the app's own floor (`theme_tokens.dart:11`) and
+smaller than at 1.0× on the exact setting a user raised because they could not
+read the text.
+
+The `FittedBox` is not the root cause; it is the symptom. The row gives the pill a
+column that cannot hold it, and scaling is what stops the row overflowing — the
+same trade `alerts_sheet.dart` already had to make.
+
+**Fix:** above ~1.4× text scale, move the status pill and the age onto their own
+line beneath the headline/context block, where they have the full row width, and
+drop the `FittedBox` on that path so the label paints at its token size. Keep the
+current single-line arrangement at and below 1.4× unchanged — at those scales the
+pill fits and the row reads well. The `alerts_sheet.dart` row has the same shape;
+apply the same rule there so the two lists stay consistent.
+
+**Files:** `app/lib/features/command_center/widgets/live_radar_tile.dart`,
+`app/lib/features/command_center/widgets/alerts_sheet.dart`,
+`app/test/sheets_test.dart` or a new focused test.
+
+**Do:** the responsive layout, and a test that at 320×568 @2.0× the rendered pill
+label's font size is ≥11 logical px (measure the `RenderParagraph`'s text style
+times the applied transform, or assert no `FittedBox` ancestor and that
+`didExceedMaxLines` is false) — not merely that nothing overflows. Keep the
+320@1.0× arrangement byte-identical.
+
+**Acceptance:** at 2.0× the pill paints at ≥11 px; no overflow at 320@2.0×; the
+1.0× row is unchanged.
+
+---
+
 ## Task 13 — Final verification and release notes
 
 **Do:**

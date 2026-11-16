@@ -179,6 +179,14 @@ Audit: `docs/AUDIT_2026-11-16.md`. Ledger: `.superpowers/sdd/PLAN_play_store_rea
 - [x] Verified from `app/` that the derivation returns a real version
 - [x] Commit `fix(ci):`
 
+## Task 16 — Radar/alerts pill paints below the type floor at 2.0×
+- [ ] Above ~1.4× scale, put the status pill + age on their own line with full row width
+- [ ] Drop the `FittedBox` on that path so the label keeps its 11 px token size
+- [ ] Same rule in `alerts_sheet.dart` so the two lists match
+- [ ] Test: at 320×568 @2.0× the pill label is ≥11 logical px (not just "no overflow")
+- [ ] Test: the 320@1.0× arrangement is unchanged
+- [ ] Commit `fix(a11y):`
+
 ## Task 13 — Final verification + release notes
 - [ ] `flutter analyze --fatal-infos` clean
 - [ ] `dart format --set-exit-if-changed` clean

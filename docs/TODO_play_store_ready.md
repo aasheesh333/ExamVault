@@ -187,6 +187,21 @@ Audit: `docs/AUDIT_2026-11-16.md`. Ledger: `.superpowers/sdd/PLAN_play_store_rea
 - [~] Test: the 320@1.0× arrangement is unchanged
 - [~] Commit `fix(a11y):`
 
+## Task 17 — Documentation reconciliation (docs only)
+- [x] `README.md` Screens table rewritten from `EvTab`: five tabs in tab order
+- [x] `README.md` + `app/README.md`: format command `lib test` → `lib test tool`
+- [x] `docs/PLAY_STORE.md`: the false `pdfBytes`/`pdfUrl` sentence replaced
+- [x] Re-verified every `file:line` citation (16 distinct / 23 occurrences; 8 fixed, 8 kept)
+- [x] "all exam alerts or none" reconciled with the picker
+- [x] 26-permission table: provenance stated, `app/build/` claim corrected
+- [x] `INFRA_STATUS.md`: dated snapshot preserved + 2026-11-16 re-observation added
+- [x] `AppConfig.resultPdfPath`: one-line legacy comment
+- [x] README Dates row: bell only on notice dates, not card dates
+- [x] README Radar row: quote the real string "Not in this list yet"
+- [x] PDF claim: every use enumerated, none fetches the document
+- [x] `docs/PRIVACY.md`: permission-table provenance matches `PLAY_STORE.md`
+- [x] Commit `docs:`
+
 ## Task 18 — Edge worker caches the uncacheable feed route
 - [ ] Skip `cache.put` when `route.noEdgeCache` is true
 - [ ] Comment why: a write nobody reads is a per-request cost on the pass-through route

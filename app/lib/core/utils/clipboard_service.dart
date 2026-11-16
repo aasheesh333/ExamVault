@@ -195,12 +195,16 @@ abstract final class ClipboardService {
         return;
       }
 
-      // `null` means the platform exposes no plain text on the clipboard. We
-      // cannot tell "already empty" from "holds a photo", so the privacy
-      // promise wins: finish the wipe. Leaving a password behind for any app
-      // to read is the worse failure, and the user was told it would go. A
-      // different string is unambiguous — another app owns the clipboard now.
-      if (current != null && current != secret) return;
+      // Only an exact match proves the clipboard still holds the secret this
+      // timer armed. `null` means no plain text is exposed — another app may
+      // have put an image there, and `Clipboard.setData('')` would replace it,
+      // destroying content that is not ours. `Clipboard.hasStrings()` cannot
+      // rescue that case: it reports "no text" for an image and for an empty
+      // clipboard alike, so a null read stays ambiguous and we do nothing. A
+      // platform that refuses to read back its own text is the same answer for
+      // the same reason: the user's own paste still works, and every other app
+      // is subject to the same refusal.
+      if (current != secret) return;
 
       // A copy made while we were reading supersedes this wipe.
       if (armedFor != _generation || !_isForeground) return;

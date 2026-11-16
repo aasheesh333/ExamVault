@@ -23,12 +23,18 @@ void main() {
   /// What the platform clipboard currently holds (null = no text).
   late String? clipboardText;
 
+  /// True when the clipboard holds something that is not plain text — a photo
+  /// the user copied from the gallery, say. `getData(kTextPlain)` answers
+  /// `null` for it, exactly as it does for an empty clipboard.
+  late bool clipboardHoldsNonText;
+
   /// When true, `Clipboard.setData` fails the way a locked device does.
   late bool refuseWrites;
 
   setUp(() {
     writes = <String?>[];
     clipboardText = null;
+    clipboardHoldsNonText = false;
     refuseWrites = false;
     ClipboardService.reset();
 
@@ -44,11 +50,19 @@ void main() {
             );
           }
           clipboardText = text;
+          clipboardHoldsNonText = false;
           return null;
         case 'Clipboard.getData':
+          if (clipboardHoldsNonText) return null;
           final text = clipboardText;
           if (text == null) return null;
           return <String, Object?>{'text': text};
+        case 'Clipboard.hasStrings':
+          // The real platform answers "no text" for an image and for an empty
+          // clipboard alike — which is why a null read stays ambiguous.
+          return <String, Object?>{
+            'value': !clipboardHoldsNonText && clipboardText != null,
+          };
         default:
           // HapticFeedback.* and friends: benign no-ops.
           return null;
@@ -166,6 +180,27 @@ void main() {
 
     expect(writes, ['portal-password', '']);
     expect(clipboardText, '');
+    expect(ClipboardService.hasPendingSensitiveClear, isFalse);
+  });
+
+  testWidgets('a non-text clipboard is left alone', (tester) async {
+    await pumpCopyButton(tester);
+    expect(writes, ['portal-password']);
+
+    // The user copied a photo from the gallery. `getData(kTextPlain)` answers
+    // null for it, so the wipe cannot prove the clipboard still holds our
+    // secret — and `setData('')` would replace the photo with empty text,
+    // destroying content that is not ours.
+    clipboardHoldsNonText = true;
+
+    await tester.pump(
+      ClipboardService.sensitiveClearDelay + const Duration(seconds: 1),
+    );
+    await tester.pumpAndSettle();
+
+    expect(writes, [
+      'portal-password',
+    ], reason: 'a null read cannot prove ownership, so nothing may be written');
     expect(ClipboardService.hasPendingSensitiveClear, isFalse);
   });
 

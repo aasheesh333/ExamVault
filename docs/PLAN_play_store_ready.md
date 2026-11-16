@@ -577,6 +577,15 @@ nothing).
 grouping must not reorder anything, and each header must be a real
 `Semantics(header: true)` so a screen reader can jump between them.
 
+**Defect C — the vault section says nothing when a filter narrows it.**
+The radar header prints "3 of 34" while a search runs, but the "My admit cards"
+section prints only the unfiltered "N saved". So with a query that matches one of
+five cards, the header claims five and the list shows one, and the only
+explanation is the empty state — which does not appear, because the list is not
+empty. Mirror the radar's fraction in the vault header while a query or a
+category chip is active: `1 of 5` instead of `5 saved`. When nothing is filtered,
+keep the current wording exactly.
+
 **Files:** `app/lib/features/command_center/command_center_screen.dart`,
 `app/lib/features/calendar/exam_calendar_screen.dart`,
 `app/test/sheets_test.dart` or `app/test/exam_calendar_test.dart`,

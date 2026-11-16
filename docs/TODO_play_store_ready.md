@@ -164,6 +164,9 @@ Audit: `docs/AUDIT_2026-11-16.md`. Ledger: `.superpowers/sdd/PLAN_play_store_rea
 - [ ] Each group header is `Semantics(header: true)`
 - [ ] Tests: ordering, absent empty groups, headings exposed
 - [ ] 320×568 @2.0× render of both, no overflow
+- [ ] Vault header: show `1 of 5` while a query or category filter narrows it
+- [ ] Vault header: unchanged wording ("N saved") when nothing is filtered
+- [ ] Test: filtered fraction matches the rendered card count
 - [ ] Commit `feat(ux):`
 
 ## Task 15 — CI ships an empty app version

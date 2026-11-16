@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_theme.dart';
+import '../../../core/theme/theme_tokens.dart';
 import '../../../data/models/live_feed_dto.dart';
+import '../../../data/repositories/live_feed_repository.dart';
 import '../../../domain/entities/live_update.dart';
 import '../../../providers/app_providers.dart';
 import '../../../shared/widgets/ev_surfaces.dart';
@@ -67,7 +69,27 @@ class _AlertsSheet extends ConsumerWidget {
     // different facts, and this sheet used to render all of them as the third:
     // a cold start or a dead edge with nothing cached showed "Nothing needs your
     // attention." — the most alarming lie the app can tell on result day.
-    final checking = !feedAsync.hasValue && feedAsync.isLoading;
+    //
+    // `AsyncLoading` alone is not enough to detect "still asking". Production
+    // never enters it: `LiveFeedNotifier.build` answers from
+    // `readCached() ?? emptySnapshot()` *synchronously* and refreshes with
+    // `unawaited(...)`, so on a fresh install the provider is
+    // `AsyncData(empty, source: none, error: null)` for the whole first fetch —
+    // the network timeout on result day. `FeedSource.none` is produced only by
+    // `emptySnapshot()`, i.e. only before anything has ever answered; a real
+    // empty answer arrives as `network` (the edge said zero rows) or `cache` (a
+    // stored document says zero rows). So the sentinel is the signal.
+    final snapshot = feedAsync.value;
+    final neverAnswered =
+        // A rejected build is a failed check, not a pending one — without this
+        // guard a retained sentinel would show a spinner forever instead of the
+        // failure card.
+        !feedAsync.hasError &&
+        snapshot?.source == FeedSource.none &&
+        snapshot?.error == null &&
+        (snapshot?.feed.updates.isEmpty ?? true);
+    final checking =
+        (!feedAsync.hasValue && feedAsync.isLoading) || neverAnswered;
 
     // The provider only rejects when it fails before a snapshot exists (a
     // storage fault reading the Hive cache); a *network* failure never lands
@@ -76,7 +98,7 @@ class _AlertsSheet extends ConsumerWidget {
     // check did not complete — so both resolve to one reason below. Neither
     // sentence names a cause: a provider rejection is storage, not the network.
     const providerFailure = 'The live feed could not be read.';
-    final repositoryFailure = feedAsync.value?.error;
+    final repositoryFailure = snapshot?.error;
 
     // `hasError` is checked even when a value survived: Riverpod keeps the
     // previous snapshot inside an error state, and an empty snapshot plus a
@@ -271,7 +293,10 @@ class _CheckingForUpdates extends StatelessWidget {
   Widget build(BuildContext context) {
     final p = context.ev;
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+      // Vertical only: the ListView already insets its children by 20px, and an
+      // extra horizontal inset here put the spinner at x=40 while the header
+      // and the failure card sit at x=20.
+      padding: const EdgeInsets.symmetric(vertical: EvSpace.x1),
       child: Row(
         children: [
           SizedBox(
@@ -282,7 +307,7 @@ class _CheckingForUpdates extends StatelessWidget {
               color: p.textTertiary,
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: EvSpace.x3),
           Expanded(
             // Deliberately not the subtitle's words again: the header already
             // says "Checking for updates…", so the body carries the *why*.
@@ -309,16 +334,41 @@ class _FeedFailureCard extends ConsumerWidget {
 
   final String reason;
 
-  /// The repository's diagnostic, minus any instruction to *pull*.
+  /// Imperative verbs that describe a *gesture* this sheet cannot offer.
+  static const _gestureVerbs = ['Pull', 'Swipe', 'Drag'];
+
+  /// The repository's diagnostic, with any gesture instruction dropped.
   ///
-  /// `LiveFeedRepository.refresh` ends its message with "Pull to retry." — true
-  /// of the radar, which has a `RefreshIndicator`, and false here: a modal sheet
-  /// has nothing to pull, so that sentence described a gesture that did
-  /// nothing. The diagnostic half is kept verbatim (it is the only text that
-  /// knows why the check failed); only the instruction is replaced, by the one
-  /// this card can honour.
-  static String diagnosticOf(String reason) =>
-      reason.replaceFirst(RegExp(r'\s*Pull to retry\.?\s*$'), '').trim();
+  /// `LiveFeedRepository.refresh` ends its generic failure with "Pull to
+  /// retry." — true of the radar, which has a `RefreshIndicator`, and false
+  /// here: a modal sheet has nothing to pull, so that sentence described a
+  /// gesture that did nothing.
+  ///
+  /// The split is on the *gesture verb*, not on that exact string, so a
+  /// repository copy change ("Pull down to refresh.", "Swipe down to retry.")
+  /// still cannot start telling a modal reader to pull. The diagnostic
+  /// sentence(s) before it are kept verbatim: they are the only text that knows
+  /// why the check failed, and the honesty rules forbid paraphrasing them.
+  static String diagnosticOf(String reason) {
+    final text = reason.trim();
+    final boundary = text.lastIndexOf('. ');
+    if (boundary < 0) {
+      // A single sentence: keep it, unless it *is* a gesture instruction — in
+      // which case there is no diagnostic to show and the card keeps only its
+      // own heading and the affordance it can honour.
+      return _isGestureInstruction(text) ? '' : text;
+    }
+    if (!_isGestureInstruction(text.substring(boundary + 2))) return text;
+    // Recurse on the head so stacked instructions ("… Pull to retry. Swipe down
+    // to refresh.") are all dropped.
+    return diagnosticOf(text.substring(0, boundary + 1));
+  }
+
+  static bool _isGestureInstruction(String sentence) {
+    final trimmed = sentence.trim();
+    if (trimmed.isEmpty) return false;
+    return _gestureVerbs.contains(trimmed.split(RegExp(r'\s+')).first);
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -333,23 +383,26 @@ class _FeedFailureCard extends ConsumerWidget {
           Row(
             children: [
               Icon(Icons.cloud_off_rounded, color: p.warning, size: 20),
-              const SizedBox(width: 12),
+              const SizedBox(width: EvSpace.x3),
               Expanded(
                 child: Text(
-                  'Could not check for updates.',
+                  // Not "Could not check for updates." — the header subtitle
+                  // already says exactly that, and two identical sentences in
+                  // one card read as a stutter.
+                  'The check failed',
                   style: context.type.label.copyWith(color: p.warningText),
                 ),
               ),
             ],
           ),
           if (diagnostic.isNotEmpty) ...[
-            const SizedBox(height: 6),
+            const SizedBox(height: EvSpace.x2),
             Text(
               diagnostic,
               style: context.type.bodyMuted.copyWith(color: p.warningText),
             ),
           ],
-          const SizedBox(height: 2),
+          const SizedBox(height: EvSpace.x1),
           // The affordance the reader actually has. Without it the only
           // instruction on screen was the repository's "Pull to retry."
           Text(

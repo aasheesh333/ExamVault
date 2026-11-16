@@ -525,10 +525,10 @@ void main() {
       await tester.tap(find.text('open alerts'));
       await tester.pumpAndSettle();
 
-      // Twice: the header subtitle and the card's own heading. The heading is
-      // not redundant — when cached rows survive, the subtitle counts them and
-      // the card alone has to name the failure.
-      expect(find.text('Could not check for updates.'), findsNWidgets(2));
+      // The subtitle names the state; the card names the failure. They must not
+      // be the same sentence twice in one 100px header + card.
+      expect(find.text('Could not check for updates.'), findsOneWidget);
+      expect(find.text('The check failed'), findsOneWidget);
       expect(find.textContaining('Nothing needs your attention'), findsNothing);
       // The provider's rejection carries no user-facing text, so the card says
       // the cause-neutral sentence rather than printing `error.toString()`.
@@ -570,7 +570,8 @@ void main() {
       await tester.tap(find.text('open alerts'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Could not check for updates.'), findsNWidgets(2));
+      expect(find.text('Could not check for updates.'), findsOneWidget);
+      expect(find.text('The check failed'), findsOneWidget);
       // The diagnostic half is kept verbatim: it is the only text that knows
       // *why* the check failed.
       expect(
@@ -593,6 +594,92 @@ void main() {
       await tester.tap(find.text('Retry'));
       await tester.pumpAndSettle();
       expect(reads.count, 2);
+      expect(tester.takeException(), isNull);
+    });
+
+    // The split is on the gesture verb, not on one hardcoded sentence: the
+    // repository must be free to reword its instruction without silently
+    // telling a modal reader to pull.
+    for (final instruction in [
+      'Pull to retry.',
+      'Pull down to refresh.',
+      'Swipe down to retry.',
+      'Drag down to try again.',
+    ]) {
+      testWidgets('"$instruction" never reaches a modal reader', (
+        tester,
+      ) async {
+        smallPhone(tester);
+
+        await tester.pumpWidget(
+          host(
+            feedOverride: () => _StaticLiveFeed(
+              failedSnapshot('The live feed could not be read. $instruction'),
+            ),
+          ),
+        );
+        await tester.pump();
+        await tester.tap(find.text('open alerts'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('The live feed could not be read.'), findsOneWidget);
+        expect(
+          find.textContaining(RegExp(r'Pull|Swipe|Drag')),
+          findsNothing,
+          reason: 'a modal has nothing to pull',
+        );
+        expect(find.text('Tap Retry to check again.'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      });
+    }
+
+    testWidgets('a non-gesture second sentence is kept as diagnostic detail', (
+      tester,
+    ) async {
+      smallPhone(tester);
+
+      await tester.pumpWidget(
+        host(
+          feedOverride: () => _StaticLiveFeed(
+            failedSnapshot(
+              'The live feed could not be read. The edge sent an error page.',
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.tap(find.text('open alerts'));
+      await tester.pumpAndSettle();
+
+      // Only gesture instructions are dropped. Any other detail the repository
+      // attaches is diagnostic and must survive verbatim.
+      expect(
+        find.text(
+          'The live feed could not be read. The edge sent an error page.',
+        ),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('a message that is only a gesture instruction shows no '
+        'diagnostic', (tester) async {
+      smallPhone(tester);
+
+      await tester.pumpWidget(
+        host(
+          feedOverride: () => _StaticLiveFeed(failedSnapshot('Pull to retry.')),
+        ),
+      );
+      await tester.pump();
+      await tester.tap(find.text('open alerts'));
+      await tester.pumpAndSettle();
+
+      // Nothing left to show once the instruction is gone — and the card must
+      // not render an empty paragraph or the word "Pull".
+      expect(find.text('The check failed'), findsOneWidget);
+      expect(find.text('Tap Retry to check again.'), findsOneWidget);
+      expect(find.textContaining(RegExp(r'Pull|Swipe|Drag')), findsNothing);
       expect(tester.takeException(), isNull);
     });
 
@@ -641,7 +728,7 @@ void main() {
       );
     });
 
-    testWidgets('an empty snapshot plus a rejected refresh is a failure', (
+    testWidgets('a cached empty document plus a rejected refresh is a failure', (
       tester,
     ) async {
       smallPhone(tester);
@@ -654,7 +741,9 @@ void main() {
             reads,
             LiveFeedSnapshot(
               feed: LiveFeed.empty,
-              source: FeedSource.none,
+              // A stored document that says zero rows — a *real* answer, so the
+              // calm copy is honest here. The `none` sentinel is covered below.
+              source: FeedSource.cache,
               fetchedAt: DateTime.now(),
             ),
           ),
@@ -679,12 +768,59 @@ void main() {
       await tester.tap(find.text('open alerts'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Could not check for updates.'), findsNWidgets(2));
+      expect(find.text('Could not check for updates.'), findsOneWidget);
+      expect(find.text('The check failed'), findsOneWidget);
       expect(
         find.text('Nothing needs your attention.'),
         findsNothing,
         reason: 'a retained empty snapshot must not hide a failed refresh',
       );
+      expect(find.text('Retry'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('a rejection over the unanswered sentinel is a failure, not a '
+        'spinner', (tester) async {
+      smallPhone(tester);
+      final reads = _ReadCounter();
+      WidgetRef? containerRef;
+
+      await tester.pumpWidget(
+        host(
+          feedOverride: () => _CountingLiveFeed(
+            reads,
+            LiveFeedSnapshot(
+              feed: LiveFeed.empty,
+              source: FeedSource.none,
+              fetchedAt: DateTime.now(),
+            ),
+          ),
+          onRef: (ref) => containerRef = ref,
+        ),
+      );
+      await tester.pump();
+      await tester.tap(find.text('open alerts'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      // The sentinel alone means "still asking"…
+      expect(find.text('Checking for updates…'), findsOneWidget);
+      await tester.tap(find.byIcon(Icons.close_rounded));
+      await tester.pumpAndSettle();
+
+      reads.fail = true;
+      containerRef!.invalidate(liveFeedProvider);
+      await tester.pump();
+      await tester.pump();
+
+      await tester.tap(find.text('open alerts'));
+      await tester.pumpAndSettle();
+
+      // …but a rejection outranks it. Without the `!hasError` guard the retained
+      // sentinel would keep the sheet on a spinner forever instead of offering
+      // Retry.
+      expect(find.text('The check failed'), findsOneWidget);
+      expect(find.text('Checking for updates…'), findsNothing);
+      expect(find.byType(CircularProgressIndicator), findsNothing);
       expect(find.text('Retry'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
@@ -697,7 +833,10 @@ void main() {
           feedOverride: () => _StaticLiveFeed(
             LiveFeedSnapshot(
               feed: LiveFeed.empty,
-              source: FeedSource.none,
+              // The edge answered and published zero rows. This is the only
+              // shape that may claim the inbox is empty; `none` means nobody
+              // has answered yet.
+              source: FeedSource.network,
               fetchedAt: DateTime.now(),
             ),
           ),
@@ -777,6 +916,179 @@ void main() {
       );
     });
   });
+
+  /// The shapes `LiveFeedNotifier.build()` actually produces.
+  ///
+  /// The doubles above cannot produce them: `_GatedLiveFeed` holds
+  /// `AsyncLoading` forever and `_CountingLiveFeed` hands back a snapshot that
+  /// already carries `error`. Production does neither. It answers from
+  /// `readCached() ?? emptySnapshot()` **synchronously** and refreshes in the
+  /// background, so on a fresh install the provider is
+  /// `AsyncData(empty, source: none, error: null)` for the whole first fetch —
+  /// never `AsyncLoading`. That is why `checking` keyed on
+  /// `!hasValue && isLoading` was dead code in production: a cold start on a
+  /// dead edge fell through to the empty state and printed the exact sentence
+  /// this task exists to delete.
+  group('Alerts sheet against production notifier shapes', () {
+    /// The sentinel `LiveFeedRepository.emptySnapshot()` returns: nothing has
+    /// ever answered. `FeedSource.none` is produced nowhere else.
+    LiveFeedSnapshot unanswered() => LiveFeedSnapshot(
+      feed: LiveFeed.empty,
+      source: FeedSource.none,
+      fetchedAt: DateTime.now(),
+    );
+
+    Future<void> openSheet(WidgetTester tester, _RefreshGate gate) async {
+      await tester.pumpWidget(
+        host(feedOverride: () => _ProdLikeLiveFeed(gate: gate)),
+      );
+      await tester.pump();
+      await tester.tap(find.text('open alerts'));
+      // Bounded pumps: the checking state's spinner never settles.
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+    }
+
+    testWidgets('step 1: no cache + pending refresh is checking, not empty', (
+      tester,
+    ) async {
+      smallPhone(tester);
+      final gate = _RefreshGate();
+      await openSheet(tester, gate);
+
+      expect(find.text('Checking for updates…'), findsOneWidget);
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(
+        find.text('Nothing needs your attention.'),
+        findsNothing,
+        reason:
+            'the provider answers with an empty snapshot while the first fetch '
+            'is in flight — claiming an empty inbox there is the defect',
+      );
+      expect(
+        find.textContaining('When a commission publishes a result'),
+        findsNothing,
+      );
+      expect(gate.started, 1);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('step 2: the refresh answers with rows and the list appears', (
+      tester,
+    ) async {
+      smallPhone(tester);
+      final gate = _RefreshGate();
+      await openSheet(tester, gate);
+      expect(find.text('Checking for updates…'), findsOneWidget);
+
+      gate.answer(
+        LiveFeedSnapshot(
+          feed: feed(),
+          source: FeedSource.network,
+          fetchedAt: DateTime.now(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('SSC CGL Tier-1 2026 notice 0'), findsOneWidget);
+      expect(find.text('6 updates need a look'), findsOneWidget);
+      expect(find.text('Checking for updates…'), findsNothing);
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('step 3: the refresh answers empty and the calm copy appears', (
+      tester,
+    ) async {
+      smallPhone(tester);
+      final gate = _RefreshGate();
+      await openSheet(tester, gate);
+      expect(find.text('Checking for updates…'), findsOneWidget);
+
+      // A real answer: the edge was reached and published zero rows. Only this
+      // shape — not the `none` sentinel — may claim the inbox is empty.
+      gate.answer(
+        LiveFeedSnapshot(
+          feed: LiveFeed.empty,
+          source: FeedSource.network,
+          fetchedAt: DateTime.now(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Nothing needs your attention.'), findsOneWidget);
+      expect(
+        find.textContaining('When a commission publishes a result'),
+        findsOneWidget,
+      );
+      expect(find.text('Checking for updates…'), findsNothing);
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('step 4: the refresh fails and the failure card appears', (
+      tester,
+    ) async {
+      smallPhone(tester);
+      final gate = _RefreshGate();
+      await openSheet(tester, gate);
+
+      // Exactly what `LiveFeedRepository.refresh` returns on a dead edge with
+      // nothing cached: the empty snapshot, with `error` attached.
+      gate.answer(unanswered().copyWith(error: 'Request timed out'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('The check failed'), findsOneWidget);
+      expect(find.text('Request timed out'), findsOneWidget);
+      expect(find.text('Retry'), findsOneWidget);
+      expect(
+        find.text('Nothing needs your attention.'),
+        findsNothing,
+        reason: 'a failed check must never read as a quiet inbox',
+      );
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('step 5: Retry returns to checking, not to the calm copy', (
+      tester,
+    ) async {
+      smallPhone(tester);
+      final gate = _RefreshGate();
+      await openSheet(tester, gate);
+
+      gate.answer(unanswered().copyWith(error: 'Request timed out'));
+      await tester.pumpAndSettle();
+      expect(find.text('The check failed'), findsOneWidget);
+
+      await tester.tap(find.text('Retry'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      // The rebuild answers `emptySnapshot()` again — the retry is in flight,
+      // so the sheet must say so. Showing the calm copy here was a new lie this
+      // task introduced by adding a Retry that invalidates the provider.
+      expect(find.text('Checking for updates…'), findsOneWidget);
+      expect(
+        find.text('Nothing needs your attention.'),
+        findsNothing,
+        reason: 'an in-flight retry must not read as a quiet inbox',
+      );
+      expect(find.text('The check failed'), findsNothing);
+      expect(gate.started, 2);
+
+      // And the retry can succeed.
+      gate.answer(
+        LiveFeedSnapshot(
+          feed: feed(),
+          source: FeedSource.network,
+          fetchedAt: DateTime.now(),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('6 updates need a look'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  });
 }
 
 class _StaticLiveFeed extends LiveFeedNotifier {
@@ -786,6 +1098,55 @@ class _StaticLiveFeed extends LiveFeedNotifier {
 
   @override
   Future<LiveFeedSnapshot> build() async => snapshot;
+}
+
+/// A background refresh whose completion the test drives, one call at a time.
+class _RefreshGate {
+  final List<Completer<LiveFeedSnapshot>> _pending = [];
+
+  /// How many refreshes have been started. `build()` starts one per rebuild, so
+  /// this is also the count of provider reads.
+  int started = 0;
+
+  Future<LiveFeedSnapshot> next() {
+    final completer = Completer<LiveFeedSnapshot>();
+    _pending.add(completer);
+    started++;
+    return completer.future;
+  }
+
+  void answer(LiveFeedSnapshot snapshot) =>
+      _pending.removeAt(0).complete(snapshot);
+}
+
+/// Mirrors `LiveFeedNotifier.build()` exactly — the shape no other double here
+/// reproduces.
+///
+/// Production answers from the cache (or the `FeedSource.none` sentinel) on the
+/// first frame and refreshes with `unawaited(...)`, so the provider is
+/// `AsyncData` for the entire first fetch. A double that injects
+/// `AsyncLoading` cannot see that window, and that blind spot is how a cold
+/// start on a dead edge shipped as "Nothing needs your attention.".
+class _ProdLikeLiveFeed extends LiveFeedNotifier {
+  _ProdLikeLiveFeed({required this.gate});
+
+  final _RefreshGate gate;
+
+  @override
+  Future<LiveFeedSnapshot> build() async {
+    unawaited(_refreshInto());
+    return LiveFeedSnapshot(
+      feed: LiveFeed.empty,
+      source: FeedSource.none,
+      fetchedAt: DateTime.now(),
+    );
+  }
+
+  Future<void> _refreshInto() async {
+    final snapshot = await gate.next();
+    if (!ref.mounted) return;
+    state = AsyncData(snapshot);
+  }
 }
 
 /// A feed notifier whose load never completes until the test says so.

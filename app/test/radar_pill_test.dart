@@ -6,6 +6,7 @@ import 'package:examvault/domain/entities/live_update.dart';
 import 'package:examvault/features/command_center/widgets/alerts_sheet.dart';
 import 'package:examvault/features/command_center/widgets/live_radar_tile.dart';
 import 'package:examvault/providers/app_providers.dart';
+import 'package:examvault/shared/widgets/ev_surfaces.dart';
 import 'package:examvault/shared/widgets/status_pill.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -31,6 +32,13 @@ import 'package:flutter_test/flutter_test.dart';
 /// branch (and the `FittedBox` on the other branch) is gone, because the pill
 /// needed the full width at 1.0x too. The tests below therefore loop every scale
 /// and assert the same invariants at each.
+///
+/// The status line's trailing age is pinned separately at 1.0x and 2.0x. It used
+/// to sit in a `Wrap(alignment: spaceBetween)`, which applies one alignment to
+/// every run — and places a *lone* child at the run's start (wrap.dart:111) — so
+/// once the age wrapped (1.6x and above) it landed at x=32, under the pill's left
+/// edge, with 189.5px of dead space to its right. `_StatusLine` in
+/// `live_radar_tile.dart` now keeps it against the right edge on either run.
 ///
 /// "Nothing overflows" was the assertion that hid the original bug: scaling is
 /// precisely what kept the row from overflowing. These tests measure the label
@@ -267,6 +275,68 @@ void main() {
         );
       });
     }
+
+    /// The row's content right edge: the tile pads `EvSpace.x4` on each side.
+    double contentRight(WidgetTester tester) =>
+        tester.getRect(find.byType(LiveRadarTile)).right - EvSpace.x4;
+
+    testWidgets('320x568 @1.0x keeps the age flush right on the pill line', (
+      tester,
+    ) async {
+      smallPhone(tester, textScale: 1.0);
+      await tester.pumpWidget(tileHost(update()));
+
+      final pillRect = tester.getRect(find.byType(EvStatusPill));
+      final ageRect = tester.getRect(find.textContaining('m ago'));
+      expect(
+        ageRect.right,
+        closeTo(contentRight(tester), 1),
+        reason: 'the age is the row\'s trailing timestamp, not a stray label',
+      );
+      expect(
+        ageRect.top,
+        greaterThanOrEqualTo(pillRect.top),
+        reason: 'at 1.0x the age shares the pill\'s line',
+      );
+      expect(ageRect.bottom, lessThanOrEqualTo(pillRect.bottom));
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('320x568 @2.0x keeps the age flush right on its own run', (
+      tester,
+    ) async {
+      // The regression this pins: the line used to be a
+      // `Wrap(alignment: spaceBetween)`, which applies one alignment to every
+      // run, and `spaceBetween` places a *lone* child at the run's start
+      // (wrap.dart:111). At 2.0x the pill takes 233px of the 256px line, so the
+      // age wrapped — and landed at x=32, directly under the pill's left edge,
+      // with 189.5px of dead space to its right.
+      smallPhone(tester, textScale: 2.0);
+      await tester.pumpWidget(tileHost(update()));
+
+      final pillRect = tester.getRect(find.byType(EvStatusPill));
+      final ageRect = tester.getRect(find.textContaining('m ago'));
+      expect(
+        ageRect.right,
+        closeTo(contentRight(tester), 1),
+        reason:
+            'the age stays on the right edge when it drops to its own run — '
+            '`WrapAlignment.spaceBetween` left it 189.5px short of it',
+      );
+      expect(
+        ageRect.left,
+        greaterThan(pillRect.left),
+        reason:
+            'the age is not stacked under the pill\'s left edge (x=32 on the '
+            'broken layout)',
+      );
+      expect(
+        ageRect.top,
+        greaterThanOrEqualTo(pillRect.bottom),
+        reason: 'the pill keeps its whole line; the age moves down instead',
+      );
+      expect(tester.takeException(), isNull);
+    });
   });
 
   group('Alerts sheet row status pill', () {
@@ -374,23 +444,28 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('320x568 @1.0x keeps the row flush with the card edge', (
+    testWidgets('320x568 @1.0x keeps the row flush with the card content', (
       tester,
     ) async {
       // The row used to be a `Row` (mainAxisSize.max) and filled its card; the
       // Column that replaced it must still fill, or the card's centred Column
       // would indent every row.
+      //
+      // Anchored to the CARD, not to the row: an earlier version of this test
+      // compared `pill.left` with `row.left + 16`, which passes even when the
+      // row shrink-wraps and is centred — both rects move together, so it
+      // pinned nothing. The card's content box does not move.
       smallPhone(tester, textScale: 1.0);
       await openAlerts(tester);
 
+      final cardRect = tester.getRect(find.byType(EvCard));
       final rowRect = tester.getRect(firstRow().first);
-      final pillRect = tester.getRect(
-        find.descendant(
-          of: firstRow().first,
-          matching: find.byType(EvStatusPill),
-        ),
-      );
-      expect(pillRect.left, rowRect.left + 16);
+      // No border inset to allow for: EvCard's 1px border is painted by a
+      // DecoratedBox *over* its child, so the row spans the card exactly. The
+      // alerts card also passes `padding: EdgeInsets.zero`, leaving the row's own
+      // 16px padding as the only inset around the row's content.
+      expect(rowRect.left, closeTo(cardRect.left, 1));
+      expect(rowRect.width, closeTo(cardRect.width, 1));
       expect(tester.takeException(), isNull);
     });
   });

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/theme_tokens.dart';
@@ -10,8 +11,10 @@ import '../../../shared/widgets/status_pill.dart';
 ///
 /// Layout: a 36px icon tile, the copy block (headline, then
 /// `context · latency · bell`), and a status line under both — the pill at its
-/// token size with the age at the far right of that line when it fits. The age is
-/// the quietest element on purpose — it is context, not content.
+/// token size on the left, the age flush right on the same line when it fits and
+/// on its own line (still flush right) when it does not. The age is the quietest
+/// element on purpose — it is context, not content, so it always sits against the
+/// row's right edge rather than trailing the pill.
 ///
 /// The pill used to share the row with a ~100px right-hand column that could not
 /// hold its 134px intrinsic width even at the **default** 1.0x text size (233px
@@ -148,24 +151,24 @@ class LiveRadarTile extends StatelessWidget {
               // content width (256px at 320dp), so its 11px label paints at 11px
               // x the reader's scale instead of being shrunk into a column.
               //
-              // Wrap, not Row: at 2.0x the pill alone measures 233px and the age
-              // ~80px, so the age drops to its own run rather than squeezing the
-              // pill's label into an ellipsis. The full-width box is what makes
-              // `spaceBetween` put the age on the line's right edge — the quiet,
-              // column-aligned position it has always had — instead of letting it
-              // trail the pill at a different x on every row.
-              SizedBox(
-                width: double.infinity,
-                child: Wrap(
-                  spacing: 8,
-                  runSpacing: 2,
-                  alignment: WrapAlignment.spaceBetween,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    EvStatusPill.status(update.status, compact: true),
-                    age,
-                  ],
-                ),
+              // Two columns that degrade, not a `Wrap`: the age must sit on the
+              // line's right edge whether it shares the line with the pill or
+              // drops to its own run beneath it. `Wrap(alignment: spaceBetween)`
+              // applies one alignment to *every* run, and `spaceBetween` with a
+              // lone child falls back to `start` (wrap.dart:111) — measured at
+              // 320dp the age then landed at x=32, directly under the pill's left
+              // edge, with 173.5px of dead space to its right at 2.0x and 181.4px
+              // at 1.8x. That is the opposite of the quiet, column-aligned
+              // timestamp this row has always had.
+              _StatusLine(
+                spacing: EvSpace.x2,
+                // On the 8pt grid: the 2px this used to carry was off-grid, and
+                // the gap only shows when the age drops to its own run.
+                runSpacing: EvSpace.x1,
+                children: [
+                  EvStatusPill.status(update.status, compact: true),
+                  age,
+                ],
               ),
             ],
           ),
@@ -287,4 +290,172 @@ class _AlertBell extends StatelessWidget {
       ),
     );
   }
+}
+
+/// A line with a leading and a trailing child: [children] first against the left
+/// edge, last against the right edge, on one line when both fit and on two when
+/// they do not — the trailing child still flush right on its own run.
+///
+/// `Wrap` cannot express this. It applies one alignment to every run, and
+/// `spaceBetween` with a lone child falls back to `start` (wrap.dart:111), so the
+/// moment the age wrapped it left the right edge it belongs to. `OverflowBar`
+/// cannot either: it lays every child out with `constraints.loosen()` in both its
+/// row and column modes, so it can only align the whole column one way.
+///
+/// The pill must never be the child that gives ground: its label is the only
+/// non-colour signal, so this measures both children at their natural size and
+/// moves the trailing one down instead of squeezing either.
+class _StatusLine extends MultiChildRenderObjectWidget {
+  const _StatusLine({
+    required this.spacing,
+    required this.runSpacing,
+    required super.children,
+  });
+
+  /// Gap between the two children while they share a line.
+  final double spacing;
+
+  /// Gap between the lines once the trailing child drops to its own.
+  final double runSpacing;
+
+  @override
+  _RenderStatusLine createRenderObject(BuildContext context) =>
+      _RenderStatusLine(spacing: spacing, runSpacing: runSpacing);
+
+  @override
+  void updateRenderObject(
+    BuildContext context,
+    _RenderStatusLine renderObject,
+  ) {
+    renderObject
+      ..spacing = spacing
+      ..runSpacing = runSpacing;
+  }
+}
+
+class _StatusLineParentData extends ContainerBoxParentData<RenderBox> {}
+
+class _RenderStatusLine extends RenderBox
+    with
+        ContainerRenderObjectMixin<RenderBox, _StatusLineParentData>,
+        RenderBoxContainerDefaultsMixin<RenderBox, _StatusLineParentData> {
+  _RenderStatusLine({required double spacing, required double runSpacing})
+    : _spacing = spacing,
+      _runSpacing = runSpacing;
+
+  double get spacing => _spacing;
+  double _spacing;
+  set spacing(double value) {
+    if (value == _spacing) return;
+    _spacing = value;
+    markNeedsLayout();
+  }
+
+  double get runSpacing => _runSpacing;
+  double _runSpacing;
+  set runSpacing(double value) {
+    if (value == _runSpacing) return;
+    _runSpacing = value;
+    markNeedsLayout();
+  }
+
+  @override
+  void setupParentData(RenderBox child) {
+    if (child.parentData is! _StatusLineParentData) {
+      child.parentData = _StatusLineParentData();
+    }
+  }
+
+  @override
+  void performLayout() {
+    final leading = firstChild;
+    final trailing = leading == null ? null : childAfter(leading);
+    if (leading == null || trailing == null) {
+      size = constraints.smallest;
+      return;
+    }
+
+    // A bounded width is the only sane case for a line; fall back to the
+    // children's own extent rather than an infinite one if a future caller ever
+    // drops this into an unbounded row.
+    final lineWidth = constraints.hasBoundedWidth
+        ? constraints.maxWidth
+        : double.infinity;
+    final childConstraints = BoxConstraints(maxWidth: lineWidth);
+    leading.layout(childConstraints, parentUsesSize: true);
+    trailing.layout(childConstraints, parentUsesSize: true);
+
+    final resolved = _resolve(
+      constraints.hasBoundedWidth
+          ? lineWidth
+          : leading.size.width + spacing + trailing.size.width,
+      leading.size,
+      trailing.size,
+    );
+    (leading.parentData! as _StatusLineParentData).offset = resolved.leading;
+    (trailing.parentData! as _StatusLineParentData).offset = resolved.trailing;
+    size = constraints.constrain(Size(resolved.width, resolved.height));
+  }
+
+  @override
+  Size computeDryLayout(BoxConstraints constraints) {
+    final leading = firstChild;
+    final trailing = leading == null ? null : childAfter(leading);
+    if (leading == null || trailing == null) return constraints.smallest;
+
+    final lineWidth = constraints.hasBoundedWidth
+        ? constraints.maxWidth
+        : double.infinity;
+    final childConstraints = BoxConstraints(maxWidth: lineWidth);
+    final leadingSize = leading.getDryLayout(childConstraints);
+    final trailingSize = trailing.getDryLayout(childConstraints);
+    final resolved = _resolve(
+      constraints.hasBoundedWidth
+          ? lineWidth
+          : leadingSize.width + spacing + trailingSize.width,
+      leadingSize,
+      trailingSize,
+    );
+    return constraints.constrain(Size(resolved.width, resolved.height));
+  }
+
+  /// The line's height and both children's offsets at [width].
+  ({double width, double height, Offset leading, Offset trailing}) _resolve(
+    double width,
+    Size leading,
+    Size trailing,
+  ) {
+    // Clamped: a trailing child wider than the line cannot be flush right
+    // without painting off the left edge. Unreachable today (the age is 82.5px
+    // against a 256px line at 2.0x), but a silent negative offset would clip
+    // rather than fail loudly.
+    final trailingX = width - trailing.width < 0 ? 0.0 : width - trailing.width;
+    if (leading.width + spacing + trailing.width <= width) {
+      // Both fit: same line, each child centred vertically in it.
+      final height = leading.height > trailing.height
+          ? leading.height
+          : trailing.height;
+      return (
+        width: width,
+        height: height,
+        leading: Offset(0, (height - leading.height) / 2),
+        trailing: Offset(trailingX, (height - trailing.height) / 2),
+      );
+    }
+    // The trailing child drops to its own run, still against the right edge.
+    return (
+      width: width,
+      height: leading.height + runSpacing + trailing.height,
+      leading: Offset.zero,
+      trailing: Offset(trailingX, leading.height + runSpacing),
+    );
+  }
+
+  @override
+  void paint(PaintingContext context, Offset offset) =>
+      defaultPaint(context, offset);
+
+  @override
+  bool hitTestChildren(BoxHitTestResult result, {required Offset position}) =>
+      defaultHitTestChildren(result, position: position);
 }

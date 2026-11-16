@@ -409,6 +409,18 @@ tests; full suite green.
 - Add a shared synchronous open-guard (a small `showOnceSheet` helper, or a
   `_opening` bool on a `StatefulWidget`) used by the About button and the exam
   detail sheet, mirroring the bell's `_alertsOpen`.
+- **Fix the top-anchored sheet (verified defect, found during Task 6 review).**
+  `about_sheet.dart:46-66` wraps the sheet in `ScaffoldMessenger` + `Scaffold`
+  as the modal route's *direct* child, so the Scaffold fills the route and places
+  the shrink-wrapped surface at `contentTop = 0`. Measured at 393x852 dpr 1.0:
+  `DraggableScrollableSheet` rect = `(1, 1) - (392, 766)` — the About sheet
+  renders against the **top** of the screen instead of the bottom, the barrier
+  above it is unreachable (the surface absorbs the tap that used to dismiss),
+  and any snackbar lands below the sheet over the dimmed page. Move the
+  `ScaffoldMessenger`/`Scaffold` wrap *inside* the `DraggableScrollableSheet`
+  builder so the route child stays shrink-wrapped, and assert the geometry
+  (`sheet.bottom ≈ screen height`, `sheet.top > 100`). Task 6 fixed the identical
+  defect in the detail sheet; copy that shape.
 - Implement **Delete all data** in About, under a "Your data" section:
   confirm dialog ("This removes every admit card and every setting on this device.
   It cannot be undone."), then wipe the secure vault, the settings keys, and the

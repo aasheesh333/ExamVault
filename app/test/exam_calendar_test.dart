@@ -183,15 +183,18 @@ void main() {
     );
 
     test(
-      'buckets are day windows, so a heading cannot contradict the order',
+      'buckets are rolling day windows, so a heading cannot contradict the order',
       () {
         final now = DateTime.now();
-        expect(calendarBucketFor(entry('a', 0), now), CalendarBucket.thisWeek);
-        expect(calendarBucketFor(entry('a', 7), now), CalendarBucket.thisWeek);
-        expect(calendarBucketFor(entry('a', 8), now), CalendarBucket.thisMonth);
+        expect(calendarBucketFor(entry('a', 0), now), CalendarBucket.next7Days);
+        expect(calendarBucketFor(entry('a', 7), now), CalendarBucket.next7Days);
+        expect(
+          calendarBucketFor(entry('a', 8), now),
+          CalendarBucket.next30Days,
+        );
         expect(
           calendarBucketFor(entry('a', 30), now),
-          CalendarBucket.thisMonth,
+          CalendarBucket.next30Days,
         );
         expect(calendarBucketFor(entry('a', 31), now), CalendarBucket.later);
       },
@@ -210,8 +213,8 @@ void main() {
       final groups = groupCalendarEntries(entries, now);
 
       expect(groups.map((g) => g.bucket), [
-        CalendarBucket.thisWeek,
-        CalendarBucket.thisMonth,
+        CalendarBucket.next7Days,
+        CalendarBucket.next30Days,
         CalendarBucket.later,
       ]);
       expect(groups.expand((g) => g.entries).map((e) => e.examId), [
@@ -223,12 +226,32 @@ void main() {
         'f',
       ]);
 
-      // No entry in the next 8-30 days: the "This month" heading must not be
+      // No entry in the next 8-30 days: the "Next 30 days" heading must not be
       // drawn over nothing.
       final sparse = groupCalendarEntries([entry('a', 1), entry('b', 40)], now);
       expect(sparse.map((g) => g.bucket), [
-        CalendarBucket.thisWeek,
+        CalendarBucket.next7Days,
         CalendarBucket.later,
+      ]);
+    });
+
+    /// The order guarantee is conditional on bucket-sorted input — this pins
+    /// what the function actually promises for the other case, so the doc
+    /// comment's precondition cannot silently become a lie.
+    test('within a bucket, the input order survives even when unsorted', () {
+      final now = DateTime.now();
+      // Deliberately not date-ordered inside the bucket.
+      final groups = groupCalendarEntries([
+        entry('late', 6),
+        entry('early', 1),
+        entry('mid', 3),
+      ], now);
+
+      expect(groups, hasLength(1));
+      expect(groups.single.entries.map((e) => e.examId), [
+        'late',
+        'early',
+        'mid',
       ]);
     });
   });
@@ -262,19 +285,19 @@ void main() {
           card(
             id: 'card_a',
             examId: 'exam_a',
-            name: 'This week',
+            name: 'Week card',
             examDate: DateTime.now().add(const Duration(days: 2)),
           ),
           card(
             id: 'card_b',
             examId: 'exam_b',
-            name: 'This month',
+            name: 'Month card',
             examDate: DateTime.now().add(const Duration(days: 10)),
           ),
           card(
             id: 'card_c',
             examId: 'exam_c',
-            name: 'Later',
+            name: 'Later card',
             examDate: DateTime.now().add(const Duration(days: 40)),
           ),
         ],
@@ -282,8 +305,8 @@ void main() {
       await settle(c);
       await mountDates(tester, c);
 
-      final week = tester.getRect(find.text('THIS WEEK'));
-      final month = tester.getRect(find.text('THIS MONTH'));
+      final week = tester.getRect(find.text('NEXT 7 DAYS'));
+      final month = tester.getRect(find.text('NEXT 30 DAYS'));
       final later = tester.getRect(find.text('LATER'));
       expect(week.top, lessThan(month.top));
       expect(month.top, lessThan(later.top));
@@ -294,13 +317,13 @@ void main() {
           card(
             id: 'card_a',
             examId: 'exam_a',
-            name: 'This week',
+            name: 'Week card',
             examDate: DateTime.now().add(const Duration(days: 2)),
           ),
           card(
             id: 'card_c',
             examId: 'exam_c',
-            name: 'Later',
+            name: 'Later card',
             examDate: DateTime.now().add(const Duration(days: 40)),
           ),
         ],
@@ -308,9 +331,47 @@ void main() {
       await settle(sparse);
       await mountDates(tester, sparse);
 
-      expect(find.text('THIS WEEK'), findsOneWidget);
+      expect(find.text('NEXT 7 DAYS'), findsOneWidget);
       expect(find.text('LATER'), findsOneWidget);
-      expect(find.text('THIS MONTH'), findsNothing);
+      expect(find.text('NEXT 30 DAYS'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('a heading sits closer to its own rows than to the group above', (
+      tester,
+    ) async {
+      final c = container(
+        cards: [
+          card(
+            id: 'card_a',
+            examId: 'exam_a',
+            name: 'Week card',
+            examDate: DateTime.now().add(const Duration(days: 2)),
+          ),
+          card(
+            id: 'card_b',
+            examId: 'exam_b',
+            name: 'Month card',
+            examDate: DateTime.now().add(const Duration(days: 10)),
+          ),
+        ],
+      );
+      await settle(c);
+      await mountDates(tester, c);
+
+      final previousRowBottom = tester.getRect(find.text('Week card')).bottom;
+      final headingTop = tester.getRect(find.text('NEXT 30 DAYS')).top;
+      final headingBottom = tester.getRect(find.text('NEXT 30 DAYS')).bottom;
+      final ownRowTop = tester.getRect(find.text('Month card')).top;
+
+      // Uniform 8px gaps made the heading equidistant from the group above and
+      // the group it introduces, so it read as belonging to neither. The extra
+      // x4 above is what binds it downward.
+      expect(
+        headingTop - previousRowBottom,
+        greaterThan(ownRowTop - headingBottom),
+        reason: 'a heading must sit closer to its own rows',
+      );
       expect(tester.takeException(), isNull);
     });
 
@@ -362,19 +423,19 @@ void main() {
             card(
               id: 'card_a',
               examId: 'exam_a',
-              name: 'This week',
+              name: 'Week card',
               examDate: DateTime.now().add(const Duration(days: 2)),
             ),
             card(
               id: 'card_b',
               examId: 'exam_b',
-              name: 'This month',
+              name: 'Month card',
               examDate: DateTime.now().add(const Duration(days: 10)),
             ),
             card(
               id: 'card_c',
               examId: 'exam_c',
-              name: 'Later',
+              name: 'Later card',
               examDate: DateTime.now().add(const Duration(days: 40)),
             ),
           ],
@@ -382,7 +443,7 @@ void main() {
         await settle(c);
         await mountDates(tester, c);
 
-        for (final label in ['THIS WEEK', 'THIS MONTH', 'LATER']) {
+        for (final label in ['NEXT 7 DAYS', 'NEXT 30 DAYS', 'LATER']) {
           final node = tester.getSemantics(find.text(label));
           final data = node.getSemanticsData();
           expect(

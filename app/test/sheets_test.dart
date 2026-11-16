@@ -2050,7 +2050,12 @@ void main() {
   /// and the tab bar shows a dot — but the list itself drew no boundary, so a
   /// student returning after a week saw 40 rows in publication order with no
   /// way to tell which 6 the dot was counting.
-  group('Radar seen/unseen boundary', () {
+  ///
+  /// The line marks *recency* (everything above arrived since the last visit),
+  /// not the badge's status filter. See `radarNewBoundary` for why the two are
+  /// deliberately not the same number; the mixed-status test below pins the
+  /// relationship instead of pretending they are equal.
+  group('Radar new/earlier boundary', () {
     /// Newest first, like the real feed: `LiveFeedDto.decode` sorts descending,
     /// so the unseen rows are a block at the top and the boundary is below it.
     List<LiveUpdate> rows(int count) {
@@ -2147,7 +2152,7 @@ void main() {
       );
     });
 
-    testWidgets('the divider sits between the last unseen and first seen row', (
+    testWidgets('the boundary sits between the last unseen and first seen row', (
       tester,
     ) async {
       // A Hive write completes on the real event loop, which the widget test's
@@ -2162,11 +2167,15 @@ void main() {
       );
       await mountRadar(tester, rows(6));
 
-      expect(find.text('NEW'), findsOneWidget);
-      final divider = tester.getRect(find.text('NEW'));
+      // The visible word names the block the line introduces: everything below
+      // it predates the last visit. "NEW" here would have read as "the new part
+      // starts below this line", which is the opposite of the truth.
+      expect(find.text('EARLIER'), findsOneWidget);
+      final divider = tester.getRect(find.text('EARLIER'));
 
-      // Exactly the rows the badge counted are above the line. This is the
-      // property the divider exists for: the number and the boundary agree.
+      // Four rows arrived since the visit and all six are `resultOut`, so in
+      // *this* fixture the rows above the line and the badge agree. The
+      // mixed-status test below shows where that equality stops holding.
       final above = tester
           .widgetList(find.byType(LiveRadarTile))
           .where(
@@ -2197,7 +2206,7 @@ void main() {
       );
       await mountRadar(tester, rows(6));
 
-      expect(find.text('NEW'), findsNothing);
+      expect(find.text('EARLIER'), findsNothing);
       expect(containerOf(tester).read(liveRadarBadgeProvider), 0);
     });
 
@@ -2206,7 +2215,7 @@ void main() {
       // epoch and every row is new, so a line would mark the entire list.
       await mountRadar(tester, rows(6));
 
-      expect(find.text('NEW'), findsNothing);
+      expect(find.text('EARLIER'), findsNothing);
       expect(
         containerOf(tester).read(liveRadarBadgeProvider),
         6,
@@ -2227,7 +2236,114 @@ void main() {
       );
       await mountRadar(tester, rows(6));
 
-      expect(find.text('NEW'), findsNothing);
+      expect(find.text('EARLIER'), findsNothing);
+    });
+
+    /// The line counts every arrival; the badge counts only the statuses that
+    /// are worth a notification. Those are different questions, and this test
+    /// pins the difference rather than asserting an equality that only holds
+    /// when every row happens to be `resultOut`.
+    testWidgets('a mixed-status feed keeps the line at the arrival boundary', (
+      tester,
+    ) async {
+      final now = DateTime.now();
+      // Newest first. Two rows arrived after the visit; only the `resultOut`
+      // one is something the badge counts.
+      final mixed = [
+        LiveUpdate(
+          examId: 'exam_new_vacancy',
+          category: ExamCategory.ssc,
+          examName: 'New vacancy row',
+          contextLine: 'Official notice',
+          status: UpdateStatus.notification,
+          publishedAt: now.subtract(const Duration(hours: 1)),
+        ),
+        LiveUpdate(
+          examId: 'exam_new_result',
+          category: ExamCategory.ssc,
+          examName: 'New result row',
+          contextLine: 'Official notice',
+          status: UpdateStatus.resultOut,
+          publishedAt: now.subtract(const Duration(hours: 2)),
+        ),
+        LiveUpdate(
+          examId: 'exam_seen_result',
+          category: ExamCategory.ssc,
+          examName: 'Seen result row',
+          contextLine: 'Official notice',
+          status: UpdateStatus.resultOut,
+          publishedAt: now.subtract(const Duration(hours: 20)),
+        ),
+      ];
+      await tester.runAsync(
+        () => settingsBox.put(
+          alertsSeenSettingKey,
+          now.subtract(const Duration(hours: 10)).toIso8601String(),
+        ),
+      );
+      await mountRadar(tester, mixed);
+
+      final divider = tester.getRect(find.text('EARLIER'));
+
+      // The line sits below *both* new rows — the notification one too. Cutting
+      // it by status would have to place it between the two new rows, leaving
+      // the `notification` row under a line labelled EARLIER even though it
+      // arrived after the last visit. That is the failure this design avoids.
+      expect(
+        tester.getRect(find.text('New vacancy row')).bottom,
+        lessThan(divider.top),
+      );
+      expect(
+        tester.getRect(find.text('New result row')).bottom,
+        lessThan(divider.top),
+      );
+      expect(
+        tester.getRect(find.text('Seen result row')).top,
+        greaterThan(divider.bottom),
+      );
+
+      // ...and the badge counts only the actionable arrival: one, not two.
+      expect(containerOf(tester).read(liveRadarBadgeProvider), 1);
+      expectClean(tester);
+    });
+
+    /// The extreme of the same gap: an arrival the badge ignores entirely. The
+    /// line still draws, because "this arrived since you last looked" is true
+    /// and useful even when nothing needs the student's attention. The dot
+    /// stays silent, which is also true.
+    testWidgets('an arrival the badge ignores still gets a boundary', (
+      tester,
+    ) async {
+      final now = DateTime.now();
+      final mixed = [
+        LiveUpdate(
+          examId: 'exam_new_vacancy',
+          category: ExamCategory.ssc,
+          examName: 'New vacancy row',
+          contextLine: 'Official notice',
+          status: UpdateStatus.notification,
+          publishedAt: now.subtract(const Duration(hours: 1)),
+        ),
+        LiveUpdate(
+          examId: 'exam_seen_result',
+          category: ExamCategory.ssc,
+          examName: 'Seen result row',
+          contextLine: 'Official notice',
+          status: UpdateStatus.resultOut,
+          publishedAt: now.subtract(const Duration(hours: 20)),
+        ),
+      ];
+      await tester.runAsync(
+        () => settingsBox.put(
+          alertsSeenSettingKey,
+          now.subtract(const Duration(hours: 10)).toIso8601String(),
+        ),
+      );
+      await mountRadar(tester, mixed);
+
+      expect(find.text('EARLIER'), findsOneWidget);
+      expect(containerOf(tester).read(liveRadarBadgeProvider), 0);
+      expectClean(tester);
     });
   });
 
@@ -2348,10 +2464,10 @@ void main() {
     });
   });
 
-  /// The layout floor: the new divider and the new group headings at the
+  /// The layout floor: the new boundary line and the new group headings at the
   /// smallest supported phone with the largest supported text.
   group('Task 14 at 320x568 @ 2.0x', () {
-    testWidgets('the radar divider does not overflow', (tester) async {
+    testWidgets('the radar boundary does not overflow', (tester) async {
       final env = (await tester.runAsync(MatrixEnv.open))!;
       // The matrix feed is published 1h, 8h, 15h and 22h ago, so a visit 10
       // hours ago leaves rows 0-1 new and the line immediately above row 2.
@@ -2375,14 +2491,14 @@ void main() {
       await tester.pump(const Duration(milliseconds: 300));
 
       await tester.scrollUntilVisible(
-        find.text('NEW'),
+        find.text('EARLIER'),
         200,
         scrollable: find.byType(Scrollable).first,
       );
       await tester.pump();
 
-      expect(find.text('NEW'), findsOneWidget);
-      expectClean(tester, because: 'the radar divider at 320x568 @ 2.0x');
+      expect(find.text('EARLIER'), findsOneWidget);
+      expectClean(tester, because: 'the radar boundary at 320x568 @ 2.0x');
     });
 
     testWidgets('the grouped Dates list does not overflow', (tester) async {
@@ -2409,7 +2525,7 @@ void main() {
         ],
       );
 
-      expect(find.text('THIS WEEK'), findsOneWidget);
+      expect(find.text('NEXT 7 DAYS'), findsOneWidget);
       expectClean(tester, because: 'the grouped Dates list at 320x568 @ 2.0x');
 
       // The last heading is two screens down at this size; it must render as

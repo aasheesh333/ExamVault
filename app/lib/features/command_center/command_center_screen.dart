@@ -952,17 +952,27 @@ class _RadarHeader extends StatelessWidget {
   }
 }
 
-/// Where the "NEW" divider belongs in the radar, or -1 for nowhere.
+/// Where the new/earlier boundary belongs in the radar, or -1 for nowhere.
 ///
 /// The badge counts rows published after the inbox was last opened, but the
 /// list itself drew no boundary, so a student returning after a week saw 40
 /// rows in publication order with no indication which 6 the dot was counting.
 ///
 /// The feed is published newest-first (`LiveFeedDto.decode` sorts descending),
-/// so the unseen rows form a block at the top and the only boundary that says
-/// anything is the one *below* that block — the first row at or before [seen].
-/// Drawing the line above the first new row would put it above row zero every
-/// time, which is precisely the divider the fresh-install rule suppresses.
+/// so the unseen rows form a contiguous block at the top and the only boundary
+/// that says anything is the one *below* that block — the first row at or
+/// before [seen]. Drawing the line above the first new row would put it above
+/// row zero every time, which is precisely the divider the fresh-install rule
+/// suppresses.
+///
+/// The line marks *recency*, not the badge's status filter. It deliberately
+/// counts every unseen row, including the statuses the badge ignores
+/// (`notification`, `answerKey`, `awaited`): because unseen rows are always a
+/// prefix, a status-aware line would have to cut *inside* that prefix whenever a
+/// newer non-alerting row sat above an older alerting one — leaving a row that
+/// arrived after the last visit labelled "EARLIER". The badge stays the single
+/// definition of an alert; the line answers the different question "what
+/// arrived since you last looked".
 ///
 /// Returns -1 when nothing is new (the user has seen everything), when nothing
 /// is old (a fresh install, or a feed where every row arrived since the last
@@ -1058,7 +1068,7 @@ class _RadarSliver extends ConsumerWidget {
         // continuous.
         itemCount: updates.length + (hasDivider ? 1 : 0),
         itemBuilder: (context, i) {
-          if (hasDivider && i == dividerAt) return const _NewDivider();
+          if (hasDivider && i == dividerAt) return const _EarlierDivider();
           final index = hasDivider && i > dividerAt ? i - 1 : i;
           final first = index == 0;
           final last = index == updates.length - 1;
@@ -1242,14 +1252,21 @@ class _RadarRowShell extends StatelessWidget {
   }
 }
 
-/// The seen/unseen boundary in the radar.
+/// The new/earlier boundary in the radar.
 ///
 /// A hairline with a small label, drawn between two rows — not a card of its
 /// own. It paints the card's surface and side borders so the rounded surface
 /// above and below it reads as one list; the rows on either side keep their own
 /// `first`/`last` flags, so their corner rounding is untouched.
-class _NewDivider extends StatelessWidget {
-  const _NewDivider();
+///
+/// The visible word is `EARLIER`, which describes the block the line
+/// *introduces* — everything below it predates the last visit. It used to say
+/// `NEW`, and that is what mail, Slack and Teams put **above** new content: on a
+/// line that sits below the unseen block, "NEW" read as "the new part starts
+/// here", i.e. that the older rows underneath were the new ones. The label now
+/// names the side it actually describes.
+class _EarlierDivider extends StatelessWidget {
+  const _EarlierDivider();
 
   @override
   Widget build(BuildContext context) {
@@ -1282,11 +1299,10 @@ class _NewDivider extends StatelessWidget {
                 hairline(),
                 const SizedBox(width: EvSpace.x2),
                 Text(
-                  'NEW',
+                  'EARLIER',
+                  // `statusPill` is already 11px — the body-text floor — so
+                  // this needs no size override; only the tracking is widened.
                   style: context.type.statusPill.copyWith(
-                    // The 11px floor, not the pill's default: this is live UI
-                    // text, not a bitmap badge.
-                    fontSize: 11,
                     letterSpacing: 1.4,
                     color: p.accentText,
                   ),

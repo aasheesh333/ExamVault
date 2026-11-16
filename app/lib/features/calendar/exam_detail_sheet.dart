@@ -476,13 +476,15 @@ class _DateRowView extends StatelessWidget {
     // No fixed 76px box: at 2.0x "IN 24 DAYS" is wider than that and lost its
     // unit. Its right edge is the row's right edge either way, so the
     // countdowns still line up.
+    // No fontSize override: `statusPill` is already the 11px floor, and this
+    // site used to hardcode 10 — the same under-the-floor override the calendar
+    // kind pill carried.
     final countdownLabel = Text(
       countdown,
       textAlign: TextAlign.right,
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
       style: context.type.statusPill.copyWith(
-        fontSize: 10,
         color: days <= 3 && days >= 0 ? p.dangerText : p.textTertiary,
       ),
     );

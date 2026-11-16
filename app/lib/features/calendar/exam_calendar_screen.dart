@@ -353,7 +353,9 @@ class _EntryCard extends StatelessWidget {
                   entry.source.label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: context.type.microLabel.copyWith(fontSize: 10.5),
+                  // No `copyWith`: microLabel is already 10.5px, so an override
+                  // here only invited the two values to drift apart.
+                  style: context.type.microLabel,
                 ),
               ),
             ],

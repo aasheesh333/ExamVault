@@ -166,11 +166,11 @@ Audit: `docs/AUDIT_2026-11-16.md`. Ledger: `.superpowers/sdd/PLAN_play_store_rea
 - [ ] Commit `feat(ux):`
 
 ## Task 15 — CI ships an empty app version
-- [ ] `.github/workflows/ci.yml`: version grep path `app/pubspec.yaml` → `pubspec.yaml` (job runs in `app/`)
-- [ ] Guard: empty derived version fails the job with `::error::`
-- [ ] Applied to BOTH `flutter build apk` and `flutter build appbundle`
-- [ ] Verified from `app/` that the derivation returns a real version
-- [ ] Commit `fix(ci):`
+- [x] `.github/workflows/ci.yml`: version grep path `app/pubspec.yaml` → `pubspec.yaml` (job runs in `app/`)
+- [x] Guard: empty derived version fails the job with `::error::`
+- [x] Applied to BOTH `flutter build apk` and `flutter build appbundle`
+- [x] Verified from `app/` that the derivation returns a real version
+- [x] Commit `fix(ci):`
 
 ## Task 13 — Final verification + release notes
 - [ ] `flutter analyze --fatal-infos` clean

@@ -8,9 +8,13 @@ import '../../../shared/widgets/status_pill.dart';
 
 /// One row of the Live Radar.
 ///
-/// Layout is a 3-column grid inside a 62px row: 34px icon tile, flexible copy,
+/// Layout is a 3-column grid inside a 62px row: 36px icon tile, flexible copy,
 /// right-aligned status + age. The age is the quietest element on purpose — it is
 /// context, not content.
+///
+/// Above 1.4x text the third column cannot hold the pill at its token size, so
+/// the pill and the age move to their own line under the copy block (see
+/// `stacked` below). At and below 1.4x the grid above is unchanged.
 class LiveRadarTile extends StatelessWidget {
   const LiveRadarTile({
     super.key,
@@ -43,6 +47,70 @@ class LiveRadarTile extends StatelessWidget {
     // status_pill.dart; this was its last caller.
     final accent = update.status.accentOn(context);
 
+    // Above ~1.4x the right-hand column cannot hold the pill. Measured at a
+    // 320dp viewport with 2.0x text: the pill's intrinsic width is 233px, the
+    // column it is given is ~100px, and the `FittedBox` below scaled the 11px
+    // label to ~9.5px — under this app's own 11px floor (theme_tokens.dart:11)
+    // and *smaller* than at 1.0x, on the exact setting the reader raised because
+    // they could not read it. The scale was the symptom; the column was the
+    // cause. Past 1.4x the pill and the age move onto their own line under the
+    // headline, where they get the row's full content width (256px at 320dp),
+    // and the `FittedBox` is dropped so the label paints at its token size. At
+    // and below 1.4x the single-line row is untouched.
+    final stacked = MediaQuery.textScalerOf(context).scale(1) > 1.4;
+
+    final copy = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          // Two lines, not one: headlines come from the commission
+          // pre-truncated at ~95 chars, and a single line showed ~35 —
+          // dropping the stage ("Paper-II", "PET/PST") that makes the
+          // row mean anything.
+          update.examName,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: context.type.tileTitle,
+        ),
+        const SizedBox(height: 2),
+        Row(
+          children: [
+            Flexible(
+              child: Text(
+                update.contextLine,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: context.type.bodyMuted.copyWith(fontSize: 11.5),
+              ),
+            ),
+            if (update.mirrorLatencyMs != null) ...[
+              const SizedBox(width: 6),
+              _LatencyChip(ms: update.mirrorLatencyMs!),
+            ],
+            if (onAlertToggle != null) ...[
+              const SizedBox(width: 4),
+              _AlertBell(
+                examName: update.examName,
+                on: alerting,
+                onTap: onAlertToggle!,
+              ),
+            ],
+          ],
+        ),
+      ],
+    );
+
+    // Shared by both branches: the age is the quietest element on purpose — it
+    // is context, not content.
+    final age = Text(
+      update.ageLabel(),
+      style: context.type.monoMeta.copyWith(
+        fontSize: 11,
+        color: p.textTertiary,
+      ),
+    );
+
     return Semantics(
       button: true,
       // No explicit `label`: the tile's own texts (headline, status pill,
@@ -65,89 +133,77 @@ class LiveRadarTile extends StatelessWidget {
                   : BorderSide(color: context.hairline),
             ),
           ),
-          child: Row(
-            children: [
-              _IconTile(status: update.status, accent: accent),
-              const SizedBox(width: 11),
-              Expanded(
-                child: Column(
+          child: stacked
+              ? Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
-                      // Two lines, not one: headlines come from the commission
-                      // pre-truncated at ~95 chars, and a single line showed ~35 —
-                      // dropping the stage ("Paper-II", "PET/PST") that makes the
-                      // row mean anything.
-                      update.examName,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: context.type.tileTitle,
-                    ),
-                    const SizedBox(height: 2),
                     Row(
+                      // Top-aligned: the icon is a fixed 36px square and the
+                      // copy column grows with the type scale.
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Flexible(
-                          child: Text(
-                            update.contextLine,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: context.type.bodyMuted.copyWith(
-                              fontSize: 11.5,
-                            ),
-                          ),
-                        ),
-                        if (update.mirrorLatencyMs != null) ...[
-                          const SizedBox(width: 6),
-                          _LatencyChip(ms: update.mirrorLatencyMs!),
-                        ],
-                        if (onAlertToggle != null) ...[
-                          const SizedBox(width: 4),
-                          _AlertBell(
-                            examName: update.examName,
-                            on: alerting,
-                            onTap: onAlertToggle!,
-                          ),
-                        ],
+                        _IconTile(status: update.status, accent: accent),
+                        const SizedBox(width: 11),
+                        Expanded(child: copy),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    // No `FittedBox` on this path: the pill owns the row's full
+                    // content width, so its 11px label paints at 11px x the
+                    // reader's scale instead of being shrunk to fit a column.
+                    // Wrap, not Row: at 2.0x the pill alone measures 233px, so
+                    // the age drops to its own run instead of squeezing the
+                    // pill's label into an ellipsis.
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 2,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        EvStatusPill.status(update.status, compact: true),
+                        age,
                       ],
                     ),
                   ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              // Flexible: at 320px and 2.0x text the "ADMIT CARD LIVE" pill's
-              // intrinsic width exceeded the row's free space and pushed the
-              // whole row into RenderFlex overflow. As a flex child it gets
-              // bounded and the pill's label ellipsises instead.
-              Flexible(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  mainAxisSize: MainAxisSize.min,
+                )
+              : Row(
                   children: [
-                    // scaleDown, right-aligned: the pill's own Row lays its
-                    // label out unbounded, so its ellipsis never engages and
-                    // "ADMIT CARD LIVE" overflowed by 80px the first time rows
-                    // rendered on a 360px device. Scaling keeps the label whole
-                    // and inside the row until the shared pill gains a
-                    // Flexible-wrapped label (the root fix, tracked upstream).
-                    FittedBox(
-                      fit: BoxFit.scaleDown,
-                      alignment: Alignment.centerRight,
-                      child: EvStatusPill.status(update.status, compact: true),
-                    ),
-                    const SizedBox(height: 5),
-                    Text(
-                      update.ageLabel(),
-                      style: context.type.monoMeta.copyWith(
-                        fontSize: 11,
-                        color: p.textTertiary,
+                    _IconTile(status: update.status, accent: accent),
+                    const SizedBox(width: 11),
+                    Expanded(child: copy),
+                    const SizedBox(width: 8),
+                    // Flexible: at 320px and 2.0x text the "ADMIT CARD LIVE"
+                    // pill's intrinsic width exceeded the row's free space and
+                    // pushed the whole row into RenderFlex overflow. As a flex
+                    // child it gets bounded and the pill's label ellipsises
+                    // instead.
+                    Flexible(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // scaleDown, right-aligned: the pill's own Row lays
+                          // its label out unbounded, so its ellipsis never
+                          // engages and "ADMIT CARD LIVE" overflowed by 80px the
+                          // first time rows rendered on a 360px device. This
+                          // branch is the ≤1.4x path only; past 1.4x the row
+                          // stacks (see `stacked`) instead of scaling the label
+                          // below its token size.
+                          FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerRight,
+                            child: EvStatusPill.status(
+                              update.status,
+                              compact: true,
+                            ),
+                          ),
+                          const SizedBox(height: 5),
+                          age,
+                        ],
                       ),
                     ),
                   ],
                 ),
-              ),
-            ],
-          ),
         ),
       ),
     );

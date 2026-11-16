@@ -440,6 +440,25 @@ class _AlertRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = context.ev;
+    // Same rule as `live_radar_tile.dart`: past ~1.4x the right-hand column
+    // cannot hold the pill. Measured at 320dp with 2.0x text, the row's 2/5
+    // flex share is ~95px against the pill's 233px intrinsic width, so the
+    // `FittedBox` below painted the 11px label at ~9px — under the 11px floor
+    // (theme_tokens.dart:11). Stacking gives the pill the row's full 248px and
+    // drops the scaling; at and below 1.4x the single-line row is untouched.
+    final stacked = MediaQuery.textScalerOf(context).scale(1) > 1.4;
+
+    final headline = Text(
+      update.examName,
+      maxLines: 2,
+      overflow: TextOverflow.ellipsis,
+      style: context.type.tileTitle,
+    );
+    final meta = Text(
+      '${update.category.label} · ${update.ageLabel()}',
+      style: context.type.bodyMuted.copyWith(fontSize: 12),
+    );
+
     return InkWell(
       onTap: onTap,
       child: Container(
@@ -450,52 +469,57 @@ class _AlertRow extends StatelessWidget {
             top: first ? BorderSide.none : BorderSide(color: p.border),
           ),
         ),
-        child: Row(
-          // spaceBetween so the pill keeps its right edge flush when it does not
-          // need its whole flex share (at 1.0x it is narrower than its share).
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            // flex 3 vs 2: the exam name is the row's subject and must always be
-            // the wider of the two. An even split capped it at half the row,
-            // which at 320px @ 2.0x is narrower than the pill.
-            Expanded(
-              flex: 3,
-              child: Column(
+        child: stacked
+            ? Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    update.examName,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: context.type.tileTitle,
-                  ),
+                  headline,
                   const SizedBox(height: 3),
-                  Text(
-                    '${update.category.label} · ${update.ageLabel()}',
-                    style: context.type.bodyMuted.copyWith(fontSize: 12),
+                  meta,
+                  const SizedBox(height: 6),
+                  // No `FittedBox`: the pill owns the row's full width, so its
+                  // label paints at its token size.
+                  EvStatusPill.status(update.status, compact: true),
+                ],
+              )
+            : Row(
+                // spaceBetween so the pill keeps its right edge flush when it
+                // does not need its whole flex share (at 1.0x it is narrower
+                // than its share).
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  // flex 3 vs 2: the exam name is the row's subject and must
+                  // always be the wider of the two. An even split capped it at
+                  // half the row, which at 320px @ 2.0x is narrower than the
+                  // pill.
+                  Expanded(
+                    flex: 3,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [headline, const SizedBox(height: 3), meta],
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  // Flexible: as a non-flex child at 320px @ 2.0x the "ADMIT
+                  // CARD LIVE" pill's intrinsic width (~230 of the 248
+                  // available px) ate the row and collapsed the exam name to a
+                  // sliver. As a flex child it gets bounded. This branch is the
+                  // ≤1.4x path only; past 1.4x the row stacks (see `stacked`).
+                  Flexible(
+                    flex: 2,
+                    // scaleDown, right-aligned: the pill lays its label out
+                    // unbounded, so its ellipsis never engages; scaling keeps
+                    // the label whole and inside the row. Same fix as
+                    // `live_radar_tile.dart`.
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerRight,
+                      child: EvStatusPill.status(update.status, compact: true),
+                    ),
                   ),
                 ],
               ),
-            ),
-            const SizedBox(width: 10),
-            // Flexible: as a non-flex child at 320px @ 2.0x the "ADMIT CARD
-            // LIVE" pill's intrinsic width (~230 of the 248 available px) ate
-            // the row and collapsed the exam name to a sliver. As a flex child
-            // it gets bounded.
-            Flexible(
-              flex: 2,
-              // scaleDown, right-aligned: the pill lays its label out
-              // unbounded, so its ellipsis never engages; scaling keeps the
-              // label whole and inside the row. Same fix as
-              // `live_radar_tile.dart`.
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                alignment: Alignment.centerRight,
-                child: EvStatusPill.status(update.status, compact: true),
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

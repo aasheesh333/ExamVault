@@ -121,8 +121,6 @@ class LiveUpdate {
   /// True when this row has a searchable roll index behind it.
   bool get hasIndex => indexVersion != null;
 
-  bool isNewerThan(DateTime when) => publishedAt.isAfter(when);
-
   bool isExpired(DateTime now) => expiresAt != null && now.isAfter(expiresAt!);
 }
 
@@ -185,9 +183,6 @@ class LiveFeed {
   /// Rows that are still actionable right now.
   List<LiveUpdate> activeAt(DateTime now) =>
       updates.where((u) => !u.isExpired(now)).toList(growable: false);
-
-  int countBy(UpdateStatus status) =>
-      updates.where((u) => u.status == status).length;
 
   /// How many rows are "actionable right now" — used by the hero subtitle.
   ///

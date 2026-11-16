@@ -2,6 +2,7 @@
     "name": "ExamVault — Admit cards & instant results",
     "short_name": "ExamVault",
     "start_url": ".",
+    "id": "/",
     "scope": ".",
     "display": "standalone",
     "background_color": "#0B0F19",

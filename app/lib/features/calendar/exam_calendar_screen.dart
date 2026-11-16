@@ -392,8 +392,10 @@ class _KindPill extends StatelessWidget {
           Text(
             kind.label,
             maxLines: 1,
+            // No fontSize override: the statusPill token is the 11px floor, and
+            // this row used to hardcode 10 — one of the two live-UI sites that
+            // undercut the floor.
             style: context.type.statusPill.copyWith(
-              fontSize: 10,
               color: switch (kind) {
                 CalendarKind.exam => p.accentText,
                 CalendarKind.result => p.successText,

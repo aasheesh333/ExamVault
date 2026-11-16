@@ -149,7 +149,23 @@ jobs:
             exit 1
           fi
           # EV_APP_VERSION feeds the About sheet; derived from pubspec so the
-          # displayed version can never drift from the shipped one.
+          # displayed version can never drift from the shipped one. The path is
+          # relative to this job's `working-directory: app` — `app/pubspec.yaml`
+          # resolves to `app/app/pubspec.yaml` and finds nothing.
+          #
+          # Guard, because the failure mode is silent twice over: the value is
+          # passed as an *argument*, and a command substitution that fails
+          # inside an argument does not trip `set -e`, so the build proceeds
+          # with EV_APP_VERSION="" and CI reports green. The About sheet then
+          # omits the version clause entirely and the installed build cannot be
+          # traced to a release. The `|| true` is deliberate: it lets the guard
+          # below explain itself instead of `set -e` killing the step with a
+          # bare grep error.
+          EV_APP_VERSION="$(grep -m1 '^version:' pubspec.yaml | awk '{print $2}')" || true
+          if [ -z "${EV_APP_VERSION}" ]; then
+            echo "::error::Could not derive the app version from app/pubspec.yaml — refusing to build. EV_APP_VERSION would be '' and the About sheet would ship with no version, leaving the release untraceable. Check that pubspec.yaml still has a top-level 'version:' line."
+            exit 1
+          fi
           flutter build apk --release --split-per-abi \
             --dart-define=EV_CDN_BASE="${EV_CDN_BASE}" \
             --dart-define=EV_WEB_BASE="${EV_WEB_BASE:-}" \
@@ -159,7 +175,7 @@ jobs:
             --dart-define=EV_FIREBASE_PROJECT_ID="$EV_FIREBASE_PROJECT_ID" \
             --dart-define=EV_FIREBASE_STORAGE_BUCKET="$EV_FIREBASE_STORAGE_BUCKET" \
             --dart-define=EV_ONESIGNAL_APP_ID="$EV_ONESIGNAL_APP_ID" \
-            --dart-define=EV_APP_VERSION="$(grep -m1 '^version:' app/pubspec.yaml | awk '{print $2}')"
+            --dart-define=EV_APP_VERSION="${EV_APP_VERSION}"
 
           # Play Console only accepts an App Bundle. Building only an APK meant
           # the pipeline could never produce something uploadable, which is the
@@ -174,7 +190,7 @@ jobs:
             --dart-define=EV_FIREBASE_PROJECT_ID="$EV_FIREBASE_PROJECT_ID" \
             --dart-define=EV_FIREBASE_STORAGE_BUCKET="$EV_FIREBASE_STORAGE_BUCKET" \
             --dart-define=EV_ONESIGNAL_APP_ID="$EV_ONESIGNAL_APP_ID" \
-            --dart-define=EV_APP_VERSION="$(grep -m1 '^version:' app/pubspec.yaml | awk '{print $2}')"
+            --dart-define=EV_APP_VERSION="${EV_APP_VERSION}"
 
       - name: Upload APKs
         uses: actions/upload-artifact@v4

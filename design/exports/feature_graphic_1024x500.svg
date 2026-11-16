@@ -14,9 +14,12 @@
     <stop offset="60%" stop-color="#2563EB"/>
     <stop offset="100%" stop-color="#1D4ED8"/>
   </linearGradient>
+  <!-- The tile is the wallet card's own surface gradient (walletFront's top
+       stop down to bg.sunken), so the plate behind the mark is the same
+       material as the pass the app shows. -->
   <linearGradient id="tile" x1="0%" y1="0%" x2="100%" y2="100%">
-    <stop offset="0%" stop-color="#16213A"/>
-    <stop offset="100%" stop-color="#0E1524"/>
+    <stop offset="0%" stop-color="#1E2C46"/>
+    <stop offset="100%" stop-color="#0E1522"/>
   </linearGradient>
   <linearGradient id="rule" x1="0%" y1="0%" x2="100%" y2="0%">
     <stop offset="0%" stop-color="#3B82F6"/>
@@ -27,10 +30,16 @@
 <rect width="1024" height="500" fill="#0B0F19"/>
 <rect width="1024" height="500" fill="url(#glow)"/>
 
-<!-- App icon tile, then the mark itself. The tile is the icon's own navy
-     surface, so the shield sits on the same background as on a home screen. -->
+<!-- A rounded plate behind the mark, then the mark itself.
+     The plate is NOT the launcher icon's background: `make_icons.py` paints the
+     shield on flat `NAVY` with no tile and no border. On a 1024px-wide canvas a
+     flat navy square would be invisible, so the plate is introduced here, filled
+     with the wallet card's gradient and edged with `border.wallet` — a token
+     surface the app already uses for the pass. What *is* shared with the
+     launcher icon is the mark: the same `_shield` geometry, the same accent
+     ramp, the same keyhole. -->
 <rect x="175.0" y="182.0" width="136.0" height="136.0" rx="30"
-      fill="url(#tile)" stroke="#243044" stroke-width="1.5"/>
+      fill="url(#tile)" stroke="#28374F" stroke-width="1.5"/>
 <polygon points="210.36,218.99 216.89,209.20 269.11,209.20 275.64,218.99 275.64,245.10 243.00,290.80 210.36,245.10" fill="url(#mark)"/>
 <polygon points="210.36,218.99 216.89,209.20 269.11,209.20 275.64,218.99 275.64,245.10 243.00,290.80 210.36,245.10" fill="none"
          stroke="#60A5FA" stroke-width="2.4" stroke-linejoin="round"/>
@@ -56,5 +65,5 @@
 
 <!-- The five exam families the app tracks (ExamCategory.values). -->
 <text x="369.0" y="358" font-family="IBM Plex Mono" font-weight="600"
-      font-size="14" letter-spacing="2.6" fill="#7C8AA3">SSC · UPSC · BANKING · RAILWAYS · STATE PSC</text>
+      font-size="14" letter-spacing="2.6" fill="#8695AB">SSC · UPSC · BANKING · RAILWAYS · STATE PSC</text>
 </svg>

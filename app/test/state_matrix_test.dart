@@ -131,6 +131,16 @@ void main() {
         ),
       ],
     ),
+    // A card with every centre-detail field blank. `_PassPage` omits its
+    // centre card entirely when address, gate and reporting time are all empty
+    // (`admit_card_detail_screen.dart`, the `if` above `_CenterCard`), so this
+    // is the only state where the pass page is one section shorter — and the
+    // only one where nothing sits under the floating action dock at rest.
+    // The store screenshots' Vault capture uses exactly this shape, so it has
+    // to be layout-tested here rather than asserted by comment.
+    'noCentreDetails': _State(
+      cards: [matrixCard(id: 'noc', centerAddress: '', gate: '', reportBy: '')],
+    ),
     // Every wire variant at once — awaited/answer_key pills, a page-only row,
     // pdf_size, a 4820ms mirror latency, an expired row, a 95-char Devanagari
     // name — and 60 rows, so long-list behaviour is measured, not assumed.

@@ -125,11 +125,13 @@ void main() {
       examCode: 'PO · PRELIMS',
       roll: '2201000002',
       registrationId: 'IBPS-PO-26-118842',
-      // No centre card on the card the Vault screenshot lands on: the pass,
-      // the countdown and the checklist then fit above the floating dock, so
+      // No centre card on the card the Vault screenshot lands on: `_PassPage`
+      // omits `_CenterCard` when address, gate and reportBy are all empty, so
+      // the pass, countdown and checklist then fit above the floating dock and
       // the picture shows three sections cleanly instead of a fourth bleeding
-      // through the dock's fade. (A card without centre details is a real
-      // state — see the matrix's `sparseFields` case.)
+      // through the dock's fade. Reachable — `vault_form_sheet.dart` validates
+      // only exam name and roll — and layout-tested at every matrix point by
+      // `state_matrix_test.dart`'s `noCentreDetails` case.
       centerAddress: '',
       centerCode: 'DL-04-1187',
       gate: '',
@@ -171,6 +173,18 @@ void main() {
     testWidgets(
       'captures $label at 1410x2808',
       (tester) async {
+        // Guard the documented `cd app` precondition *first*: from any other
+        // directory `../design` resolves outside the repo, so the screenshots
+        // would be written where nobody looks. Checking here fails in a
+        // millisecond instead of after a full pump-and-rasterise.
+        if (!Directory('../design').existsSync()) {
+          fail(
+            'Run this from app/ (cd app && EV_SCREENSHOTS=1 flutter test '
+            'test/screenshot_capture_test.dart) — ../design does not exist from '
+            '${Directory.current.path}.',
+          );
+        }
+
         final boundaryKey = GlobalKey();
         await pumpMatrix(
           tester,
@@ -202,6 +216,14 @@ void main() {
           await tester.pump(const Duration(milliseconds: 300));
         }
 
+        // Dimensions and aspect ratio cannot see a framing defect: an earlier
+        // revision passed every size check while its share capture opened on a
+        // bare red band with the title bar scrolled out of frame. So assert the
+        // frame structurally too — the tab bar and this screen's own top
+        // chrome must be laid out inside the viewport, and the content must not
+        // be pushed above it.
+        _expectFramed(tester, point, label);
+
         final boundary =
             boundaryKey.currentContext!.findRenderObject()!
                 as RenderRepaintBoundary;
@@ -231,16 +253,6 @@ void main() {
         });
 
         final out = File('../design/exports/screenshots/$file.png');
-        // Guard the documented `cd app` precondition: run from anywhere else and
-        // this path resolves *outside* the repo, silently writing the screenshots
-        // where nobody looks.
-        if (!Directory('../design').existsSync()) {
-          fail(
-            'Run this from app/ (cd app && EV_SCREENSHOTS=1 flutter test '
-            'test/screenshot_capture_test.dart) — ../design does not exist from '
-            '${Directory.current.path}.',
-          );
-        }
         out.parent.createSync(recursive: true);
         out.writeAsBytesSync(bytes!);
         // ignore: avoid_print
@@ -275,4 +287,60 @@ Future<void> _loadMaterialIcons() async {
   await (FontLoader('MaterialIcons')
         ..addFont(Future.value(ByteData.sublistView(file.readAsBytesSync()))))
       .load();
+}
+
+/// The anchor text each screen puts in its top chrome.
+///
+/// Used by [_expectFramed]: if the picture's first few hundred pixels are not
+/// this screen's own header, the frame is wrong no matter what the dimensions
+/// say.
+const _topAnchor = <String, String>{
+  'Home': 'EXAMVAULT',
+  'Vault': 'Saved Pass',
+  'Dates': 'Exam Calendar',
+  'Radar': 'Result Radar',
+  'Share': 'Share Card',
+};
+
+/// Asserts the screen is framed: its header and the tab bar are on-screen.
+///
+/// A screenshot can be exactly 1410x2808 and still be worthless — the round-2
+/// defect was a capture whose nav bar had been scrolled out of the viewport,
+/// leaving a bare colour band where the title belonged. Size assertions cannot
+/// see that, so this checks the layout directly:
+///
+///  * the screen's own top anchor is laid out inside the viewport rect, and
+///  * the floating tab bar is too, and its bottom edge is at the viewport's.
+void _expectFramed(WidgetTester tester, MatrixPoint point, String label) {
+  final screen = Rect.fromLTWH(0, 0, point.width, point.height);
+
+  final anchor = _topAnchor[label]!;
+  final finder = find.text(anchor);
+  expect(finder, findsOneWidget, reason: '$label must show "$anchor"');
+  final header = tester.getRect(finder);
+  expect(
+    header.top >= screen.top - 1 && header.bottom <= screen.height / 3,
+    isTrue,
+    reason:
+        '$label: "$anchor" must sit in the top third of the frame, '
+        'not at $header',
+  );
+
+  final bar = find.byType(EvTabBar);
+  expect(bar, findsOneWidget, reason: '$label must render the tab bar');
+  final barRect = tester.getRect(bar);
+  expect(
+    barRect.top >= screen.top && barRect.bottom <= screen.bottom + 1,
+    isTrue,
+    reason:
+        '$label: the tab bar must be fully inside the viewport, not at '
+        '$barRect',
+  );
+  expect(
+    barRect.bottom,
+    greaterThan(screen.height * 0.8),
+    reason:
+        '$label: the tab bar must sit at the bottom of the frame, not at '
+        '$barRect',
+  );
 }

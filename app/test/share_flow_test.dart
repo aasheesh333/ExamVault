@@ -138,7 +138,9 @@ void main() {
     expect(
       share.captureCalls,
       3,
-      reason: 'capture is retried at 3x, 2x and 1x before giving up',
+      reason:
+          'capture is retried at the derived base ratio, then two-thirds and '
+          'one-third of it, before giving up',
     );
     expect(share.imageShares, isEmpty);
     expect(share.textShares, hasLength(1));
@@ -313,8 +315,11 @@ void main() {
     expect(find.textContaining('RESULT IS LIVE'), findsNothing);
     expect(
       find.text('SSC CHSL 2026'),
-      findsWidgets,
-      reason: 'the header names the exam being exported',
+      // Twice: once on the card, once in the header. `findsWidgets` would be
+      // satisfied by the card alone, so deleting the header name would not
+      // fail this test.
+      findsNWidgets(2),
+      reason: 'the header names the exam being exported, above the preview',
     );
     expect(
       find.textContaining('COMBINED SECTION'),
@@ -417,6 +422,68 @@ void main() {
     await _drainSnack(tester);
   });
 
+  testWidgets('an unconfirmable share is neither success nor "nothing sent"', (
+    tester,
+  ) async {
+    // `unavailable` means the platform shared but could not report what the
+    // user did (web builds, older Android). Saying "Nothing was sent" asserts a
+    // negative nobody observed; saying it was shared asserts a positive nobody
+    // observed. The only honest line points at the caption the user still has.
+    final share = _FakeShare(
+      png: null,
+      textStatus: ShareResultStatus.unavailable,
+    );
+    await pumpScreen(tester, share);
+
+    await tester.tap(find.text('Share card'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.pump();
+
+    expect(
+      find.textContaining('Could not confirm the share'),
+      findsOneWidget,
+      reason: 'an unknown outcome must be reported as unknown',
+    );
+    expect(find.textContaining('Nothing was sent'), findsNothing);
+    expect(
+      find.textContaining('shared the message text instead'),
+      findsNothing,
+    );
+
+    await _drainSnack(tester);
+  });
+
+  testWidgets('a dismissed image share is reported, not silent', (
+    tester,
+  ) async {
+    // Bug: the image path discarded its ShareResult, so a dismissed sheet said
+    // nothing at all — inconsistent with the text path now telling the truth.
+    final share = _FakeShare(
+      png: Uint8List.fromList(const [1, 2, 3]),
+      imageStatus: ShareResultStatus.dismissed,
+    );
+    await pumpScreen(tester, share);
+
+    await tester.tap(find.text('Share card'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.pump();
+
+    expect(share.imageShares, hasLength(1), reason: 'the PNG was offered');
+    expect(
+      find.textContaining('Nothing was sent'),
+      findsOneWidget,
+      reason: 'a dismissed image share must be audible, never silent',
+    );
+    expect(
+      find.textContaining('shared the message text instead'),
+      findsNothing,
+    );
+
+    await _drainSnack(tester);
+  });
+
   testWidgets('the capture ratio is derived from the capped card width', (
     tester,
   ) async {
@@ -463,27 +530,40 @@ void main() {
     // Bug: `SizedBox(width: 88)` + `maxLines: 2` + ellipsis rendered "Copy
     // official link" as "Copy / officia…" — a label the user cannot finish
     // reading on the tile that copies the commission's own link.
-    await pumpScreen(
-      tester,
-      _FakeShare(png: null),
-      viewSize: const Size(320, 1600),
-      textScale: 2.0,
-    );
+    //
+    // 319.5 dp is the fractional case: three 94 dp tiles plus the gutters must
+    // still fit when the viewport is a half-pixel under the 320 dp floor, so a
+    // future gutter change cannot turn the row into a RenderFlex overflow.
+    for (final width in const [320.0, 319.5]) {
+      await pumpScreen(
+        tester,
+        _FakeShare(png: null),
+        viewSize: Size(width, 1600),
+        textScale: 2.0,
+      );
 
-    final label = find.text('Copy official link');
-    expect(label, findsOneWidget);
+      final label = find.text('Copy official link');
+      expect(label, findsOneWidget, reason: 'at ${width}dp');
 
-    final paragraph = tester.renderObject<RenderParagraph>(label);
-    expect(
-      paragraph.didExceedMaxLines,
-      isFalse,
-      reason: 'every word of the label must fit — nothing may be ellipsised',
-    );
-    expect(
-      paragraph.text.toPlainText(),
-      'Copy official link',
-      reason: 'the full label, not a fragment',
-    );
+      final paragraph = tester.renderObject<RenderParagraph>(label);
+      expect(
+        paragraph.didExceedMaxLines,
+        isFalse,
+        reason:
+            'every word of the label must fit at ${width}dp — nothing may be '
+            'ellipsised',
+      );
+      expect(
+        paragraph.text.toPlainText(),
+        'Copy official link',
+        reason: 'the full label, not a fragment',
+      );
+      expect(
+        tester.takeException(),
+        isNull,
+        reason: 'no overflow at ${width}dp',
+      );
+    }
 
     await _drainSnack(tester);
   });
@@ -496,6 +576,7 @@ class _FakeShare extends ShareService {
     this.imageShareThrows = false,
     this.hangFirstCapture = false,
     this.textStatus = ShareResultStatus.success,
+    this.imageStatus = ShareResultStatus.success,
   });
 
   /// What [capturePng] hands back (null → the screen's text fallback).
@@ -513,6 +594,9 @@ class _FakeShare extends ShareService {
   /// What the platform reports for a text share. `dismissed` models the user
   /// closing the sheet without picking a target.
   final ShareResultStatus textStatus;
+
+  /// What the platform reports for an image share.
+  final ShareResultStatus imageStatus;
 
   Completer<Uint8List?>? _gate;
 
@@ -544,7 +628,7 @@ class _FakeShare extends ShareService {
   }) async {
     imageShares.add(caption);
     if (imageShareThrows) throw StateError('platform refused the image');
-    return ShareResult.unavailable;
+    return ShareResult('', imageStatus);
   }
 
   @override

@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:share_plus/share_plus.dart' show ShareResultStatus;
+import 'package:share_plus/share_plus.dart' show ShareResult, ShareResultStatus;
 
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/theme_tokens.dart';
@@ -78,9 +78,11 @@ class _WhatsappShareCardScreenState
   /// card. The screen then shows an explainer instead of a card built on
   /// placeholders like "SSC CGL Tier-1 2026" + "Roll —".
   ///
-  /// [preferCardName] is set when an explicit vault selection overrode the
-  /// pinned radar row: the student picked that card, so the card's own exam name
-  /// wins over a feed row that happens to share its `examId`.
+  /// [preferCardName] is set on every card-only build (no pinned radar row):
+  /// the saved card's own name wins over a feed row's phrasing of the same
+  /// exam, because the name the student saw in the Vault is the one the header
+  /// should echo. Status, official URL and PDF size still come from the feed
+  /// row, so freshness is unaffected.
   ShareCardData? _buildCard(
     LiveUpdate? update,
     AdmitCard? card,
@@ -338,13 +340,20 @@ class _WhatsappShareCardScreenState
         );
       } else {
         try {
-          await share.shareCardImage(
+          final result = await share.shareCardImage(
             png: png,
             caption: caption,
             subject: data.examName,
             origin: origin,
             fileName: 'examvault_${DateTime.now().millisecondsSinceEpoch}.png',
           );
+          // The image path used to discard its result entirely, so a dismissed
+          // share sheet said nothing at all — inconsistent with the text path,
+          // which now tells the truth. There is no success confirmation to
+          // show here (the sheet itself was the feedback, and inventing one
+          // would claim a delivery we cannot observe), so only the two
+          // not-sent/unknown outcomes speak.
+          _reportShareResult(result);
         } catch (e, st) {
           // Bug: a platform that refused the image handoff (share sheet would
           // not open; a browser without Web Share file support) landed in the
@@ -384,8 +393,7 @@ class _WhatsappShareCardScreenState
   ///
   /// Bug: the confirmation was unconditional, so dismissing the share sheet
   /// still produced "shared the message text instead" — the app claimed a
-  /// handoff the platform had explicitly reported as not happening. Only a
-  /// `success` result may make that claim.
+  /// handoff the platform had explicitly reported as not happening.
   Future<void> _shareTextFallback(
     ShareService share,
     String caption,
@@ -398,10 +406,31 @@ class _WhatsappShareCardScreenState
       subject: data.examName,
       origin: origin,
     );
-    if (result.status == ShareResultStatus.success) {
-      _showSnack('$reason — shared the message text instead.');
-    } else {
-      _showSnack('Nothing was sent — your caption is still here.');
+    _reportShareResult(
+      result,
+      successMessage: '$reason — shared the message text instead.',
+    );
+  }
+
+  /// Tells the user what the platform said happened, without guessing.
+  ///
+  /// `success` → [successMessage] (null when the sheet itself was the feedback
+  /// and there is nothing honest to add). `dismissed` → nothing was sent.
+  /// `unavailable` → the platform refused to say what the user did, so claiming
+  /// either outcome would be a guess; point at the caption the user can still
+  /// use instead. The old two-way branch lumped `unavailable` in with
+  /// `dismissed` and asserted a negative nobody observed.
+  void _reportShareResult(ShareResult result, {String? successMessage}) {
+    switch (result.status) {
+      case ShareResultStatus.success:
+        if (successMessage != null) _showSnack(successMessage);
+        break;
+      case ShareResultStatus.dismissed:
+        _showSnack('Nothing was sent — your caption is still here.');
+        break;
+      case ShareResultStatus.unavailable:
+        _showSnack('Could not confirm the share — your caption is still here.');
+        break;
     }
   }
 
@@ -837,11 +866,13 @@ class _Target extends StatelessWidget {
           onTap: enabled ? onTap : null,
           borderRadius: BorderRadius.circular(EvRadius.inner),
           child: SizedBox(
-            // 96 rather than 76/88: "Copy official link" wraps to one word per
-            // line at 2.0x, and the longest word ("official") needs the extra
-            // width. Three tiles at 96 still fit the 288 dp content width of a
-            // 320 dp phone exactly.
-            width: 96,
+            // 94, not 76/88: "Copy official link" wraps to one word per line
+            // at 2.0x, and the longest word ("official") needs the width.
+            // Three tiles at 96 would equal the 288 dp content width of a
+            // 320 dp phone exactly — zero slack for a sub-pixel width or a
+            // future gutter change. 94 leaves 6 dp and still fits every word
+            // at the 2.0x clamp (`share_flow_test` pins both).
+            width: 94,
             child: Column(
               children: [
                 Container(

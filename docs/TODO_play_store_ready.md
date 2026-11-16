@@ -162,6 +162,11 @@ Audit: `docs/AUDIT_2026-11-16.md`. Ledger: `.superpowers/sdd/PLAN_play_store_rea
 - [ ] `flutter build apk --release` succeeds (or document why not run here)
 - [ ] Audit doc: every P0/P1/P2 dispositioned (fixed + commit, or deferred + reason)
 - [ ] `docs/PLAY_STORE.md`: "Release notes — 1.0.1" section
+- [ ] **Re-verify EVERY `file:line` citation in `docs/PLAY_STORE.md`** against the final merged tree — they drift (Task 9 rewrote `about_sheet.dart`; Task 11 deleted API)
+- [ ] Fix the now-FALSE sentence at `docs/PLAY_STORE.md:206`: it says the legacy route "still has `pdfBytes`/`pdfUrl` wrappers" — Task 11 deleted both
+- [ ] `AppConfig.resultPdfPath` is now uncalled (its only two callers were deleted) — delete it or document it as the future-PDF seam
+- [ ] Reconcile `docs/PLAY_STORE.md`'s "the current release is 'all exam alerts' or 'none'" paragraph with Task 10's category picker
+- [ ] Record that the 26-permission merged-manifest table cannot be regenerated in this environment (no Android SDK); state where it came from
 - [ ] `app/pubspec.yaml` ⇒ `1.0.1+2`
 - [ ] Commit `chore(release):`
 

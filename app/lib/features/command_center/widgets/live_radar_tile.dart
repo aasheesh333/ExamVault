@@ -8,13 +8,19 @@ import '../../../shared/widgets/status_pill.dart';
 
 /// One row of the Live Radar.
 ///
-/// Layout is a 3-column grid inside a 62px row: 36px icon tile, flexible copy,
-/// right-aligned status + age. The age is the quietest element on purpose — it is
-/// context, not content.
+/// Layout: a 36px icon tile, the copy block (headline, then
+/// `context · latency · bell`), and a status line under both — the pill at its
+/// token size with the age at the far right of that line when it fits. The age is
+/// the quietest element on purpose — it is context, not content.
 ///
-/// Above 1.4x text the third column cannot hold the pill at its token size, so
-/// the pill and the age move to their own line under the copy block (see
-/// `stacked` below). At and below 1.4x the grid above is unchanged.
+/// The pill used to share the row with a ~100px right-hand column that could not
+/// hold its 134px intrinsic width even at the **default** 1.0x text size (233px
+/// at 2.0x), so a `FittedBox(scaleDown)` painted the 11px label at 8.25px — under
+/// this app's own 11px floor (`theme_tokens.dart:11`) on the 320dp phones this
+/// design targets, not only for readers who raised their text scale. The column
+/// was the cause, the scale was the symptom. The pill now owns a full-width line
+/// (256px at 320dp) at every scale, so it paints at 11px x the reader's scale with
+/// no `FittedBox` and no per-scale branch: one arrangement from 1.0x through 2.0x.
 class LiveRadarTile extends StatelessWidget {
   const LiveRadarTile({
     super.key,
@@ -46,18 +52,6 @@ class LiveRadarTile extends StatelessWidget {
     // dark grey/amber icon tints. The pill widget itself was fixed in
     // status_pill.dart; this was its last caller.
     final accent = update.status.accentOn(context);
-
-    // Above ~1.4x the right-hand column cannot hold the pill. Measured at a
-    // 320dp viewport with 2.0x text: the pill's intrinsic width is 233px, the
-    // column it is given is ~100px, and the `FittedBox` below scaled the 11px
-    // label to ~9.5px — under this app's own 11px floor (theme_tokens.dart:11)
-    // and *smaller* than at 1.0x, on the exact setting the reader raised because
-    // they could not read it. The scale was the symptom; the column was the
-    // cause. Past 1.4x the pill and the age move onto their own line under the
-    // headline, where they get the row's full content width (256px at 320dp),
-    // and the `FittedBox` is dropped so the label paints at its token size. At
-    // and below 1.4x the single-line row is untouched.
-    final stacked = MediaQuery.textScalerOf(context).scale(1) > 1.4;
 
     final copy = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -101,8 +95,8 @@ class LiveRadarTile extends StatelessWidget {
       ],
     );
 
-    // Shared by both branches: the age is the quietest element on purpose — it
-    // is context, not content.
+    // Shared by both the copy block and the status line: the age is the quietest
+    // element on purpose — it is context, not content.
     final age = Text(
       update.ageLabel(),
       style: context.type.monoMeta.copyWith(
@@ -133,77 +127,48 @@ class LiveRadarTile extends StatelessWidget {
                   : BorderSide(color: context.hairline),
             ),
           ),
-          child: stacked
-              ? Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                // Top-aligned: the icon is a fixed 36px square and the copy
+                // column grows with the type scale.
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _IconTile(status: update.status, accent: accent),
+                  const SizedBox(width: 11),
+                  // Full remaining width: no status column competes with the
+                  // headline or the meta line any more.
+                  Expanded(child: copy),
+                ],
+              ),
+              const SizedBox(height: 8),
+              // No `FittedBox` anywhere above the pill: it owns this line's full
+              // content width (256px at 320dp), so its 11px label paints at 11px
+              // x the reader's scale instead of being shrunk into a column.
+              //
+              // Wrap, not Row: at 2.0x the pill alone measures 233px and the age
+              // ~80px, so the age drops to its own run rather than squeezing the
+              // pill's label into an ellipsis. The full-width box is what makes
+              // `spaceBetween` put the age on the line's right edge — the quiet,
+              // column-aligned position it has always had — instead of letting it
+              // trail the pill at a different x on every row.
+              SizedBox(
+                width: double.infinity,
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 2,
+                  alignment: WrapAlignment.spaceBetween,
+                  crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
-                    Row(
-                      // Top-aligned: the icon is a fixed 36px square and the
-                      // copy column grows with the type scale.
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _IconTile(status: update.status, accent: accent),
-                        const SizedBox(width: 11),
-                        Expanded(child: copy),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    // No `FittedBox` on this path: the pill owns the row's full
-                    // content width, so its 11px label paints at 11px x the
-                    // reader's scale instead of being shrunk to fit a column.
-                    // Wrap, not Row: at 2.0x the pill alone measures 233px, so
-                    // the age drops to its own run instead of squeezing the
-                    // pill's label into an ellipsis.
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 2,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        EvStatusPill.status(update.status, compact: true),
-                        age,
-                      ],
-                    ),
-                  ],
-                )
-              : Row(
-                  children: [
-                    _IconTile(status: update.status, accent: accent),
-                    const SizedBox(width: 11),
-                    Expanded(child: copy),
-                    const SizedBox(width: 8),
-                    // Flexible: at 320px and 2.0x text the "ADMIT CARD LIVE"
-                    // pill's intrinsic width exceeded the row's free space and
-                    // pushed the whole row into RenderFlex overflow. As a flex
-                    // child it gets bounded and the pill's label ellipsises
-                    // instead.
-                    Flexible(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          // scaleDown, right-aligned: the pill's own Row lays
-                          // its label out unbounded, so its ellipsis never
-                          // engages and "ADMIT CARD LIVE" overflowed by 80px the
-                          // first time rows rendered on a 360px device. This
-                          // branch is the ≤1.4x path only; past 1.4x the row
-                          // stacks (see `stacked`) instead of scaling the label
-                          // below its token size.
-                          FittedBox(
-                            fit: BoxFit.scaleDown,
-                            alignment: Alignment.centerRight,
-                            child: EvStatusPill.status(
-                              update.status,
-                              compact: true,
-                            ),
-                          ),
-                          const SizedBox(height: 5),
-                          age,
-                        ],
-                      ),
-                    ),
+                    EvStatusPill.status(update.status, compact: true),
+                    age,
                   ],
                 ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -267,10 +232,10 @@ class _LatencyChip extends StatelessWidget {
 /// Per-exam notification bell.
 ///
 /// Sits in the row's meta line rather than as a fourth column: the row already
-/// carries a 34px icon tile, two lines of copy and a status/age column, and a
-/// fourth column would either shrink the headline or overflow at 320px @2.0x.
-/// The 44px hit area is kept even though the glyph is 16px — this is a
-/// thumb-target on exam morning, not a decoration.
+/// carries a 36px icon tile, two lines of copy and the status line, and a fourth
+/// column would either shrink the headline or overflow at 320px @2.0x. The 44px
+/// hit area is kept even though the glyph is 16px — this is a thumb-target on exam
+/// morning, not a decoration.
 class _AlertBell extends StatelessWidget {
   const _AlertBell({
     required this.examName,

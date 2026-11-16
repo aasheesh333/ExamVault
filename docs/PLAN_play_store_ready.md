@@ -807,6 +807,59 @@ still cache; nothing else changes.
 
 ---
 
+## Task 19 — The status pill is below the type floor at the DEFAULT text size
+
+**Defect (measured in Task 16's review, escalated as a task not a footnote).**
+Task 16 fixed the pill above 1.4×, where it painted at 9.49 px (tile) / 8.91 px
+(alerts). But the reviewer measured the *unfixed* path and found the floor is
+already violated at the size every user has:
+
+```
+320 dp @1.0x   tile 8.25 px    alerts 7.75 px
+```
+
+The brief for Task 16 froze that path ("≤1.4× byte-identical"), so the
+implementer had no legal move. That freeze was the brief's defect: it protected a
+layout that was itself under `theme_tokens.dart:11`'s "Body text never below
+11px". This task fixes it.
+
+**Root cause.** The right-hand column is ~100.5 px wide (320 − 32 gutter − 32 tile
+padding − 36 icon − 11 gap − 8 gap, halved by the flex split), while the pill's
+intrinsic width at 1.0× is ~134 px. `FittedBox(scaleDown)` bridges the gap by
+shrinking the text, which is why it reads 8.25 px instead of 11.
+
+**Fix:** give the pill the width it needs rather than scaling the text down.
+Options, in order of preference — pick the one that keeps the row readable:
+
+1. **Let the pill own the meta line.** Put the status pill on the context line
+   (`update.contextLine` row) where it can take its natural width, and keep only
+   the age in the right column. The row then reads: icon | headline / context ·
+   pill · bell | age.
+2. **Widen the column at the expense of the headline.** Cap the headline to two
+   lines and give the pill `maxWidth: 134` with the headline taking the rest.
+3. **Shorten the label.** A compact pill could print `LIVE`, `CARD`, `CLOSING`,
+   `NEW`, `KEY`, `AWAITED` — but that changes the words the colour-blind
+   contract depends on, so only if 1 and 2 fail.
+
+Whichever you choose, the pill must paint at its token size (11 px × the reader's
+scale) with no `RenderFittedBox` ancestor **at every scale from 1.0× to 2.0×**,
+and the row must not overflow at 320 dp.
+
+**Files:** `app/lib/features/command_center/widgets/live_radar_tile.dart`,
+`app/lib/features/command_center/widgets/alerts_sheet.dart`,
+`app/test/radar_pill_test.dart`.
+
+**Do:** the fix, plus a test that loops 1.0, 1.2, 1.4, 1.6, 1.8, 2.0× and asserts
+for each: no `RenderFittedBox` above the label, painted size ≥ 11 px × scale, and
+`takeException()` null. The 1.4× pre-existing 1.2 px meta-line overflow Task 16
+reported must also be gone — if it is still there after the fix, fix it.
+
+**Acceptance:** the pill paints at ≥11 px at every scale from 1.0× to 2.0× on a
+320 dp phone; no overflow at any of those points; the alert bell keeps its 44 px
+target; the colour-blind contract (label always present) still holds.
+
+---
+
 ## Task 13 — Final verification and release notes
 
 **Do:**

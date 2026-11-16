@@ -194,6 +194,16 @@ Audit: `docs/AUDIT_2026-11-16.md`. Ledger: `.superpowers/sdd/PLAN_play_store_rea
 - [ ] `node --check infra/src/index.js`
 - [ ] Commit `fix(infra):`
 
+## Task 19 — Pill below the type floor at the DEFAULT text size (8.25 px)
+- [ ] Fix the ≤1.4× path: give the pill its natural width instead of scaling the text
+- [ ] Preferred: pill on the context line, age alone in the right column
+- [ ] No `RenderFittedBox` above the label at ANY scale 1.0×–2.0×
+- [ ] Painted size ≥ 11 px × scale at 1.0/1.2/1.4/1.6/1.8/2.0×
+- [ ] Also fix the pre-existing 1.2 px meta-line overflow at 1.4×
+- [ ] Alert bell keeps its 44 px target; label always present (colour-blind contract)
+- [ ] Same rule in `alerts_sheet.dart`
+- [ ] Commit `fix(a11y):`
+
 ## Task 13 — Final verification + release notes
 - [ ] `flutter analyze --fatal-infos` clean
 - [ ] `dart format --set-exit-if-changed` clean

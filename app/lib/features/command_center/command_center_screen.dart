@@ -42,6 +42,11 @@ class CommandCenterScreen extends ConsumerWidget {
     // rendered exactly like a quiet feed: "Nothing live right now" plus a
     // confident "0 live updates" in the hero, on result day.
     final feedError = feed?.error;
+    // Nothing has answered yet: the sentinel `LiveFeedNotifier.build` returns for
+    // the whole first fetch (see `neverAnswered`). Every surface below renders it
+    // as "checking", never as "there is nothing" — `NO FEED` and a confident
+    // "0 live updates" are reserved for a feed that actually answered.
+    final awaitingFirstAnswer = neverAnswered(feed);
     // A search or a category chip narrows the vault as well as the radar. The
     // header must say so: with a query matching one of five cards it printed
     // "5 saved" over a one-card list, and no empty state appears to explain the
@@ -69,7 +74,9 @@ class CommandCenterScreen extends ConsumerWidget {
               SliverToBoxAdapter(
                 child: _Hero(
                   cardCount: cardsAsync.hasValue ? allCards.length : null,
-                  liveCount: feed?.feed.liveCount,
+                  // Null, not the sentinel's zero: before the first answer the
+                  // hero has no count, and the null branch says "Syncing radar…".
+                  liveCount: awaitingFirstAnswer ? null : feed?.feed.liveCount,
                   feedFailed: feedError != null,
                 ),
               ),
@@ -139,6 +146,7 @@ class CommandCenterScreen extends ConsumerWidget {
                 filter: filter,
                 searching: searching,
                 error: feedError,
+                checking: awaitingFirstAnswer,
               ),
               SliverToBoxAdapter(
                 // Chrome inset, not a guess: the tab bar's height now follows
@@ -349,9 +357,12 @@ class _Hero extends StatelessWidget {
   /// no cards — the most alarming thing this screen can say.
   final int? cardCount;
 
-  /// Null while the feed is still loading. `?? 0` made the hero claim a
-  /// confident "0 live updates" on every cold start — while the radar header
-  /// ten pixels below honestly said "CONNECTING…". Same rule as [cardCount].
+  /// Null while the feed has not answered yet. `?? 0` made the hero claim a
+  /// confident "0 live updates" before the first fetch landed — and for the whole
+  /// of it on a dead network. The radar header ten pixels below refuses to call
+  /// that a feed: it says `CHECKING…` until something answers, and `NO FEED`
+  /// means "the edge answered and had nothing". The hero passes null for exactly
+  /// that state and says "Syncing radar…". Same rule as [cardCount].
   final int? liveCount;
 
   /// True when the snapshot carries a hard failure ([LiveFeedSnapshot.error]).
@@ -902,10 +913,18 @@ class _RadarHeader extends StatelessWidget {
     // A cached document always states its age, even when fresh: "CACHED" alone
     // gives no way to tell "saved four seconds ago" from "saved yesterday", and
     // the age is the whole reason the label exists.
+    final checking = neverAnswered(snapshot);
     final String status;
-    if (snapshot == null) {
+    if (checking) {
+      // Before anything has answered there is no feed to describe: `NO FEED`
+      // here claimed a fact ("the radar is empty") the app did not have yet, and
+      // it was the steady state for the whole first fetch — the P1-1 lie.
+      status = 'CHECKING…';
+    } else if (snapshot == null) {
       status = 'CONNECTING…';
     } else if (source == FeedSource.none) {
+      // A failed check with nothing behind it: there *is* no feed to show, and
+      // the failure card below says why.
       status = 'NO FEED';
     } else if (source == FeedSource.cache) {
       status = age == null ? 'CACHED' : 'CACHED · ${_shortAge(age)}';
@@ -914,6 +933,10 @@ class _RadarHeader extends StatelessWidget {
     } else {
       status = 'LIVE · EDGE';
     }
+
+    // "0 of 0" is not an answer to "did you even look?" — with nothing answered
+    // the fraction has no denominator, so the checking state wins over it too.
+    final showFraction = searching && !checking;
 
     return EvSectionHeader(
       label: 'Live radar',
@@ -937,10 +960,10 @@ class _RadarHeader extends StatelessWidget {
       trailing: Text(
         // While a search is running the useful number is how many rows matched,
         // not how old the feed is: "3 of 34" answers "did you even look?".
-        searching ? '$shown of $total' : status,
+        showFraction ? '$shown of $total' : status,
         style: context.type.microLabel.copyWith(
           letterSpacing: 1.1,
-          color: searching
+          color: showFraction
               ? p.textSecondary
               : (source == FeedSource.network &&
                         (age == null || age.inMinutes < 2)
@@ -997,6 +1020,7 @@ class _RadarSliver extends ConsumerWidget {
     required this.filter,
     this.searching = false,
     this.error,
+    this.checking = false,
   });
 
   final List<LiveUpdate> updates;
@@ -1005,6 +1029,10 @@ class _RadarSliver extends ConsumerWidget {
 
   /// The failure the repository attached to the snapshot, when there is one.
   final String? error;
+
+  /// Nothing has answered yet (`neverAnswered`): the empty list is an absence of
+  /// data, not a fact about the radar, so it must not claim "nothing live".
+  final bool checking;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -1018,6 +1046,10 @@ class _RadarSliver extends ConsumerWidget {
       if (error != null) {
         return SliverToBoxAdapter(child: _FeedErrorCard(error: error!));
       }
+      // "Still asking" outranks the search and empty-state copy for the same
+      // reason: with no data there is nothing to search, and "Nothing live right
+      // now" asserted a fact the app did not have. The "we check every 60
+      // seconds" line stays for the answered-empty case, which is a real answer.
       return SliverToBoxAdapter(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: EvSpace.gutter),
@@ -1025,7 +1057,9 @@ class _RadarSliver extends ConsumerWidget {
             child: Row(
               children: [
                 Icon(
-                  searching ? Icons.search_off_rounded : Icons.radar_rounded,
+                  searching && !checking
+                      ? Icons.search_off_rounded
+                      : Icons.radar_rounded,
                   color: p.textTertiary,
                   size: 20,
                 ),
@@ -1034,7 +1068,9 @@ class _RadarSliver extends ConsumerWidget {
                   child: Text(
                     // "Nothing live yet" was a lie when the real answer was
                     // "nothing matched your search".
-                    searching
+                    checking
+                        ? 'Checking for updates…'
+                        : searching
                         // Scoped to the radar: a saved card matching the same
                         // query is shown above, so "no exam matches" contradicted
                         // what was on screen.

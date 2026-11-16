@@ -49,6 +49,33 @@ class LiveFeedSnapshot {
   );
 }
 
+/// True when the radar has never had an answer: the [FeedSource.none] sentinel,
+/// with no error and no rows — exactly what [LiveFeedRepository.emptySnapshot]
+/// returns before the first fetch lands.
+///
+/// One predicate, because this state must read the same on every surface that
+/// shows the feed. `LiveFeedNotifier.build` answers synchronously with
+/// `readCached() ?? emptySnapshot()` and refreshes with `unawaited(...)`, so the
+/// provider is `AsyncData(empty, source: none, error: null)` for the *whole*
+/// first fetch — up to ~25 s on a dead network (three attempts of 8 s plus
+/// jitter), and guaranteed right after delete-all, which clears the cache. The
+/// alerts inbox was fixed to say "Checking for updates…" there; Home still said
+/// "NO FEED", "Nothing live right now. We check the edge every 60 seconds." and
+/// "0 live updates", which is the same lie one screen over.
+///
+/// [FeedSource.none] is produced by [LiveFeedRepository.emptySnapshot] and
+/// nowhere else, so this separates "still asking" from a real empty answer: the
+/// edge saying zero rows arrives as `network`, and a stored document saying zero
+/// rows arrives as `cache`. A snapshot carrying [LiveFeedSnapshot.error] is a
+/// *failed* check rather than a pending one and is excluded — the failure card
+/// owns that case.
+bool neverAnswered(LiveFeedSnapshot? snapshot) {
+  if (snapshot == null) return false;
+  return snapshot.source == FeedSource.none &&
+      snapshot.error == null &&
+      snapshot.feed.updates.isEmpty;
+}
+
 /// The radar.
 ///
 /// Read order on every cold start:
@@ -70,7 +97,21 @@ class LiveFeedRepository {
     if (_last != null) return _last;
 
     final stored = LiveFeedStore.fromDynamic(_cache.get(LiveFeedStore.key));
-    if (stored == null || stored.isEmpty) return null;
+    if (stored == null) return null;
+
+    // A stored document that says "zero rows" is an *answer*, not an absence:
+    // the edge was reached and had nothing to publish. Treating it as "no data"
+    // sent a quiet day's cold start down the sentinel path, so Home opened on
+    // "NO FEED" / "Checking for updates…" and the hero on "Syncing radar…" until
+    // the network answered — when the device was holding a perfectly good
+    // document that already said the radar was quiet. Only a document with no
+    // publisher metadata at all (nothing was ever written) is "no data".
+    if (stored.updates.isEmpty &&
+        stored.generatedAt == null &&
+        stored.revision == 0 &&
+        stored.sources.isEmpty) {
+      return null;
+    }
 
     _last = LiveFeedSnapshot(
       feed: stored,

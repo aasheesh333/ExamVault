@@ -75,21 +75,15 @@ class _AlertsSheet extends ConsumerWidget {
     // `readCached() ?? emptySnapshot()` *synchronously* and refreshes with
     // `unawaited(...)`, so on a fresh install the provider is
     // `AsyncData(empty, source: none, error: null)` for the whole first fetch —
-    // the network timeout on result day. `FeedSource.none` is produced only by
-    // `emptySnapshot()`, i.e. only before anything has ever answered; a real
-    // empty answer arrives as `network` (the edge said zero rows) or `cache` (a
-    // stored document says zero rows). So the sentinel is the signal.
+    // the network timeout on result day. `neverAnswered` is that sentinel, shared
+    // with the radar so both surfaces read the same state the same way.
     final snapshot = feedAsync.value;
-    final neverAnswered =
+    final checking =
+        (!feedAsync.hasValue && feedAsync.isLoading) ||
         // A rejected build is a failed check, not a pending one — without this
         // guard a retained sentinel would show a spinner forever instead of the
         // failure card.
-        !feedAsync.hasError &&
-        snapshot?.source == FeedSource.none &&
-        snapshot?.error == null &&
-        (snapshot?.feed.updates.isEmpty ?? true);
-    final checking =
-        (!feedAsync.hasValue && feedAsync.isLoading) || neverAnswered;
+        (!feedAsync.hasError && neverAnswered(snapshot));
 
     // The provider only rejects when it fails before a snapshot exists (a
     // storage fault reading the Hive cache); a *network* failure never lands

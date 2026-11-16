@@ -740,6 +740,8 @@ class _CaptionEditor extends StatefulWidget {
 class _CaptionEditorState extends State<_CaptionEditor> {
   bool _editing = false;
 
+  void _toggleEditing() => setState(() => _editing = !_editing);
+
   @override
   Widget build(BuildContext context) {
     final p = context.ev;
@@ -761,12 +763,16 @@ class _CaptionEditorState extends State<_CaptionEditor> {
                 excludeSemantics: true,
                 button: true,
                 label: _editing ? 'Done editing caption' : 'Edit caption',
+                // `excludeSemantics` drops the InkWell's action with the rest
+                // of its semantics, so the wrapper must expose the tap itself —
+                // otherwise TalkBack focused "Edit caption" and nothing ran.
+                onTap: _toggleEditing,
                 // InkWell, not a bare GestureDetector: the toggle gave zero
                 // pressed feedback, so a slow first frame made it feel dead
                 // and users tapped it twice. The enclosing EvCard supplies
                 // the Material the ink paints on.
                 child: InkWell(
-                  onTap: () => setState(() => _editing = !_editing),
+                  onTap: _toggleEditing,
                   borderRadius: BorderRadius.circular(EvRadius.inner),
                   // Fixed 48x44 box, NOT a constraints+alignment Container: an
                   // aligned Container inside a Row expands to the row's free

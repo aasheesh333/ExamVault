@@ -446,25 +446,27 @@ class _CopyPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = context.ev;
+
+    Future<void> copy() async {
+      await ClipboardService.copy(context, value: value, label: 'Roll number');
+      onCopied?.call();
+    }
+
     return Semantics(
       // container + exclude: without them this control merged into the pass's
       // outer "Tap to open" button node — the codebase's own documented rule
-      // for nested actions (see EvTextAction).
+      // for nested actions (see EvTextAction). Because `excludeSemantics` also
+      // drops the GestureDetector's action, the wrapper carries `onTap` itself;
+      // before that this pill was announced as a button that did nothing.
       container: true,
       excludeSemantics: true,
       button: true,
       label: 'Copy roll number',
+      onTap: copy,
       child: GestureDetector(
         // The pill is 32px tall; the 44px box above keeps the thumb target honest.
         behavior: HitTestBehavior.opaque,
-        onTap: () async {
-          await ClipboardService.copy(
-            context,
-            value: value,
-            label: 'Roll number',
-          );
-          onCopied?.call();
-        },
+        onTap: copy,
         child: SizedBox(
           // 44px hit area around the 32px pill — the visual size is unchanged.
           height: EvSize.minTapTarget,

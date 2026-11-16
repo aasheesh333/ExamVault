@@ -584,7 +584,10 @@ class _BellRow extends StatelessWidget {
             label: alerting
                 ? 'Notifications on for $examName. Turn off.'
                 : 'Notify me about $examName.',
+            // `excludeSemantics` drops the InkResponse's action, so the wrapper
+            // must carry it; otherwise this row was a button with no actions.
             excludeSemantics: true,
+            onTap: onToggle,
             child: InkResponse(
               onTap: onToggle,
               radius: 24,

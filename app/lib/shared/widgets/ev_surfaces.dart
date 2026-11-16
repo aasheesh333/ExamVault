@@ -42,6 +42,12 @@ class EvCard extends StatelessWidget {
       explicitChildNodes: true,
       label: semanticLabel,
       button: onTap != null,
+      // `explicitChildNodes` also splits the card's own InkWell into a child
+      // node, so its tap action never reached this labelled node: TalkBack
+      // focused the card ("… Open notice details, button") and the double-tap
+      // did nothing while the action sat on an unnamed child. The wrapper
+      // carries the action itself.
+      onTap: onTap,
       child: Material(
         color: color ?? p.surface,
         borderRadius: BorderRadius.circular(radius),
@@ -184,10 +190,14 @@ class EvTextAction extends StatelessWidget {
       container: true,
       // `excludeSemantics` collapses the child Text into this single node, so the
       // action is announced once ("Add, button") instead of twice with a
-      // duplicated label.
+      // duplicated label. It also drops the InkWell's own semantics, so this
+      // wrapper must carry the tap action itself: without `onTap` the node was
+      // announced as "Add, button" with zero actions and TalkBack's double-tap
+      // did nothing.
       excludeSemantics: true,
       button: true,
       label: label,
+      onTap: onPressed,
       child: InkWell(
         onTap: onPressed,
         borderRadius: BorderRadius.circular(EvRadius.pill),

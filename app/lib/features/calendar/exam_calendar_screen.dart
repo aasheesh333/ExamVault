@@ -261,7 +261,11 @@ class _EntryCard extends StatelessWidget {
                   label: alerting
                       ? 'Notifications on for ${entry.examName}. Turn off.'
                       : 'Notify me about ${entry.examName}.',
+                  // The wrapper carries the action because `excludeSemantics`
+                  // removes the InkResponse's; without it this bell was a button
+                  // with no actions at all.
                   excludeSemantics: true,
+                  onTap: onAlertToggle,
                   child: InkResponse(
                     onTap: onAlertToggle,
                     radius: 22,

@@ -237,7 +237,12 @@ class _AlertBell extends StatelessWidget {
       label: on
           ? 'Notifications on for $examName. Turn off.'
           : 'Notify me about $examName.',
+      // `excludeSemantics` drops the InkResponse's own tap action along with its
+      // semantics, so the wrapper carries the action itself. Without it the bell
+      // was a button with zero actions: TalkBack focused it, double-tap did
+      // nothing.
       excludeSemantics: true,
+      onTap: onTap,
       child: Tooltip(
         message: on ? 'Alerts on' : 'Alert me',
         excludeFromSemantics: true,

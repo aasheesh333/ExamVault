@@ -165,6 +165,13 @@ Audit: `docs/AUDIT_2026-11-16.md`. Ledger: `.superpowers/sdd/PLAN_play_store_rea
 - [ ] 320×568 @2.0× render of both, no overflow
 - [ ] Commit `feat(ux):`
 
+## Task 15 — CI ships an empty app version
+- [ ] `.github/workflows/ci.yml`: version grep path `app/pubspec.yaml` → `pubspec.yaml` (job runs in `app/`)
+- [ ] Guard: empty derived version fails the job with `::error::`
+- [ ] Applied to BOTH `flutter build apk` and `flutter build appbundle`
+- [ ] Verified from `app/` that the derivation returns a real version
+- [ ] Commit `fix(ci):`
+
 ## Task 13 — Final verification + release notes
 - [ ] `flutter analyze --fatal-infos` clean
 - [ ] `dart format --set-exit-if-changed` clean

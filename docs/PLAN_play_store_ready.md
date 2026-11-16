@@ -585,6 +585,49 @@ calendar preserves the existing order exactly; full suite green.
 
 ---
 
+## Task 15 — The release build ships an empty app version
+
+**Defect (verified by execution).** `.github/workflows/ci.yml` sets
+`defaults.run.working-directory: app` for the build job, then derives the version
+with:
+
+```sh
+--dart-define=EV_APP_VERSION="$(grep -m1 '^version:' app/pubspec.yaml | awk '{print $2}')"
+```
+
+From `app/`, that path is `app/app/pubspec.yaml` — it does not exist. Reproduced:
+
+```sh
+$ cd app && bash -c 'set -euo pipefail
+  echo "arg=[$(grep -m1 "^version:" app/pubspec.yaml | awk "{print \$2}")]"'
+grep: app/pubspec.yaml: No such file or directory
+arg=[]
+script exit=0
+```
+
+The inline-argument form does **not** trip `set -e` (a command substitution
+failing inside an argument is not a command failure), so the build proceeds with
+`EV_APP_VERSION=""`. `AppConfig.appVersion` is then empty and the About sheet
+omits the version clause entirely — while the comment directly above the line
+promises the version "can never drift from the shipped one". It always drifts, to
+nothing.
+
+**Files:** `.github/workflows/ci.yml` only.
+
+**Do:**
+- Fix the path to `pubspec.yaml` (the job already runs in `app/`).
+- Add a guard in the same spirit as the existing `EV_CDN_BASE` check: if the
+  derived version is empty, fail the job with a clear `::error::` rather than
+  shipping a build whose About sheet has no version.
+- Apply it to **both** build invocations (`flutter build apk` and
+  `flutter build appbundle`).
+- Do not restructure the workflow otherwise.
+
+**Acceptance:** the derivation returns `1.0.1+2`-style values from `app/`, and an
+empty result fails the job.
+
+---
+
 ## Task 13 — Final verification and release notes
 
 **Do:**

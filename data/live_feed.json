@@ -1,7 +1,7 @@
 {
-  "revision": 11,
+  "revision": 12,
   "source": "official commission websites",
-  "fetched_at": "2026-11-15T22:47:33.624Z",
+  "fetched_at": "2026-11-16T02:43:48.008Z",
   "sources": [
     {
       "id": "ssc",
@@ -10,18 +10,18 @@
       "homepage": "https://ssc.gov.in/",
       "status": "ok",
       "rows": 17,
-      "checked_at": "2026-11-15T22:45:38.314Z",
-      "elapsed_ms": 1496
+      "checked_at": "2026-11-16T02:41:52.901Z",
+      "elapsed_ms": 1371
     },
     {
       "id": "upsc",
       "label": "UPSC",
       "category": "upsc",
       "homepage": "https://www.upsc.gov.in",
-      "status": "empty",
-      "rows": 6,
-      "checked_at": "2026-11-15T22:47:19.152Z",
-      "elapsed_ms": 100838
+      "status": "ok",
+      "rows": 7,
+      "checked_at": "2026-11-16T02:43:33.746Z",
+      "elapsed_ms": 100845
     },
     {
       "id": "ibps",
@@ -30,8 +30,8 @@
       "homepage": "https://www.ibps.in",
       "status": "empty",
       "rows": 0,
-      "checked_at": "2026-11-15T22:47:21.204Z",
-      "elapsed_ms": 2052,
+      "checked_at": "2026-11-16T02:43:35.941Z",
+      "elapsed_ms": 2195,
       "note": "TLS chain completed with a pinned GlobalSign intermediate"
     },
     {
@@ -41,8 +41,8 @@
       "homepage": "https://www.tnpsc.gov.in",
       "status": "ok",
       "rows": 10,
-      "checked_at": "2026-11-15T22:47:23.133Z",
-      "elapsed_ms": 1929
+      "checked_at": "2026-11-16T02:43:37.521Z",
+      "elapsed_ms": 1580
     },
     {
       "id": "railways",
@@ -51,8 +51,8 @@
       "homepage": "https://rrbchennai.gov.in",
       "status": "unavailable",
       "rows": 0,
-      "checked_at": "2026-11-15T22:47:33.623Z",
-      "elapsed_ms": 10490,
+      "checked_at": "2026-11-16T02:43:48.006Z",
+      "elapsed_ms": 10485,
       "reason": "fetch failed"
     }
   ],
@@ -83,7 +83,7 @@
       "index_available": true,
       "index_version": "496699f59fa7",
       "roll_count": 2526,
-      "index_attempted_at": "2026-11-15T22:48:34.531075+00:00",
+      "index_attempted_at": "2026-11-16T02:44:48.860208+00:00",
       "index_skipped": "HTTPError: HTTP Error 504: Gateway Time-out"
     },
     {
@@ -100,7 +100,7 @@
       "index_available": true,
       "index_version": "ebf0b48ddd52",
       "roll_count": 181,
-      "index_attempted_at": "2026-11-15T22:49:35.730013+00:00",
+      "index_attempted_at": "2026-11-16T02:45:49.827787+00:00",
       "index_skipped": "HTTPError: HTTP Error 504: Gateway Time-out"
     },
     {
@@ -117,7 +117,7 @@
       "index_available": true,
       "index_version": "ec7dd2aa1ba9",
       "roll_count": 8956,
-      "index_attempted_at": "2026-11-15T22:50:36.955811+00:00",
+      "index_attempted_at": "2026-11-16T02:46:51.112132+00:00",
       "index_skipped": "HTTPError: HTTP Error 504: Gateway Time-out"
     },
     {
@@ -134,7 +134,7 @@
       "index_available": true,
       "index_version": "9fc461201151",
       "roll_count": 66,
-      "index_attempted_at": "2026-11-15T22:51:37.658842+00:00",
+      "index_attempted_at": "2026-11-16T02:47:52.551639+00:00",
       "index_skipped": "HTTPError: HTTP Error 504: Gateway Time-out"
     },
     {
@@ -151,7 +151,7 @@
       "index_available": true,
       "index_version": "e1da0b22d115",
       "roll_count": 30,
-      "index_attempted_at": "2026-11-15T22:52:38.866985+00:00",
+      "index_attempted_at": "2026-11-16T02:48:53.714523+00:00",
       "index_skipped": "HTTPError: HTTP Error 504: Gateway Time-out"
     },
     {
@@ -168,7 +168,7 @@
       "index_available": true,
       "index_version": "2519ef9780b0",
       "roll_count": 617,
-      "index_attempted_at": "2026-11-15T22:53:40.178051+00:00",
+      "index_attempted_at": "2026-11-16T02:49:54.761870+00:00",
       "index_skipped": "HTTPError: HTTP Error 504: Gateway Time-out"
     },
     {
@@ -332,6 +332,19 @@
       "source_id": "ssc",
       "official_pdf": "https://ssc.gov.in/api/attachment/uploads/masterData/Results/Steno_qualified_candidates_09092026.pdf",
       "index_skipped": "multi-part list (2 attachments)"
+    },
+    {
+      "exam_id": "upsc_whats_new_national_defence_academy_and_naval_127d99",
+      "category": "upsc",
+      "exam_name": "e - Admit Card: National Defence Academy and Naval Academy Examination (II), 2026",
+      "context": "Published on upsc.gov.in",
+      "status": "admit_card_live",
+      "fee": "\u20b918",
+      "published_at": "2026-09-09T00:00:00.000Z",
+      "source": "upsc.gov.in",
+      "source_id": "upsc",
+      "official_pdf": null,
+      "official_page": "https://www.upsc.gov.in/whats-new/National%20Defence%20Academy%20and%20Naval%20Academy%20Examination%20%28II%29%2C%202026/e%20-%20Admit%20Card"
     },
     {
       "exam_id": "59g9y0svsteno25_cgyu40w7q3axom3t0lklh",

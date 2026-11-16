@@ -16,20 +16,32 @@ import '../result_checker/engine/roll_index_engine.dart';
 
 /// The id the result checker will look the roll index up by.
 ///
-/// A fresh feed match wins over the stored id: renaming a card, or saving one
-/// before the exam was published, must re-resolve instead of pinning a slug
-/// that the checker can never find.
+/// A fresh feed match always wins. The stored id is reused only when the exam
+/// name is unchanged: renaming "SSC CHSL 2026" to "UPSC CSE 2027" must not pin
+/// the old exam's id onto the card, or the checker searches another exam's
+/// index and Share prints a verdict for a list this card was never checked
+/// against. A renamed card with no published match gets a slug of its new name.
 @visibleForTesting
 String resolveExamId({
   required String examName,
   LiveUpdate? match,
   String? previous,
+  String? previousName,
 }) {
   final fresh = match?.examId;
   if (fresh != null && fresh.isNotEmpty) return fresh;
-  if (previous != null && previous.isNotEmpty) return previous;
+  final unchanged =
+      previousName != null && _sameExamName(previousName, examName);
+  if (unchanged && previous != null && previous.isNotEmpty) return previous;
   return slugifyExamName(examName);
 }
+
+/// Whether two typed exam names name the same exam.
+///
+/// Trimmed and case-insensitive: fixing the case or stray spaces of a name is
+/// not a rename, so it must not discard the card's resolved id or VERIFIED.
+bool _sameExamName(String a, String b) =>
+    a.trim().toLowerCase() == b.trim().toLowerCase();
 
 /// Fallback id when nothing has been published for the typed name yet.
 @visibleForTesting
@@ -335,11 +347,14 @@ class _VaultFormSheetState extends ConsumerState<_VaultFormSheet> {
 
     // The checker looks the index up by this id, so a hand-derived slug could
     // never resolve. Re-resolve on every save: a fresh match first, then the id
-    // the card already had, then a slug of the typed name.
+    // the card already had — but only when the name is unchanged, because a
+    // renamed card must not search the old exam's index — then a slug of the
+    // typed name.
     final examId = resolveExamId(
       examName: _examName.text,
       match: _match(watch: false),
       previous: base?.examId,
+      previousName: base?.examName,
     );
 
     final cards = ref.read(admitCardsProvider).value ?? const <AdmitCard>[];
@@ -367,9 +382,13 @@ class _VaultFormSheetState extends ConsumerState<_VaultFormSheet> {
     // VERIFIED is a claim about one exact roll number against one exact
     // published index — the checker only stamps it when the card's *own* roll
     // was found. Editing either invalidates the old claim: fixing a roll typo
-    // must not carry a permanent VERIFIED badge for a roll never matched.
+    // must not carry a permanent VERIFIED badge for a roll never matched. A
+    // rename is the same: the badge belongs to the exam it was earned against,
+    // and `base.examId == examId` alone would pass trivially when the old id
+    // survived a rename.
     final keepsVerification =
         base != null &&
+        _sameExamName(base.examName, _examName.text) &&
         base.rollNumberVerified &&
         base.rollNumber == roll &&
         base.examId == examId;

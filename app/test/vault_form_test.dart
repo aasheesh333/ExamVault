@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:examvault/core/theme/app_theme.dart';
 import 'package:examvault/data/local/secure_vault_store.dart';
+import 'package:examvault/data/models/live_feed_dto.dart';
 import 'package:examvault/data/remote/cdn_client.dart';
 import 'package:examvault/data/repositories/admit_card_repository.dart';
 import 'package:examvault/domain/entities/admit_card.dart';
@@ -73,6 +74,27 @@ void main() {
     );
   }
 
+  /// A published feed row for "UPSC CSE 2027" — the name a card is renamed to
+  /// when the test needs a fresh match rather than an unpublished name.
+  Map<String, dynamic> upscFeedRow() => {
+    'exam_id': 'upsc_cse_2027_feed',
+    'category': 'upsc',
+    'exam_name': 'UPSC CSE 2027 Final Result',
+    'context': 'Direct PDF · 2.1 MB',
+    'status': 'result_out',
+    'published_at': DateTime.now().toUtc().toIso8601String(),
+    // Explicit far-future expiry: the default TTL runs from published_at, so
+    // omitting it would make this fixture flip on its own expiry date.
+    'expires_at': DateTime.now()
+        .toUtc()
+        .add(const Duration(days: 365))
+        .toIso8601String(),
+    'official_pdf': 'https://upsc.gov.in/example.pdf',
+    'index_available': true,
+    'index_version': 'abc123abc123',
+    'roll_count': 3,
+  };
+
   Widget harness(Widget home, {TextScaler textScaler = TextScaler.noScaling}) {
     final mock = MockClient((req) async {
       if (req.url.path.contains('live_feed')) {
@@ -113,6 +135,27 @@ void main() {
   Future<void> seed(AdmitCard value) async {
     await store.writeRaw(value.id, AdmitCardCodec.encode(value));
     await store.writeIndex([value.id]);
+  }
+
+  /// Puts the feed in the on-device cache, which the provider reads
+  /// synchronously on first paint. The network refresh is fire-and-forget, so it
+  /// does not complete inside a widget test's fake async — seeding the cache is
+  /// how a test gets a feed the form can actually see. The Hive write itself is
+  /// real I/O, hence `runAsync`.
+  Future<void> seedFeed(
+    WidgetTester tester,
+    List<Map<String, dynamic>> updates,
+  ) async {
+    await tester.runAsync(() async {
+      await cacheBox.put(
+        LiveFeedStore.key,
+        jsonEncode({
+          'generated_at': DateTime.now().toUtc().toIso8601String(),
+          'revision': 1,
+          'updates': updates,
+        }),
+      );
+    });
   }
 
   void useTallViewport(WidgetTester tester) {
@@ -167,10 +210,45 @@ void main() {
       );
     });
 
-    test('keeps the stored id when nothing is published', () {
+    test('keeps the stored id when the exam name is unchanged', () {
+      expect(
+        resolveExamId(
+          examName: 'SSC CHSL 2026',
+          previous: 'ssc_chsl_typo',
+          previousName: 'SSC CHSL 2026',
+        ),
+        'ssc_chsl_typo',
+      );
+    });
+
+    test('a case or whitespace fix is not a rename', () {
+      expect(
+        resolveExamId(
+          examName: '  SSC CHSL 2026 ',
+          previous: 'ssc_chsl_typo',
+          previousName: 'ssc chsl 2026',
+        ),
+        'ssc_chsl_typo',
+      );
+    });
+
+    test('a renamed card does not inherit the previous exam id', () {
+      // The old fallback pinned the previous id even when the name had changed
+      // completely, so the checker searched another exam's roll index.
+      expect(
+        resolveExamId(
+          examName: 'UPSC CSE 2027',
+          previous: 'ssc_chsl_2026',
+          previousName: 'SSC CHSL 2026',
+        ),
+        'upsc_cse_2027',
+      );
+    });
+
+    test('without the old name it cannot claim the id is unchanged', () {
       expect(
         resolveExamId(examName: 'SSC CHSL 2026', previous: 'ssc_chsl_typo'),
-        'ssc_chsl_typo',
+        'ssc_chsl_2026',
       );
     });
 
@@ -412,6 +490,111 @@ void main() {
       final saved = AdmitCardCodec.decode(store.raw['chsl']!);
       expect(saved?.gate, 'Gate 5');
       expect(saved?.rollNumberVerified, isTrue);
+    });
+
+    testWidgets(
+      'renaming to an unpublished name drops the old id and VERIFIED',
+      (tester) async {
+        useTallViewport(tester);
+        final verified = card().copyWith(rollNumberVerified: true);
+        await seed(verified);
+
+        await tester.pumpWidget(harness(_FormHost(existing: verified)));
+        await tester.tap(find.text('Open form'));
+        await tester.pumpAndSettle();
+
+        // The form now says "no published result matches this name", so keeping
+        // ssc_chsl_2026 would make the checker search the old exam's index.
+        await tester.enterText(
+          find.byType(TextFormField).at(1),
+          'UPSC CSE 2027',
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Save to vault'));
+        await tester.pumpAndSettle();
+
+        final saved = AdmitCardCodec.decode(store.raw['chsl']!);
+        expect(saved?.examName, 'UPSC CSE 2027');
+        expect(saved?.examId, 'upsc_cse_2027');
+        expect(saved?.rollNumberVerified, isFalse);
+      },
+    );
+
+    testWidgets(
+      'renaming to a published name adopts the feed id, not VERIFIED',
+      (tester) async {
+        useTallViewport(tester);
+        final verified = card().copyWith(rollNumberVerified: true);
+        await seed(verified);
+
+        await seedFeed(tester, [upscFeedRow()]);
+        await tester.pumpWidget(harness(_FormHost(existing: verified)));
+        await tester.tap(find.text('Open form'));
+        await tester.pumpAndSettle();
+
+        await tester.enterText(
+          find.byType(TextFormField).at(1),
+          'UPSC CSE 2027',
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Save to vault'));
+        await tester.pumpAndSettle();
+
+        final saved = AdmitCardCodec.decode(store.raw['chsl']!);
+        expect(saved?.examId, 'upsc_cse_2027_feed');
+        // The old roll was verified against a different exam's list.
+        expect(saved?.rollNumberVerified, isFalse);
+      },
+    );
+
+    testWidgets('editing the centre code keeps the id and VERIFIED', (
+      tester,
+    ) async {
+      useTallViewport(tester);
+      final verified = card().copyWith(rollNumberVerified: true);
+      await seed(verified);
+
+      await tester.pumpWidget(harness(_FormHost(existing: verified)));
+      await tester.tap(find.text('Open form'));
+      await tester.pumpAndSettle();
+
+      // The centre code is not part of the exam identity or the roll claim.
+      await tester.enterText(find.byType(TextFormField).at(7), 'DL-99-0001');
+      await tester.pump();
+      await tester.tap(find.text('Save to vault'));
+      await tester.pumpAndSettle();
+
+      final saved = AdmitCardCodec.decode(store.raw['chsl']!);
+      expect(saved?.centerCode, 'DL-99-0001');
+      expect(saved?.examId, 'ssc_chsl_2026');
+      expect(saved?.rollNumberVerified, isTrue);
+    });
+
+    testWidgets('renaming back to the original name restores no VERIFIED', (
+      tester,
+    ) async {
+      useTallViewport(tester);
+      // The card was renamed to UPSC CSE 2027 earlier and its roll was verified
+      // under that name. Typing the original name back is a new resolution, not
+      // a restore of the pre-rename state.
+      final verified = card(
+        examId: 'upsc_cse_2027',
+        examName: 'UPSC CSE 2027',
+      ).copyWith(rollNumberVerified: true);
+      await seed(verified);
+
+      await tester.pumpWidget(harness(_FormHost(existing: verified)));
+      await tester.tap(find.text('Open form'));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byType(TextFormField).at(1), 'SSC CHSL 2026');
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Save to vault'));
+      await tester.pumpAndSettle();
+
+      final saved = AdmitCardCodec.decode(store.raw['chsl']!);
+      expect(saved?.examId, 'ssc_chsl_2026');
+      expect(saved?.rollNumberVerified, isFalse);
     });
   });
 

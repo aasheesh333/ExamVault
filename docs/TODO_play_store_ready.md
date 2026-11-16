@@ -172,6 +172,8 @@ Audit: `docs/AUDIT_2026-11-16.md`. Ledger: `.superpowers/sdd/PLAN_play_store_rea
 - [ ] Single fix wave for its findings
 - [ ] Re-review clean
 - [ ] Update `INFRA_STATUS.md` / `README.md` where claims changed
+- [ ] `README.md` Screens table lists 4 screens but the app ships 5 tabs — **Dates / Exam Calendar is missing entirely**, and the numbering (Checker=3, Share=4) contradicts the tab order (Home, Vault, Dates, Radar, Share)
+- [ ] `README.md` + `app/README.md` Verify blocks say `dart format ... lib test`; CI checks `lib test tool`
 - [ ] Report to the user: what shipped, what was deferred, how to verify
 
 ## Deferred (with reasons — must appear in Task 13's disposition)

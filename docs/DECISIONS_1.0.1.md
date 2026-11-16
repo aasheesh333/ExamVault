@@ -186,3 +186,37 @@ Each ruling names the behaviour it decides. To undo one:
   reason each was left, so re-opening one starts from a stated premise.
 
 None of them require reverting a task.
+
+---
+
+## Post-review corrections (the final whole-branch review)
+
+The final review found three Important defects that no single-task review could see. All three
+were verified before being fixed, and all three are recorded here because each changed a
+user-visible claim:
+
+**23. The alerts inbox's "never answered" sentinel was applied to one widget, not to the app.**
+Task 4 built it (`FeedSource.none` + empty + `error == null`) for the inbox and stopped there, so
+Home still said `NO FEED` / "Nothing live right now" / "0 live updates" for the whole first fetch
+— the P1-1 defect one screen over, and guaranteed right after delete-all (which clears the cache
+and forces exactly that snapshot). The sentinel is now one shared predicate used by the radar
+header, the radar empty state and the hero count.
+*Cost if wrong:* the radar says "checking" for a moment longer on a genuinely empty first run.
+
+**24. `unsubscribeAll` computed the per-exam topic set and then used it on only one backend.**
+The OneSignal branch cleared the bells; the FCM branch iterated `_subscribed`, which is in-memory
+only — so a bell subscribed on a previous launch survived the wipe on FCM. It also did nothing at
+all inside the boot window before `initialise()` resolved. Fixed by using the same set on both
+branches and bounding an `initialise()` before the wipe.
+*Cost if wrong:* delete-all takes up to 2 s longer.
+
+**25. Two Play Store screenshots showed a UI the app no longer had.** They predated the Dates
+grouping and the pill fix, so the listing showed ungrouped dates and the pre-fix radar row —
+while `docs/PLAY_STORE.md` claimed the pictures "cannot show a screen the app does not have".
+Regenerated and each one inspected.
+*Cost if wrong:* a reviewer notices the listing and the app disagree.
+
+**26. I rejected nothing from the final review**, but I did decline to expand scope: its 25
+deferred minors all ship, per its own triage. Four items it thought were open had already been
+closed by later work (the `EvCard` focus stop, the rename-guard test, the `_sameExamName` doc, and
+the Android/iOS orientation split) — checked, not assumed.

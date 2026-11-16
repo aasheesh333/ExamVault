@@ -201,6 +201,55 @@ void main() {
     });
   });
 
+  /// The set a wipe unsubscribes. `unsubscribeAll` takes the bell ids
+  /// explicitly because `_subscribed` is in-memory only — a bell subscribed on a
+  /// previous launch lives on the backend and nowhere in this process. The FCM
+  /// branch used to ignore the parameter and iterate `_subscribed`, so on FCM
+  /// delete-all dropped nothing at all in exactly that case while every bell on
+  /// screen read OFF.
+  group('delete-all topic set', () {
+    test('the caller\'s bell ids are included with nothing subscribed', () {
+      // A cold process that never ran `syncExamAlerts`: the ids the settings
+      // held are the only name these topics have. This is the assertion the FCM
+      // branch failed — it iterated `_subscribed`, which is empty here, and so
+      // unsubscribed nothing while `exam_alerts` was deleted.
+      expect(
+        PushService.wipeTopics({'ssc_cgl_2026', 'ibps_po_2026'}, const {}),
+        {'exam_ssc_cgl_2026', 'exam_ibps_po_2026'},
+      );
+    });
+
+    test('bells from this process are added to the caller\'s set', () {
+      final topics = PushService.wipeTopics(
+        {'previous_launch'},
+        {'exam_this_launch'},
+      );
+
+      expect(topics, {'exam_previous_launch', 'exam_this_launch'});
+    });
+
+    test('category topics are left to the post-wipe re-sync', () {
+      final topics = PushService.wipeTopics(
+        {'exam_1'},
+        {ExamCategory.ssc.fcmTopic, 'exam_ssc_cgl_2026'},
+      );
+
+      expect(
+        topics,
+        {'exam_exam_1', 'exam_ssc_cgl_2026'},
+        reason:
+            'the category default is re-subscribed immediately afterwards, so '
+            'unsubscribing it here would only cost a round trip',
+      );
+    });
+
+    test('ids that cannot be a topic name are dropped, not sanitised empty', () {
+      // `_topicSafe('')` is empty, and `exam_` alone is not a topic the app ever
+      // subscribes to — unsubscribing it would be noise on the backend.
+      expect(PushService.wipeTopics({'', '   '}, const {}), isEmpty);
+    });
+  });
+
   /// The real `_bootPush` path, not a re-implementation of it: what it hands
   /// `syncTopics` is the property the About claim depends on.
   group('boot push sync', () {

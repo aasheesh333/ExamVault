@@ -422,20 +422,50 @@ class PushService {
   static String _topicSafe(String raw) =>
       raw.trim().toLowerCase().replaceAll(RegExp(r'[^a-z0-9_-]'), '_');
 
+  /// The bell topics a wipe must switch off: [examIds] plus every bell this
+  /// process knows about.
+  ///
+  /// One set, both backends. The FCM branch used to iterate [_subscribed]
+  /// alone, which silently dropped the caller's ids: that set is in-memory
+  /// only, so a bell subscribed on a previous launch — or one toggled before
+  /// this process finished booting — stayed live while the settings that named
+  /// it were deleted and every bell on screen read OFF. The same reasoning that
+  /// makes [examIds] necessary on OneSignal is backend-agnostic.
+  ///
+  /// Category topics in [_subscribed] are deliberately excluded by [_bellsIn]:
+  /// the wipe re-subscribes the category default immediately afterwards
+  /// (`DataWiper.deleteAll`), so leaving them alone is both correct and one
+  /// round trip cheaper. An `exam_<id>` that happens to name a category id is
+  /// indistinguishable from that category (the deferred collision in
+  /// `docs/AUDIT_2026-11-16.md`) and unsubscribing it there is harmless for the
+  /// same reason.
+  ///
+  /// Pure, like [categoryTopicDiff] and [bellTopicDiff]: `FirebaseMessaging`'s
+  /// instance cannot be faked in a unit test, so the decision lives here where
+  /// it can be asserted directly.
+  @visibleForTesting
+  static Set<String> wipeTopics(Set<String> examIds, Set<String> subscribed) =>
+      {
+        for (final id in examIds)
+          if (_topicSafe(id).isNotEmpty) 'exam_${_topicSafe(id)}',
+        ..._bellsIn(subscribed),
+      };
+
   /// Drops every subscription this device holds, then forgets them.
   ///
   /// [examIds] is the per-exam bell set, captured by the caller *before* the
   /// settings that hold it are deleted. It is passed explicitly rather than
-  /// read from [_subscribed] because that set is in-memory only: on OneSignal a
-  /// bell subscribed on a previous launch exists on the backend but not here,
-  /// and it would survive the wipe untouched.
+  /// read from [_subscribed] because that set is in-memory only: a bell
+  /// subscribed on a previous launch exists on the backend but not here, and it
+  /// would survive the wipe untouched — on either backend.
+  ///
+  /// **Requires an initialised provider.** While [provider] is still
+  /// [PushProvider.disabled] this returns without doing anything, so a caller
+  /// that wipes during boot's `initialise()` window must await that call
+  /// (bounded) first — `DataWiper.deleteAll` does.
   Future<void> unsubscribeAll({Set<String> examIds = const {}}) async {
     if (!isEnabled) return;
-    final examTopics = {
-      for (final id in examIds)
-        if (_topicSafe(id).isNotEmpty) 'exam_${_topicSafe(id)}',
-      ..._bellsIn(_subscribed),
-    };
+    final examTopics = wipeTopics(examIds, _subscribed);
     try {
       switch (_provider) {
         case PushProvider.oneSignal:
@@ -447,7 +477,10 @@ class PushService {
             for (final topic in examTopics) topic: false,
           });
         case PushProvider.fcm:
-          for (final topic in [..._subscribed]) {
+          // The same set the OneSignal branch uses, not `_subscribed`: a bell
+          // named by the caller but never seen by this process is exactly the
+          // subscription the wipe exists to remove.
+          for (final topic in examTopics) {
             await FirebaseMessaging.instance.unsubscribeFromTopic(topic);
           }
         case PushProvider.disabled:

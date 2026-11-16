@@ -203,21 +203,21 @@ Audit: `docs/AUDIT_2026-11-16.md`. Ledger: `.superpowers/sdd/PLAN_play_store_rea
 - [x] Commit `docs:`
 
 ## Task 18 — Edge worker caches the uncacheable feed route
-- [ ] Skip `cache.put` when `route.noEdgeCache` is true
-- [ ] Comment why: a write nobody reads is a per-request cost on the pass-through route
-- [ ] Leave ETag/304, buffering, headers and other routes untouched
-- [ ] `node --check infra/src/index.js`
-- [ ] Commit `fix(infra):`
+- [x] Skip `cache.put` when `route.noEdgeCache` is true
+- [x] Comment why: a write nobody reads is a per-request cost on the pass-through route
+- [x] Leave ETag/304, buffering, headers and other routes untouched
+- [x] `node --check infra/src/index.js`
+- [x] Commit `fix(infra):`
 
 ## Task 19 — Pill below the type floor at the DEFAULT text size (8.25 px)
-- [ ] Fix the ≤1.4× path: give the pill its natural width instead of scaling the text
-- [ ] Preferred: pill on the context line, age alone in the right column
-- [ ] No `RenderFittedBox` above the label at ANY scale 1.0×–2.0×
-- [ ] Painted size ≥ 11 px × scale at 1.0/1.2/1.4/1.6/1.8/2.0×
-- [ ] Also fix the pre-existing 1.2 px meta-line overflow at 1.4×
-- [ ] Alert bell keeps its 44 px target; label always present (colour-blind contract)
-- [ ] Same rule in `alerts_sheet.dart`
-- [ ] Commit `fix(a11y):`
+- [x] Fix the ≤1.4× path: give the pill its natural width instead of scaling the text
+- [x] Preferred: pill on the context line, age alone in the right column
+- [x] No `RenderFittedBox` above the label at ANY scale 1.0×–2.0×
+- [x] Painted size ≥ 11 px × scale at 1.0/1.2/1.4/1.6/1.8/2.0×
+- [x] Also fix the pre-existing 1.2 px meta-line overflow at 1.4×
+- [x] Alert bell keeps its 44 px target; label always present (colour-blind contract)
+- [x] Same rule in `alerts_sheet.dart`
+- [x] Commit `fix(a11y):`
 
 ## Task 13 — Final verification + release notes
 - [ ] `flutter analyze --fatal-infos` clean
@@ -227,7 +227,7 @@ Audit: `docs/AUDIT_2026-11-16.md`. Ledger: `.superpowers/sdd/PLAN_play_store_rea
 - [ ] `flutter build web --release` succeeds
 - [ ] `flutter build apk --release` succeeds (or document why not run here)
 - [ ] Audit doc: every P0/P1/P2 dispositioned (fixed + commit, or deferred + reason)
-- [ ] `docs/PLAY_STORE.md`: "Release notes — 1.0.1" section
+- [ ] `docs/PLAY_STORE.md`: "Release notes — 1.0.1" section (the only doc item task 17 left)
 - [ ] **Re-verify EVERY `file:line` citation in `docs/PLAY_STORE.md`** against the final merged tree — they drift (Task 9 rewrote `about_sheet.dart`; Task 11 deleted API)
 - [ ] Fix the now-FALSE sentence at `docs/PLAY_STORE.md:206`: it says the legacy route "still has `pdfBytes`/`pdfUrl` wrappers" — Task 11 deleted both
 - [ ] `AppConfig.resultPdfPath` is now uncalled (its only two callers were deleted) — delete it or document it as the future-PDF seam

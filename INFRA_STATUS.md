@@ -2,17 +2,26 @@
 
 Verified 2026-11-10 against the live services.
 
+This file is a **dated snapshot**, not a live dashboard. It records what was
+verified on the date above; the feed's own `sources[].status` block is the live
+answer for any given day, and a commission's site being down is not a change to
+the code. Re-observed while preparing 1.0.1 (2026-11-16, feed `revision 13`,
+`fetched_at 2026-11-16T11:01:50Z`): `ssc` ok with 17 rows, `upsc` unavailable,
+`ibps` empty, `tnpsc` ok with 10 rows, `railways` unavailable — 33 published
+updates in total. Nothing below has been rewritten to match that observation; it
+stays as the record of 2026-11-10.
+
 | Service | State | Evidence |
 |---|---|---|
 | **Cloudflare R2** | ✅ Live | bucket `examvault-cdn` |
 | **Cloudflare Worker** | ✅ Live | `https://examvault-edge.aasheeshkatheriya.workers.dev` |
-| **Live feed** | ✅ Published | `v1/live_feed_v1.json` — 60 rows, 5 sources `ok` |
-| **Roll indexes** | ✅ Published | 17 hashed indexes, all v2 (`sha256-8-salted`), verified from the edge |
+| **Live feed** | ✅ Published | `v1/live_feed_v1.json` — 60 rows, 5 sources `ok` (as of 2026-11-10) |
+| **Roll indexes** | ✅ Published | 17 hashed indexes as of 2026-11-10, all v2 (`sha256-8-salted`), verified from the edge |
 | **Firebase project** | ✅ Created | **ExamVault** · `examvault-49b1a` |
 | **Firebase Android app** | ✅ Registered | package `app.examvault` |
 | **OneSignal** | ✅ Created | app id `062ce6a9-a47e-48d8-bb4d-dfee88b60026` (Android/iOS; web-push intentionally off) |
 | **Release signing** | ✅ Working | AAB signed with `CN=ExamVault` upload key, SHA-256 `F4:D8:1E:…:E0:EB` |
-| **CI** | ✅ Green | analyze + the full suite in `app/test` (live-network tests gated behind `EV_LIVE=1`, skipped in CI) · signed AAB (54 MB) + 3 split APKs · edge deploy, which runs only on pushes that touch `infra/**` |
+| **CI** | ✅ Green | `dart format` (`lib test tool`), analyze, and the full suite in `app/test` (live-network tests gated behind `EV_LIVE=1`, skipped in CI) · signed App Bundle + 3 split APKs · edge deploy, which runs only on pushes that touch `infra/**` · **1.0.1 (build 2)** is built by this same pipeline: the version is derived from `app/pubspec.yaml` and passed to both build invocations as `EV_APP_VERSION`, so the About sheet prints the shipped version; an empty derivation fails the job instead of shipping an untraceable build |
 
 Repository secrets: Cloudflare (2), Firebase (5), OneSignal (1), Android signing (4),
 edge base (2). Listed in `.github/SECRETS.md`.
@@ -28,7 +37,7 @@ Every line below was produced by driving the built app, not by asserting intent.
 | A real roll is found | UPSC CDSE-II index (8,956 rolls) → `2100058` found in **93 µs**; a fabricated roll rejected |
 | A saved card resolves its index | typed a UPSC card → matcher linked the published row → checker fetched 2,526 rolls → roll `0801786` found in 13.4 ms |
 | A custom index needs its version | content-addressed URL fetched 200; the old stable URL now 404s, proving the immutable-cache fix |
-| Empty states are honest | fresh install: Home, Vault, Radar and Share each explain the next step; no sample rows anywhere |
+| Empty states are honest | fresh install: Home, Vault, Dates, Radar and Share each explain the next step; no sample rows anywhere |
 | Failure is honest | an exam with no published list shows "no list yet" + "Result not published yet", never "not selected" |
 | Offline still paints | cached feed renders with an explicit `CACHED · <age>` label |
 | Share card exports correctly | captured PNG reviewed: no clipped glyphs, no cut-off claim, no dead button, roll optional |

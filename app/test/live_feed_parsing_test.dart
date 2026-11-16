@@ -26,6 +26,7 @@ void main() {
     String status = 'result_out',
     String category = 'ssc',
     String publishedAt = '2026-11-09T09:58:00Z',
+    String? expiresAt,
   }) => {
     'exam_id': examId,
     'category': category,
@@ -33,6 +34,11 @@ void main() {
     'context': context,
     'status': status,
     'published_at': publishedAt,
+    // Omitted unless a test sets it, so the per-status fallback TTL stays
+    // testable. Tests that assert *inclusion* must pass one explicitly: a
+    // default TTL is measured from a fixed `published_at`, so such a fixture
+    // turns into a calendar and flips on its own expiry date.
+    'expires_at': ?expiresAt,
   };
 
   group('UTF-8 decoding', () {
@@ -106,21 +112,70 @@ void main() {
       expect(feed.updates.last.examId, 'old');
     });
 
-    test('liveCount only counts actionable statuses', () {
+    test('liveCountAt counts only unexpired actionable statuses', () {
+      // Every row carries an explicit expiry. This test used to lean on the
+      // per-status fallback TTL, so its answer was a function of the run date:
+      // the form_closing row was published 2026-11-09 with a 7-day default and
+      // stopped counting on 2026-11-16, turning the suite red with no code
+      // change. A far-future expiry keeps the assertion about *status*, while
+      // the retired row below still proves the expiry filter runs.
+      const farFuture = '2099-01-01T00:00:00Z';
       final feed = LiveFeedDto.parse(
-        jsonEncode({
-          'generated_at': '2026-11-09T10:00:00Z',
-          'updates': [
-            row(examId: 'a', status: 'result_out'),
-            row(examId: 'b', status: 'admit_card_live'),
-            row(examId: 'c', status: 'form_closing'),
-            row(examId: 'd', status: 'awaited'),
-            row(examId: 'e', status: 'answer_key'),
-          ],
-        }),
+        doc([
+          row(examId: 'a', status: 'result_out', expiresAt: farFuture),
+          row(examId: 'b', status: 'admit_card_live', expiresAt: farFuture),
+          row(examId: 'c', status: 'form_closing', expiresAt: farFuture),
+          row(examId: 'd', status: 'awaited', expiresAt: farFuture),
+          row(examId: 'e', status: 'answer_key', expiresAt: farFuture),
+          // Actionable status, but the publisher retired it: never counted.
+          row(
+            examId: 'f',
+            status: 'result_out',
+            expiresAt: '2026-11-09T09:00:00Z',
+          ),
+        ]),
       );
 
-      expect(feed.liveCount, 3);
+      expect(
+        feed.liveCountAt(DateTime.parse('2026-11-09T10:00:00Z').toLocal()),
+        3,
+      );
+    });
+
+    test('liveCountAt answers from the clock it is given, not the run date', () {
+      // The injected clock is the whole point: with a fixed `now` this document
+      // must answer identically on any day the suite happens to run, which is
+      // exactly what the wall-clock `liveCount` getter cannot promise.
+      final feed = LiveFeedDto.parse(
+        doc([
+          row(
+            examId: 'a',
+            status: 'result_out',
+            expiresAt: '2026-12-01T00:00:00Z',
+          ),
+          row(
+            examId: 'b',
+            status: 'admit_card_live',
+            expiresAt: '2026-12-01T00:00:00Z',
+          ),
+          row(
+            examId: 'c',
+            status: 'form_closing',
+            expiresAt: '2026-12-01T00:00:00Z',
+          ),
+        ]),
+      );
+
+      expect(
+        feed.liveCountAt(DateTime.parse('2026-11-09T10:00:00Z').toLocal()),
+        3,
+      );
+      // Move the clock past the explicit expiry and the same rows drop out —
+      // so the 3 above came from `now`, not from when the test was executed.
+      expect(
+        feed.liveCountAt(DateTime.parse('2026-12-02T00:00:00Z').toLocal()),
+        0,
+      );
     });
 
     test('an empty updates array is valid and empty', () {

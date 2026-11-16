@@ -38,12 +38,14 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "app.examvault"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        // 23 = Android 6.0. Required by flutter_secure_storage (AES-GCM Keystore)
-        // and by the FCM SDK. Covers effectively the whole Indian Android market.
+        // Flutter's default floor, 24 = Android 7.0. That is already above both
+        // flutter_secure_storage's AES-GCM Keystore requirement (23) and the FCM
+        // SDK's, so this file does not pin a lower value; sourcing it from
+        // `flutter.minSdkVersion` keeps it in step with the SDK instead of
+        // drifting here. 24 covers effectively the whole Indian Android market.
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         // Uses the version code from pubspec.yaml. When using split APKs, 1000 * ABI_VERSION

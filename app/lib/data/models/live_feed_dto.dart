@@ -1,6 +1,5 @@
 import 'dart:convert';
 
-import '../../core/config/app_config.dart';
 import '../../domain/entities/live_update.dart';
 import '../../domain/entities/exam_category.dart';
 
@@ -274,20 +273,13 @@ abstract final class LiveFeedStore {
 
 /// Helpers shared by the UI.
 extension LiveUpdateFormatting on LiveUpdate {
-  /// "2m", "18m", "1h", "3d" — compact enough for a 19px row.
-  String relativeAge([DateTime? now]) {
-    final delta = (now ?? DateTime.now()).difference(publishedAt);
-    if (delta.inSeconds < 60) return 'now';
-    if (delta.inMinutes < 60) return '${delta.inMinutes}m';
-    if (delta.inHours < 24) return '${delta.inHours}h';
-    return '${delta.inDays}d';
-  }
-
   /// A compact age that reads correctly aloud and still means something after
   /// a week.
   ///
-  /// `relativeAge()` returns "now", so screen readers announced "now ago", and
-  /// the row showed "621d" for a notice from 2025 with no hint of the date.
+  /// The earlier format returned "now" / "621d": screen readers announced
+  /// "now ago", and a notice from 2025 showed a bare day count with no hint of
+  /// the date. This one always carries a unit word and falls back to the
+  /// publication date after a week.
   String ageLabel([DateTime? now]) {
     final delta = (now ?? DateTime.now()).difference(publishedAt);
     if (delta.inSeconds < 60) return 'just now';
@@ -311,8 +303,4 @@ extension LiveUpdateFormatting on LiveUpdate {
     'Nov',
     'Dec',
   ];
-
-  String get cdnPdfPath => AppConfig.resultPdfPath(examId);
-  String get cdnRollIndexPath =>
-      AppConfig.rollIndexPath(examId, version: indexVersion);
 }

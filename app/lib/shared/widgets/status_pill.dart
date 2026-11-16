@@ -9,39 +9,22 @@ import '../../domain/entities/live_update.dart';
 /// Contract: colour is *always* accompanied by the label, so the three statuses
 /// remain distinguishable for the ~8 % of Indian male users with red-green
 /// deficiency. The dot is decoration; the word is the signal.
+///
+/// [EvStatusPill.status] is the only constructor: the label, the accent and the
+/// AA-compliant label colour are all derived from one [UpdateStatus], so a
+/// caller cannot pair the word "LIVE" with another status's colour.
 class EvStatusPill extends StatelessWidget {
-  const EvStatusPill({
-    super.key,
-    required this.label,
-    required this.color,
-    this.textColor,
-    this.dot = true,
-    this.compact = false,
-  }) : _status = null;
+  /// Defers the accent to build time: the old constructor took a `color` and
+  /// froze a hardcoded hex at construction, which made the pill theme-blind
+  /// (the light theme rendered the DARK palette's grey for AWAITED). [build]
+  /// resolves the accent from `context.ev` instead.
+  const EvStatusPill.status(this.status, {super.key, this.compact = false});
 
-  /// Defers the accent to build time: the old `color = status.pillColor` froze
-  /// a hardcoded hex at construction, which made the pill theme-blind (the
-  /// light theme rendered the DARK palette's grey for AWAITED). `color` stays
-  /// null here and [build] resolves it from `context.ev`.
-  EvStatusPill.status(UpdateStatus status, {super.key, this.compact = false})
-    : label = status.label,
-      color = null,
-      _status = status,
-      textColor = null,
-      dot = true;
+  /// The status being announced; also the source of the visible label.
+  final UpdateStatus status;
 
-  /// Set when this pill was built from an [UpdateStatus]; used to pick an
-  /// AA-compliant label colour instead of the raw accent hue.
-  final UpdateStatus? _status;
+  String get label => status.label;
 
-  final String label;
-
-  /// Explicit accent for the default constructor; null on [.status], which
-  /// resolves the themed accent in [build].
-  final Color? color;
-
-  final Color? textColor;
-  final bool dot;
   final bool compact;
 
   @override
@@ -49,13 +32,9 @@ class EvStatusPill extends StatelessWidget {
     // The label used to be painted in the raw accent hue on a 12 % tint of
     // itself — 2.27:1 for green and 1.96:1 for amber in light mode. The word is
     // the *only* signal for colour-blind users, so it must be readable text, not
-    // a decoration: prefer the status's tuned text token, then any explicit
-    // override, then the accent itself. (A luminance test that swapped in a
-    // hardcoded 0xFF1F2937 for bright accents was dropped: it was dead code —
-    // every default-constructor caller passes `textColor`, and 0xFF1F2937 was
-    // the dark palette's border hex smuggling itself into the light theme.)
-    final accent = color ?? _status!.accentOn(context);
-    final fg = _status?.textOn(context) ?? textColor ?? accent;
+    // a decoration: paint it in the status's tuned text token over the accent.
+    final accent = status.accentOn(context);
+    final fg = status.textOn(context);
 
     return Container(
       // A floor, not a ceiling: the fixed 22px box let the label overhang the
@@ -75,24 +54,22 @@ class EvStatusPill extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (dot) ...[
-            Container(
-              width: 5,
-              height: 5,
-              decoration: BoxDecoration(
-                color: accent,
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: accent.withValues(alpha: 0.7),
-                    blurRadius: 6,
-                    spreadRadius: -1,
-                  ),
-                ],
-              ),
+          Container(
+            width: 5,
+            height: 5,
+            decoration: BoxDecoration(
+              color: accent,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: accent.withValues(alpha: 0.7),
+                  blurRadius: 6,
+                  spreadRadius: -1,
+                ),
+              ],
             ),
-            const SizedBox(width: 5),
-          ],
+          ),
+          const SizedBox(width: 5),
           Flexible(
             child: Text(
               label,
@@ -131,13 +108,6 @@ extension UpdateStatusColors on UpdateStatus {
     UpdateStatus.answerKey => p.accent,
     UpdateStatus.awaited => p.textTertiary,
   };
-
-  /// Legacy theme-blind accessor, kept compiling only because
-  /// `live_radar_tile.dart:31` still calls it without routing through context
-  /// (its icon tile therefore shows the dark-palette grey for AWAITED in light
-  /// mode). That call site has a BuildContext two lines up; once it moves to
-  /// `accentOn(context)`, delete this getter.
-  Color get pillColor => accentIn(EvPalette.dark);
 }
 
 extension UpdateStatusText on UpdateStatus {

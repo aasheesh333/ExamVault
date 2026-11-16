@@ -4,7 +4,7 @@ description: >-
   Offline-first admit-card vault, edge-cached live radar, and an
   isolate-powered instant roll-number result checker.
 publish_to: "none"
-version: 1.0.0+1
+version: 1.0.1+2
 
 environment:
   sdk: ^3.9.0

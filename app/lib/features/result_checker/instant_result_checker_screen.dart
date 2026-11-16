@@ -57,6 +57,10 @@ class _InstantResultCheckerScreenState
   /// rejection would — minus the 12 MB download that rejection cost first.
   String? _localInvalidMessage;
 
+  /// The detail sheet's open guard: the modal barrier appears a frame after the
+  /// call, so a fast double tap on "Notice details" used to stack two sheets.
+  final _detailGuard = SheetOpenGuard();
+
   String _initialRoll() {
     final card = _targetCard(ref.read(admitCardsProvider).value, null);
     return card?.rollNumber ?? '';
@@ -439,10 +443,12 @@ class _InstantResultCheckerScreenState
                       child: EvTextAction(
                         label: 'Notice details',
                         icon: Icons.open_in_new_rounded,
-                        onPressed: () => showExamDetailSheet(
-                          context,
-                          update: update,
-                          card: card,
+                        onPressed: () => _detailGuard.run<void>(
+                          () => showExamDetailSheet(
+                            context,
+                            update: update,
+                            card: card,
+                          ),
                         ),
                       ),
                     ),

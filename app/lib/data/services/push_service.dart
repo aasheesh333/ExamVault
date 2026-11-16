@@ -65,7 +65,15 @@ class PushService {
   OnNotificationWillDisplayListener? _oneSignalForegroundListener;
 
   PushProvider _provider = PushProvider.disabled;
-  bool _initialised = false;
+
+  /// The single in-flight (or finished) init, shared by every caller.
+  ///
+  /// `_initialised` used to be set synchronously before the awaits, so a second
+  /// call during boot's init window returned `disabled` while the SDK was still
+  /// starting — and `DataWiper.deleteAll`'s wipe then unsubscribed nothing at
+  /// all while `exam_alerts` was deleted and every bell rendered OFF. One
+  /// future, so a caller that awaits this waits for the real answer.
+  Future<PushProvider>? _initialising;
 
   /// Foreground pushes, for an in-app banner.
   Stream<PushMessage> get messages => _messages.stream;
@@ -88,10 +96,12 @@ class PushService {
 
   /// OneSignal wins when both are configured: it is the one that still works
   /// without an MFA-gated Firebase project.
-  Future<PushProvider> initialise() async {
-    if (_initialised) return _provider;
-    _initialised = true;
+  ///
+  /// Idempotent *and* shared: concurrent callers all await the same future, so
+  /// "already called" never means "returned before the SDK was ready".
+  Future<PushProvider> initialise() => _initialising ??= _initialiseOnce();
 
+  Future<PushProvider> _initialiseOnce() async {
     // OneSignal needs a service worker on the web and a platform config in the
     // OneSignal dashboard. This app's OneSignal app is Android/iOS only, so on
     // web we skip straight to FCM rather than reporting a provider that cannot
@@ -253,6 +263,26 @@ class PushService {
 
   // ----------------------------------------------------------- reconciliation
 
+  /// The topic names that belong to an exam **category**.
+  ///
+  /// Both kinds share the `exam_` prefix — `exam_ssc` is the SSC category,
+  /// `exam_ssc_cgl_2026` is one exam's bell — so no prefix test can tell them
+  /// apart. That collision is the root of both reconciliation bugs below: a
+  /// diff against the whole set treated every bell as a stale category topic,
+  /// and `syncExamAlerts` treated every category topic as a stale bell. The
+  /// enum is the only thing that knows which is which.
+  static final Set<String> _categoryTopics = Set.unmodifiable({
+    for (final c in ExamCategory.values) c.fcmTopic,
+  });
+
+  /// The per-exam bell topics in [subscribed] — everything that is not a
+  /// category topic. A retired category's topic would be read as a bell here;
+  /// [unsubscribeAll] clears it, and category ids are never renamed.
+  static Set<String> _bellsIn(Set<String> subscribed) => {
+    for (final topic in subscribed)
+      if (!_categoryTopics.contains(topic)) topic,
+  };
+
   /// Reconciles subscriptions with the user's chosen categories.
   ///
   /// Idempotent by design, so it is safe to call on every app start — that is
@@ -264,21 +294,30 @@ class PushService {
       switch (_provider) {
         case PushProvider.oneSignal:
           await _syncOneSignalTags(categories);
-          // Merge, do not clear: _subscribed also tracks the per-exam
-          // `exam_*` topics, and clearing it here would make the next
-          // syncExamAlerts re-subscribe everything on every boot.
+          // Merge, do not clear: _subscribed also tracks the per-exam bell
+          // topics, and clearing it here would make the next syncExamAlerts
+          // re-subscribe everything on every boot. Only the category topics are
+          // replaced, which is what the tags just did on the backend.
           _subscribed
-            ..removeWhere((t) => !t.startsWith('exam_'))
+            ..removeWhere(_categoryTopics.contains)
             ..addAll(categories.map((c) => c.fcmTopic));
 
         case PushProvider.fcm:
-          final target = categories.map((c) => c.fcmTopic).toSet();
-          for (final topic in target.difference(_subscribed)) {
+          // Only category topics are reconciled here. `_subscribed` also holds
+          // the per-exam bells added by [syncExamAlerts], and diffing the target
+          // against the whole set unsubscribed every one of them — boot does
+          // `syncExamAlerts` then `syncTopics`, so on FCM every bell was dead
+          // before the first frame, and every chip tap repeated it.
+          final diff = categoryTopicDiff(
+            categories.map((c) => c.fcmTopic).toSet(),
+            _subscribed,
+          );
+          for (final topic in diff.subscribe) {
             await FirebaseMessaging.instance.subscribeToTopic(topic);
             _subscribed.add(topic);
             AppLogger.d('push', 'subscribed $topic');
           }
-          for (final topic in _subscribed.difference(target)) {
+          for (final topic in diff.unsubscribe) {
             await FirebaseMessaging.instance.unsubscribeFromTopic(topic);
             _subscribed.remove(topic);
             AppLogger.d('push', 'unsubscribed $topic');
@@ -292,26 +331,56 @@ class PushService {
     }
   }
 
+  /// Which **category** topics to subscribe and unsubscribe, leaving every
+  /// per-exam bell untouched.
+  ///
+  /// Extracted as a pure function because this is the decision that was wrong:
+  /// [syncTopics] and [syncExamAlerts] share one `_subscribed` set, so a diff
+  /// against the whole set treats every per-exam bell as a stale category topic
+  /// and unsubscribes it. The FCM SDK's instance cannot be faked in a unit test,
+  /// so the arithmetic lives here where it can be asserted directly.
+  @visibleForTesting
+  static ({Set<String> subscribe, Set<String> unsubscribe}) categoryTopicDiff(
+    Set<String> categoryTopics,
+    Set<String> subscribed,
+  ) {
+    // The caller passes every topic it tracks, bells included. Only the ones
+    // that name a category are this reconcile's business.
+    final current = {
+      for (final topic in subscribed)
+        if (_categoryTopics.contains(topic)) topic,
+    };
+    return (
+      subscribe: categoryTopics.difference(current),
+      unsubscribe: current.difference(categoryTopics),
+    );
+  }
+
   /// Subscribes to `exam_<examId>` for every bell the student switched on.
   ///
   /// Per-exam topics are what make "notify me about SSC CGL, not everything"
   /// real: one publish to that topic reaches exactly the students who asked.
   /// Topic names are sanitised because an exam id comes from the feed.
+  ///
+  /// `_bellsIn` is used rather than an `exam_` prefix test: category topics are
+  /// `exam_ssc`, `exam_upsc`, … so the prefix matches both kinds. Diffing the
+  /// whole set here unsubscribed all five category topics every time a bell was
+  /// toggled, silently killing category alerts until the next boot — the mirror
+  /// image of the bug [syncTopics] had.
   Future<void> syncExamAlerts(Set<String> examIds) async {
     if (!isEnabled) return;
     final wanted = {
       for (final id in examIds)
         if (_topicSafe(id).isNotEmpty) 'exam_${_topicSafe(id)}',
     };
-    final previous = {
-      for (final t in _subscribed)
-        if (t.startsWith('exam_')) t,
-    };
+    final previous = _bellsIn(_subscribed);
     try {
       switch (_provider) {
         case PushProvider.oneSignal:
           await OneSignal.User.addTags({
             for (final t in previous.difference(wanted)) t: false,
+            // Re-assert every wanted bell, not just the new ones: a tag dropped
+            // by the SDK repairs itself on the next toggle.
             for (final t in wanted) t: true,
           });
           _subscribed
@@ -319,12 +388,13 @@ class PushService {
             ..addAll(wanted);
 
         case PushProvider.fcm:
-          for (final topic in wanted.difference(previous)) {
+          final diff = bellTopicDiff(wanted, _subscribed);
+          for (final topic in diff.subscribe) {
             await FirebaseMessaging.instance.subscribeToTopic(topic);
             _subscribed.add(topic);
             AppLogger.d('push', 'subscribed $topic');
           }
-          for (final topic in previous.difference(wanted)) {
+          for (final topic in diff.unsubscribe) {
             await FirebaseMessaging.instance.unsubscribeFromTopic(topic);
             _subscribed.remove(topic);
             AppLogger.d('push', 'unsubscribed $topic');
@@ -339,21 +409,88 @@ class PushService {
     }
   }
 
+  /// Which **per-exam bell** topics to subscribe and unsubscribe, leaving every
+  /// category topic alone.
+  ///
+  /// The mirror of [categoryTopicDiff], and tested for the same reason: the two
+  /// kinds are indistinguishable by prefix, so the arithmetic is where the
+  /// mistake lives.
+  @visibleForTesting
+  static ({Set<String> subscribe, Set<String> unsubscribe}) bellTopicDiff(
+    Set<String> bellTopics,
+    Set<String> subscribed,
+  ) {
+    final current = _bellsIn(subscribed);
+    return (
+      subscribe: bellTopics.difference(current),
+      unsubscribe: current.difference(bellTopics),
+    );
+  }
+
   /// FCM topics allow [a-zA-Z0-9-_.~%]; feed ids are already slugs, but a
   /// publisher change must never produce an invalid topic name.
   static String _topicSafe(String raw) =>
       raw.trim().toLowerCase().replaceAll(RegExp(r'[^a-z0-9_-]'), '_');
 
-  Future<void> unsubscribeAll() async {
+  /// The bell topics a wipe must switch off: [examIds] plus every bell this
+  /// process knows about.
+  ///
+  /// One set, both backends. The FCM branch used to iterate [_subscribed]
+  /// alone, which silently dropped the caller's ids: that set is in-memory
+  /// only, so a bell subscribed on a previous launch — or one toggled before
+  /// this process finished booting — stayed live while the settings that named
+  /// it were deleted and every bell on screen read OFF. The same reasoning that
+  /// makes [examIds] necessary on OneSignal is backend-agnostic.
+  ///
+  /// Category topics in [_subscribed] are deliberately excluded by [_bellsIn]:
+  /// the wipe re-subscribes the category default immediately afterwards
+  /// (`DataWiper.deleteAll`), so leaving them alone is both correct and one
+  /// round trip cheaper. An `exam_<id>` that happens to name a category id is
+  /// indistinguishable from that category (the deferred collision in
+  /// `docs/AUDIT_2026-11-16.md`) and unsubscribing it there is harmless for the
+  /// same reason.
+  ///
+  /// Pure, like [categoryTopicDiff] and [bellTopicDiff]: `FirebaseMessaging`'s
+  /// instance cannot be faked in a unit test, so the decision lives here where
+  /// it can be asserted directly.
+  @visibleForTesting
+  static Set<String> wipeTopics(Set<String> examIds, Set<String> subscribed) =>
+      {
+        for (final id in examIds)
+          if (_topicSafe(id).isNotEmpty) 'exam_${_topicSafe(id)}',
+        ..._bellsIn(subscribed),
+      };
+
+  /// Drops every subscription this device holds, then forgets them.
+  ///
+  /// [examIds] is the per-exam bell set, captured by the caller *before* the
+  /// settings that hold it are deleted. It is passed explicitly rather than
+  /// read from [_subscribed] because that set is in-memory only: a bell
+  /// subscribed on a previous launch exists on the backend but not here, and it
+  /// would survive the wipe untouched — on either backend.
+  ///
+  /// **Requires an initialised provider.** While [provider] is still
+  /// [PushProvider.disabled] this returns without doing anything, so a caller
+  /// that wipes during boot's `initialise()` window must await that call
+  /// (bounded) first — `DataWiper.deleteAll` does.
+  Future<void> unsubscribeAll({Set<String> examIds = const {}}) async {
     if (!isEnabled) return;
+    final examTopics = wipeTopics(examIds, _subscribed);
     try {
       switch (_provider) {
         case PushProvider.oneSignal:
+          // Category tags are `exam_<category id>`; per-exam bells are
+          // `exam_<exam id>`. Both must be switched off, or a wiped device
+          // keeps receiving alerts about exams it no longer has any record of.
           await OneSignal.User.addTags({
             for (final c in ExamCategory.values) 'exam_${c.id}': false,
+            for (final topic in examTopics) topic: false,
           });
         case PushProvider.fcm:
-          for (final topic in [..._subscribed]) {
+          // The same set the OneSignal branch uses, not `_subscribed`: a bell
+          // named by the caller but never seen by this process is exactly the
+          // subscription the wipe exists to remove.
+          for (final topic in examTopics) {
             await FirebaseMessaging.instance.unsubscribeFromTopic(topic);
           }
         case PushProvider.disabled:

@@ -63,6 +63,7 @@ abstract final class AppConfig {
   /// Legacy mirror path. The app now links to the official PDF on the
   /// commission's own site (see `LiveUpdate.officialPdf`), so this is only used
   /// by fixtures.
+  /// No callers in `lib/`, `test/` or `tool/` today — a deletion candidate.
   static String resultPdfPath(String examId) => '/v1/pdf/${examId}_result.pdf';
 
   /// The R2 object is stored as `application/gzip` with **no** `Content-Encoding`

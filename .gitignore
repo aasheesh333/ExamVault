@@ -82,3 +82,6 @@ app/build/
 # python bytecode
 __pycache__/
 *.pyc
+
+# SDD scratch workspace (git-ignored)
+.superpowers/

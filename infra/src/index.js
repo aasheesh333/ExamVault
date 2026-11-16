@@ -255,14 +255,27 @@ export default {
     // cheaper than a second R2 read.
     const buffer = await object.arrayBuffer();
 
-    const cacheable = new Response(buffer, { status: 200, headers });
-    ctx.waitUntil(
-      cache.put(cacheKey, cacheable.clone()).catch((err) => {
-        // A failed put must never fail the request — the next caller simply
-        // takes the origin path again.
-        console.error('cache.put failed', err?.message ?? err);
-      }),
-    );
+    // Only fill the edge cache on routes that are allowed to read it back. The
+    // feed route is `noEdgeCache` (a publish must be visible immediately), so
+    // the `cache.match` above is skipped for it — which means a put here would
+    // write an entry nothing ever reads. That is not merely dead data: it is a
+    // Cache-API write on every request, and the feed is polled every 60 s by
+    // every active device, so it is one wasted write per device per minute on
+    // the one route that is supposed to be a cheap pass-through to R2. It also
+    // litters the per-PoP cache namespace the roll indexes share.
+    //
+    // `cacheable` is built inside the guard so the feed path never constructs a
+    // Response that is only ever thrown away.
+    if (!route.noEdgeCache) {
+      const cacheable = new Response(buffer, { status: 200, headers });
+      ctx.waitUntil(
+        cache.put(cacheKey, cacheable.clone()).catch((err) => {
+          // A failed put must never fail the request — the next caller simply
+          // takes the origin path again.
+          console.error('cache.put failed', err?.message ?? err);
+        }),
+      );
+    }
 
     if (request.method === 'HEAD') {
       return new Response(null, { status: 200, headers });

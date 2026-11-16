@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -12,24 +15,43 @@ import '../../domain/entities/live_update.dart';
 import '../../domain/services/exam_matcher.dart';
 import '../../providers/app_providers.dart';
 import '../../shared/widgets/ev_controls.dart';
+import '../../shared/widgets/ev_surfaces.dart';
 import '../result_checker/engine/roll_index_engine.dart';
 
 /// The id the result checker will look the roll index up by.
 ///
-/// A fresh feed match wins over the stored id: renaming a card, or saving one
-/// before the exam was published, must re-resolve instead of pinning a slug
-/// that the checker can never find.
+/// A fresh feed match always wins. The stored id is reused only when the exam
+/// name is unchanged: renaming "SSC CHSL 2026" to "UPSC CSE 2027" must not pin
+/// the old exam's id onto the card, or the checker searches another exam's
+/// index and Share prints a verdict for a list this card was never checked
+/// against. A renamed card with no published match gets a slug of its new name.
+///
+/// [previousName] is what makes the reuse possible at all: without it the
+/// caller cannot show the name was unchanged, so [previous] is ignored and the
+/// typed name is slugged instead.
 @visibleForTesting
 String resolveExamId({
   required String examName,
   LiveUpdate? match,
   String? previous,
+  String? previousName,
 }) {
   final fresh = match?.examId;
   if (fresh != null && fresh.isNotEmpty) return fresh;
-  if (previous != null && previous.isNotEmpty) return previous;
+  final unchanged =
+      previousName != null && _sameExamName(previousName, examName);
+  if (unchanged && previous != null && previous.isNotEmpty) return previous;
   return slugifyExamName(examName);
 }
+
+/// Whether two typed exam names name the same exam.
+///
+/// Case-insensitive and ignoring leading/trailing whitespace: fixing the case
+/// or padding of a name is not a rename, so it must not discard the card's
+/// resolved id or VERIFIED. Internal spacing is *not* normalised — only the
+/// ends are trimmed, so "SSC CHSL" and "SSC  CHSL" count as different names.
+bool _sameExamName(String a, String b) =>
+    a.trim().toLowerCase() == b.trim().toLowerCase();
 
 /// Fallback id when nothing has been published for the typed name yet.
 @visibleForTesting
@@ -41,20 +63,31 @@ String slugifyExamName(String examName) =>
 /// Portal passwords and DOBs are exactly the fields people mistype, so every
 /// input here is `TextInputType.visiblePassword`, autocorrect is off, and the
 /// secret field is masked by default — a vault screen is often opened in public.
+///
+/// One guard for the whole app, not one per call site: a second copy of this
+/// form is never legitimate (two twelve-field credential forms, each with its
+/// own discard guard, means cancelling one leaves the other behind describing
+/// edits nobody can see). Every caller would otherwise need its own flag, and
+/// five call sites is five chances to forget — so the guard lives here, where
+/// the invariant is.
+final _vaultFormGuard = SheetOpenGuard();
+
 Future<void> showVaultFormSheet(
   BuildContext context,
   WidgetRef ref, {
   AdmitCard? existing,
 }) {
-  return showModalBottomSheet<void>(
-    context: context,
-    isScrollControlled: true,
-    useSafeArea: true,
-    backgroundColor: Colors.transparent,
-    // Dragging the sheet down pops the route directly, bypassing PopScope — the
-    // unsaved-changes guard only works with the drag-dismiss disabled.
-    enableDrag: false,
-    builder: (_) => _VaultFormSheet(existing: existing),
+  return _vaultFormGuard.run<void>(
+    () => showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      // Dragging the sheet down pops the route directly, bypassing PopScope —
+      // the unsaved-changes guard only works with the drag-dismiss disabled.
+      enableDrag: false,
+      builder: (_) => _VaultFormSheet(existing: existing),
+    ),
   );
 }
 
@@ -74,6 +107,10 @@ class _VaultFormSheetState extends ConsumerState<_VaultFormSheet> {
   /// to the first offender instead of painting its error somewhere off-screen.
   final _examNameFieldKey = GlobalKey(debugLabel: 'field-exam-name');
   final _rollFieldKey = GlobalKey(debugLabel: 'field-roll-number');
+
+  /// The date is a hard save blocker but carries no validator (it is not a
+  /// [TextFormField]), so it needs its own anchor to be scrolled to.
+  final _dateFieldKey = GlobalKey(debugLabel: 'field-exam-date');
 
   late final _name = TextEditingController(
     text: widget.existing?.candidateName,
@@ -120,6 +157,16 @@ class _VaultFormSheetState extends ConsumerState<_VaultFormSheet> {
   /// distinct from [_error], which is a failed write and offers Retry.
   String? _validationNotice;
 
+  /// The id minted for a save that has not been confirmed yet.
+  ///
+  /// A timed-out write is only abandoned by the *waiter*: the Keystore call can
+  /// still land seconds later. Minting a fresh id on Retry would then leave two
+  /// cards for one exam and one roll — the exact duplicate this form exists to
+  /// prevent. Holding the id makes Retry converge on one card, because
+  /// `writeRaw` overwrites and the repository only appends an id the index does
+  /// not already contain.
+  String? _pendingCardId;
+
   @override
   void initState() {
     super.initState();
@@ -154,7 +201,15 @@ class _VaultFormSheetState extends ConsumerState<_VaultFormSheet> {
 
   /// Close via the Cancel button, the barrier or system back.
   Future<void> _requestClose() async {
-    if (_saving || _confirmingDiscard) return;
+    // A close tap during a save used to vanish: the sheet stayed up and the
+    // only sign anything happened was the spinner it was already showing. Say
+    // what is going on and stay put. "Working", not "saving": the wait may be
+    // the duplicate check reading a slow vault rather than the write itself.
+    if (_saving) {
+      _showNotice('Still working on your card…', saving: true);
+      return;
+    }
+    if (_confirmingDiscard) return;
     if (!_dirty) {
       Navigator.of(context).pop();
       return;
@@ -163,6 +218,54 @@ class _VaultFormSheetState extends ConsumerState<_VaultFormSheet> {
     final discard = await _confirmDiscard();
     _confirmingDiscard = false;
     if (discard && mounted) Navigator.of(context).pop();
+  }
+
+  /// Says [message] through the platform screen reader.
+  ///
+  /// The notice rows below are live regions too, but a live region only
+  /// announces a *change* to a node that is already on screen — and Save sits
+  /// at the bottom of a ten-field form, so the message can be born off-screen.
+  /// The explicit announcement is what a screen-reader user actually hears.
+  void _announce(String message) {
+    unawaited(
+      SemanticsService.sendAnnouncement(
+        View.of(context),
+        message,
+        Directionality.of(context),
+      ),
+    );
+  }
+
+  /// Shows [message] next to Save and announces it.
+  ///
+  /// [saving] keeps the primary button busy: the duplicate check can now wait
+  /// for the vault to open, and the button must not look dead while it does.
+  void _showNotice(String message, {bool saving = false}) {
+    setState(() {
+      _saving = saving;
+      _validationNotice = message;
+      _error = null;
+    });
+    _announce(message);
+  }
+
+  /// Shows a failed-write [message] next to Save, with Retry, and announces it.
+  void _showError(String message) {
+    setState(() {
+      _saving = false;
+      _error = message;
+      _validationNotice = null;
+    });
+    _announce(message);
+  }
+
+  /// Forgets the id of an unconfirmed save.
+  ///
+  /// Called when the card's identity changes (exam name, roll, date): the user
+  /// is no longer retrying the same card, so it must get its own id rather than
+  /// overwrite the one the abandoned write may still be landing under.
+  void _forgetPendingCard() {
+    _pendingCardId = null;
   }
 
   Future<bool> _confirmDiscard() async {
@@ -215,6 +318,9 @@ class _VaultFormSheetState extends ConsumerState<_VaultFormSheet> {
   /// Mirrors the typed name into the category chip so a "UPSC CSE" card is not
   /// filed under SSC.
   void _onExamNameChanged(String value) {
+    // A renamed card is a different card: retrying the abandoned save under
+    // the old id would overwrite a card the user no longer describes.
+    _forgetPendingCard();
     final inferred = ExamMatcher.categoryFor(value);
     if (_categoryPicked || inferred == null) {
       // Still rebuild: the match banner is derived from the same text.
@@ -248,6 +354,12 @@ class _VaultFormSheetState extends ConsumerState<_VaultFormSheet> {
 
   @override
   void dispose() {
+    // The form is gone, so the app-wide guard must not stay locked. `run`'s
+    // `finally` normally does this, but a route future can be left unresolved
+    // when the Navigator is torn down with the sheet still open (every widget
+    // test does exactly that) — and a wedged guard would leave "Add admit card"
+    // dead for the life of the process, which is worse than a stacked sheet.
+    _vaultFormGuard.release();
     for (final c in [
       _name,
       _examName,
@@ -286,99 +398,155 @@ class _VaultFormSheetState extends ConsumerState<_VaultFormSheet> {
   void _revealFirstInvalidField() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      for (final (key, validate, controller) in [
-        (_examNameFieldKey, _validateExamName, _examName),
-        (_rollFieldKey, _validateRoll, _roll),
-      ]) {
-        if (validate(controller.text) != null) {
-          final fieldContext = key.currentContext;
-          if (fieldContext != null) {
-            Scrollable.ensureVisible(
-              fieldContext,
-              duration: EvMotion.of(context, EvMotion.inline),
-              curve: EvMotion.curveOf(context, EvMotion.enter),
-              alignment: 0.1,
-            );
-          }
-          return;
-        }
+      // Listed in the order the fields appear, so the scroll lands on the
+      // first offender rather than the last. The date is here even though it
+      // has no validator: it is a hard save blocker that sits five rows above
+      // Save, off-screen on a phone, so a refusal that only says "choose a
+      // date" left the user hunting for the field.
+      final invalid = <GlobalKey>[
+        if (_validateExamName(_examName.text) != null) _examNameFieldKey,
+        if (_validateRoll(_roll.text) != null) _rollFieldKey,
+        if (_examDate == null) _dateFieldKey,
+      ];
+      if (invalid.isEmpty) return;
+      // Skip keys whose field is not mounted (an ancestor rebuilt it away)
+      // rather than giving up on the whole reveal.
+      for (final key in invalid) {
+        final fieldContext = key.currentContext;
+        if (fieldContext == null) continue;
+        Scrollable.ensureVisible(
+          fieldContext,
+          duration: EvMotion.of(context, EvMotion.inline),
+          curve: EvMotion.curveOf(context, EvMotion.enter),
+          alignment: 0.1,
+        );
+        return;
       }
     });
   }
 
+  /// The cards the duplicate check runs against, or null when they could not
+  /// be read.
+  ///
+  /// The vault is deliberately allowed to still be opening when Add is tapped,
+  /// so `.value` is null then. Treating that as an empty vault skipped the
+  /// check entirely and let a cold-start Add save the same exam + roll twice,
+  /// so the load is awaited instead — bounded like the repository's own read,
+  /// because a Keystore read can hang on some OEMs.
+  Future<List<AdmitCard>?> _cardsForDuplicateCheck() async {
+    final vault = ref.read(admitCardsProvider);
+    if (vault is AsyncData<List<AdmitCard>>) return vault.value;
+    try {
+      return await ref
+          .read(admitCardsProvider.future)
+          .timeout(const Duration(seconds: 10));
+    } catch (e, st) {
+      AppLogger.e(
+        'VaultForm',
+        'duplicate check could not read the vault',
+        e,
+        st,
+      );
+      return null;
+    }
+  }
+
   Future<void> _save() async {
+    if (_saving) return;
     if (!(_formKey.currentState?.validate() ?? false)) {
       // validate() paints each error at its field, but Save sits at the bottom
       // of a ten-field scrollable form — when the offender is scrolled out of
       // view, nothing on screen changes and the button looks dead. Say why
       // Save refused (next to the button) and scroll to the field to fix.
-      setState(() {
-        _validationNotice = 'Fix the highlighted field above';
-        _error = null;
-      });
+      _showNotice('Fix the highlighted field above');
       _revealFirstInvalidField();
       return;
     }
 
     final date = _examDate;
     if (date == null) {
-      setState(() {
-        _validationNotice = 'Choose the exam date — tap the field above.';
-        _error = null;
-      });
+      // "tap the field above" pointed at nothing: the date field is five rows
+      // up and off-screen on a phone. Name it and bring it into view.
+      _showNotice('Choose the exam date before saving.');
+      _revealFirstInvalidField();
       return;
     }
 
-    final now = DateTime.now();
-    final base = widget.existing;
-    final roll = _roll.text.trim().toUpperCase();
-
-    // The checker looks the index up by this id, so a hand-derived slug could
-    // never resolve. Re-resolve on every save: a fresh match first, then the id
-    // the card already had, then a slug of the typed name.
-    final examId = resolveExamId(
-      examName: _examName.text,
-      match: _match(watch: false),
-      previous: base?.examId,
-    );
-
-    final cards = ref.read(admitCardsProvider).value ?? const <AdmitCard>[];
-    final duplicate = cards.any(
-      (c) =>
-          c.id != base?.id &&
-          c.examId == examId &&
-          normaliseRoll(c.rollNumber) == normaliseRoll(roll),
-    );
-    if (duplicate) {
-      setState(() {
-        _validationNotice =
-            'You already saved this card — same exam and roll number.';
-        _error = null;
-      });
-      return;
-    }
-
+    // Busy from here on: the duplicate check may have to wait for the vault to
+    // open, and a Save that silently does nothing for seconds reads as broken.
     setState(() {
       _saving = true;
       _error = null;
       _validationNotice = null;
     });
 
+    final now = DateTime.now();
+    final base = widget.existing;
+    final roll = _roll.text.trim().toUpperCase();
+
+    // Mint the id once per card, not once per Save tap: a Retry after a
+    // timed-out write must land on the same card the first attempt may still
+    // be writing. See [_pendingCardId].
+    final cardId =
+        base?.id ??
+        _pendingCardId ??
+        '${_category.id}_${now.millisecondsSinceEpoch.toRadixString(36)}';
+
+    // The checker looks the index up by this id, so a hand-derived slug could
+    // never resolve. Re-resolve on every save: a fresh match first, then the id
+    // the card already had — but only when the name is unchanged, because a
+    // renamed card must not search the old exam's index — then a slug of the
+    // typed name.
+    final examId = resolveExamId(
+      examName: _examName.text,
+      match: _match(watch: false),
+      previous: base?.examId,
+      previousName: base?.examName,
+    );
+
+    final cards = await _cardsForDuplicateCheck();
+    if (!mounted) return;
+    if (cards == null) {
+      // Never claim the check passed when it could not run: the student would
+      // end up with two passes for one exam and one roll. Say the card is still
+      // unsaved too — "could not check" alone left the outcome ambiguous.
+      _showNotice(
+        'Your card has not been saved yet. Could not check your vault for '
+        'duplicates — try again in a moment.',
+      );
+      return;
+    }
+    // `cardId` is excluded rather than `base?.id`: a retried save writes to the
+    // id the abandoned attempt used, so finding that id in the vault is this
+    // card, not a duplicate of it.
+    final duplicate = cards.any(
+      (c) =>
+          c.id != cardId &&
+          c.examId == examId &&
+          normaliseRoll(c.rollNumber) == normaliseRoll(roll),
+    );
+    if (duplicate) {
+      _showNotice('You already saved this card — same exam and roll number.');
+      return;
+    }
+
     // VERIFIED is a claim about one exact roll number against one exact
     // published index — the checker only stamps it when the card's *own* roll
     // was found. Editing either invalidates the old claim: fixing a roll typo
-    // must not carry a permanent VERIFIED badge for a roll never matched.
+    // must not carry a permanent VERIFIED badge for a roll never matched. A
+    // rename is the same: the badge belongs to the exam it was earned against,
+    // and `base.examId == examId` alone would pass trivially when the old id
+    // survived a rename.
     final keepsVerification =
         base != null &&
+        _sameExamName(base.examName, _examName.text) &&
         base.rollNumberVerified &&
         base.rollNumber == roll &&
         base.examId == examId;
 
     final card = AdmitCard(
       candidateName: _name.text.trim(),
-      id:
-          base?.id ??
-          '${_category.id}_${now.millisecondsSinceEpoch.toRadixString(36)}',
+      id: cardId,
       examId: examId,
       category: _category,
       examName: _examName.text.trim(),
@@ -400,7 +568,19 @@ class _VaultFormSheetState extends ConsumerState<_VaultFormSheet> {
     );
 
     try {
-      await ref.read(admitCardsProvider.notifier).save(card);
+      // Hold the id across the attempt so a Retry reuses it. An edit's id is
+      // stable already (`base.id`), so only a new card needs remembering.
+      if (base == null) _pendingCardId = cardId;
+      // Loads are bounded (10 s in the repository); writes were not, and a
+      // hung Keystore write left `_saving` true forever: a permanent spinner on
+      // the primary button, with Cancel, back and the barrier all returning
+      // silently. Bounding the write turns that into the normal error path,
+      // which offers Retry.
+      await ref
+          .read(admitCardsProvider.notifier)
+          .save(card)
+          .timeout(const Duration(seconds: 15));
+      _pendingCardId = null;
       if (!mounted) return;
       Navigator.of(context).pop();
       ScaffoldMessenger.of(context).showSnackBar(
@@ -411,14 +591,20 @@ class _VaultFormSheetState extends ConsumerState<_VaultFormSheet> {
           ),
         ),
       );
+    } on TimeoutException catch (e, st) {
+      AppLogger.e('VaultForm', 'Admit card save timed out', e, st);
+      if (!mounted) return;
+      // Retry is safe and worth inviting: the id is held, so a write that
+      // landed after the ceiling is overwritten rather than duplicated.
+      _showError(
+        'Saving took too long. Your details are still here — tap Retry to '
+        'finish saving.',
+      );
     } catch (e, st) {
       AppLogger.e('VaultForm', 'Admit card save failed', e, st);
       if (!mounted) return;
-      setState(() {
-        _saving = false;
-        // Never surface a platform exception: the user needs an action, not a stack.
-        _error = 'That card could not be saved. Your details are still here.';
-      });
+      // Never surface a platform exception: the user needs an action, not a stack.
+      _showError('That card could not be saved. Your details are still here.');
     }
   }
 
@@ -445,6 +631,8 @@ class _VaultFormSheetState extends ConsumerState<_VaultFormSheet> {
     // alive by PopScope while the picker is open, but a system-initiated
     // teardown mid-picker would turn this setState into a crash.
     if (picked != null && mounted) {
+      // A new date is a different card; see [_forgetPendingCard].
+      _forgetPendingCard();
       setState(() {
         _examDate = picked;
         _validationNotice = null;
@@ -587,6 +775,8 @@ class _VaultFormSheetState extends ConsumerState<_VaultFormSheet> {
                       upperCase: true,
                       maxLength: 24,
                       validator: _validateRoll,
+                      // A different roll is a different card; see [_forgetPendingCard].
+                      onChanged: (_) => _forgetPendingCard(),
                     ),
                     _Field(
                       controller: _regId,
@@ -609,6 +799,12 @@ class _VaultFormSheetState extends ConsumerState<_VaultFormSheet> {
                           size: 18,
                           color: p.textTertiary,
                         ),
+                        // Without this the most sensitive field on the form
+                        // was announced as a bare "Button". The tooltip is the
+                        // IconButton's accessible name.
+                        tooltip: _obscureSecret
+                            ? 'Show password'
+                            : 'Hide password',
                         onPressed: () =>
                             setState(() => _obscureSecret = !_obscureSecret),
                       ),
@@ -625,7 +821,11 @@ class _VaultFormSheetState extends ConsumerState<_VaultFormSheet> {
                       label: 'Centre address',
                       hint: 'Street, area, city',
                     ),
-                    _DateField(date: _examDate, onTap: _pickDate),
+                    _DateField(
+                      fieldKey: _dateFieldKey,
+                      date: _examDate,
+                      onTap: _pickDate,
+                    ),
                     // Reporting time, shift and gate were copied from the old card
                     // but never editable, so the pass showed empty lines forever.
                     _Field(
@@ -656,10 +856,16 @@ class _VaultFormSheetState extends ConsumerState<_VaultFormSheet> {
                           ),
                           const SizedBox(width: 8),
                           Expanded(
-                            child: Text(
-                              _error!,
-                              style: context.type.body.copyWith(
-                                color: p.dangerText,
+                            // A live region so a screen reader re-reads the row
+                            // when a save fails; the explicit announcement in
+                            // [_showError] covers the first appearance.
+                            child: Semantics(
+                              liveRegion: true,
+                              child: Text(
+                                _error!,
+                                style: context.type.body.copyWith(
+                                  color: p.dangerText,
+                                ),
                               ),
                             ),
                           ),
@@ -697,10 +903,15 @@ class _VaultFormSheetState extends ConsumerState<_VaultFormSheet> {
                           ),
                           const SizedBox(width: 8),
                           Expanded(
-                            child: Text(
-                              _validationNotice!,
-                              style: context.type.body.copyWith(
-                                color: p.dangerText,
+                            // Same live-region treatment: a Save that refuses
+                            // must say why out loud, not only in paint.
+                            child: Semantics(
+                              liveRegion: true,
+                              child: Text(
+                                _validationNotice!,
+                                style: context.type.body.copyWith(
+                                  color: p.dangerText,
+                                ),
                               ),
                             ),
                           ),
@@ -838,6 +1049,13 @@ class _Field extends StatelessWidget {
         FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z0-9\-/]')),
       if (upperCase) const _UpperCaseFormatter(),
     ];
+    // The theme's own hint style. Material resolves an inline hint as
+    // `bodyLarge.merge(baseStyle).merge(themeDefaults).merge(decoration.hintStyle)`,
+    // and this style is that last link — the mono face, 10.5 px and `height:
+    // 1.3` from `microLabel` — so reusing it keeps the example identical to what
+    // `hintText` painted. (An earlier version forced `height: 1` on the theory
+    // that Material added it; it does not, and the override shrank the line box.)
+    final hintStyle = Theme.of(context).inputDecorationTheme.hintStyle;
 
     return Padding(
       key: fieldKey,
@@ -847,35 +1065,56 @@ class _Field extends StatelessWidget {
         children: [
           Padding(
             padding: const EdgeInsets.only(left: 2, bottom: 6),
-            child: Text(label.toUpperCase(), style: context.type.microLabel),
+            // The field carries this text as its accessible name (below), so
+            // reading it here as well would announce every label twice.
+            child: ExcludeSemantics(
+              child: Text(label.toUpperCase(), style: context.type.microLabel),
+            ),
           ),
-          TextFormField(
-            controller: controller,
-            validator: validator,
-            onChanged: onChanged,
-            obscureText: obscure,
-            autocorrect: false,
-            enableSuggestions: false,
-            textCapitalization: caps,
-            keyboardType: obscure || mono
-                ? TextInputType.visiblePassword
-                : TextInputType.text,
-            maxLength: maxLength,
-            inputFormatters: formatters.isEmpty ? null : formatters,
-            style: mono
-                ? context.type.fieldValue
-                : context.type.body.copyWith(
-                    color: p.textPrimary,
-                    fontSize: 13,
-                  ),
-            decoration: InputDecoration(
-              hintText: hint,
-              suffixIcon: suffix,
-              // maxLength would otherwise add a counter row under the field.
-              counterText: maxLength == null ? null : '',
-              suffixIconConstraints: const BoxConstraints(
-                minWidth: 44,
-                minHeight: 44,
+          // The field's accessible name. `labelText` is the obvious way to
+          // carry it, but Material suppresses `hintText` whenever a label sits
+          // inline (`showHint = isEmpty && !_hasInlineLabel`), which would have
+          // blanked the example under every empty field on this form; letting
+          // the label float (`always`) would instead cut the invisible label's
+          // notch out of the outline border. Naming the field here keeps the
+          // 393×852 look untouched.
+          Semantics(
+            label: label,
+            child: TextFormField(
+              controller: controller,
+              validator: validator,
+              onChanged: onChanged,
+              obscureText: obscure,
+              autocorrect: false,
+              enableSuggestions: false,
+              textCapitalization: caps,
+              keyboardType: obscure || mono
+                  ? TextInputType.visiblePassword
+                  : TextInputType.text,
+              maxLength: maxLength,
+              inputFormatters: formatters.isEmpty ? null : formatters,
+              style: mono
+                  ? context.type.fieldValue
+                  : context.type.body.copyWith(
+                      color: p.textPrimary,
+                      fontSize: 13,
+                    ),
+              decoration: InputDecoration(
+                // Rendered from the theme's own hint style so the example looks
+                // exactly like `hintText` did. Excluded from semantics because
+                // a hint merged into a field's node *becomes* its name — the
+                // very bug being fixed: "Street, area, city" instead of
+                // "Centre address".
+                hint: hint == null
+                    ? null
+                    : ExcludeSemantics(child: Text(hint!, style: hintStyle)),
+                suffixIcon: suffix,
+                // maxLength would otherwise add a counter row under the field.
+                counterText: maxLength == null ? null : '',
+                suffixIconConstraints: const BoxConstraints(
+                  minWidth: 44,
+                  minHeight: 44,
+                ),
               ),
             ),
           ),
@@ -905,7 +1144,11 @@ class _UpperCaseFormatter extends TextInputFormatter {
 }
 
 class _DateField extends StatelessWidget {
-  const _DateField({required this.date, required this.onTap});
+  const _DateField({this.fieldKey, required this.date, required this.onTap});
+
+  /// Attached to the field's outer box so a failed Save can scroll the date
+  /// into view — it blocks saving but has no validator to anchor to.
+  final GlobalKey? fieldKey;
 
   final DateTime? date;
   final VoidCallback onTap;
@@ -930,6 +1173,7 @@ class _DateField extends StatelessWidget {
     final selected = date;
 
     return Padding(
+      key: fieldKey,
       padding: const EdgeInsets.only(bottom: 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

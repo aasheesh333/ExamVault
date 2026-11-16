@@ -29,11 +29,17 @@ import 'support/matrix.dart';
 ///    secondary buttons and header text actions all sit at exactly 44).
 ///    Reaching 48 would be a visual redesign of every control, not an a11y
 ///    fix; 44 also satisfies WCAG 2.5.5.
-///  * a walk of the semantics tree for the two bugs this codebase kept
+///  * a walk of the semantics tree for the three bugs this codebase kept
 ///    shipping by hand and fixing widget by widget:
 ///      - the double-read: a node whose label exactly equals its parent's
-///        (the "Notifications, Notifications" signature), and
-///      - a button node with an empty accessible name.
+///        (the "Notifications, Notifications" signature),
+///      - a button node with an empty accessible name, and
+///      - a button node with no action: a `Semantics(button: true)` wrapper
+///        that `excludeSemantics: true` left without the child InkWell's tap
+///        action. TalkBack focuses it, announces "Retry, button", and the
+///        double-tap does nothing — the P0 dead-button defect.
+///    The stock guidelines cannot see the last one: they only inspect nodes
+///    that already carry an action.
 void main() {
   late Directory hiveDir;
   late MatrixEnv env;
@@ -114,9 +120,9 @@ void main() {
   }
 }
 
-/// Walks the live semantics tree for the double-read signature and for
-/// unnamed buttons. Fails with every finding at once, so one run names the
-/// whole problem instead of the first instance.
+/// Walks the live semantics tree for the double-read signature, for unnamed
+/// buttons, and for buttons with no activation action. Fails with every finding
+/// at once, so one run names the whole problem instead of the first instance.
 void expectNoDoubleRead(WidgetTester tester, MatrixPoint point) {
   final problems = <String>[];
 
@@ -159,6 +165,31 @@ void _walk(SemanticsNode node, SemanticsNode? parent, List<String> problems) {
       problems.add(
         'unnamed button: node ${node.id} at ${node.rect} has the button flag '
         'but no label, value or tooltip',
+      );
+    }
+
+    // A node that presents itself as a button must be operable through the
+    // accessibility API. This is the assertion for the `excludeSemantics`
+    // dead-button class: the wrapper kept `button: true` while dropping the
+    // child InkWell's tap action, so TalkBack announced "Retry, button" and a
+    // double-tap did nothing. Long-press is accepted as the activation action
+    // for controls that only expose that.
+    //
+    // Explicitly disabled nodes are exempt: a disabled control is announced
+    // "dimmed" and correctly exposes no action (that is what `enabled: false`
+    // is for). The exemption is narrow — it only applies when the node carries
+    // `hasEnabledState` AND `isEnabled` is false, never to a control that simply
+    // forgot its action.
+    final disabled = data.flagsCollection.isEnabled.toBoolOrNull() == false;
+    if (data.flagsCollection.isButton &&
+        !disabled &&
+        !data.hasAction(SemanticsAction.tap) &&
+        !data.hasAction(SemanticsAction.longPress)) {
+      problems.add(
+        'dead button: node ${node.id} at ${node.rect} has the button flag but '
+        'no tap or long-press action'
+        '${label.isEmpty ? '' : ' ("$label")'} — a screen reader can focus it '
+        'and nothing happens',
       );
     }
   }

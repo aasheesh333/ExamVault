@@ -42,12 +42,27 @@ class EvCard extends StatelessWidget {
       explicitChildNodes: true,
       label: semanticLabel,
       button: onTap != null,
+      // `explicitChildNodes` also splits the card's own InkWell into a child
+      // node, so its tap action never reached this labelled node: TalkBack
+      // focused the card ("… Open notice details, button") and the double-tap
+      // did nothing while the action sat on an unnamed child. The wrapper
+      // carries the action itself.
+      onTap: onTap,
       child: Material(
         color: color ?? p.surface,
         borderRadius: BorderRadius.circular(radius),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onTap,
+          // A labelled, tappable card produced TWO focus stops: this wrapper
+          // ("Open notice details", button, tap) and the InkWell's own node
+          // ("SSC CGL Tier-1 2026 / Result out", focus, tap). A screen reader
+          // read the summary and then the raw content, both activating the same
+          // callback. Excluding the InkWell's semantics drops only its own tap
+          // node — the child text nodes stay — so the labelled wrapper is the
+          // one stop. Unlabelled cards keep the InkWell node (there is no
+          // wrapper label to announce instead).
+          excludeFromSemantics: onTap != null && semanticLabel != null,
           borderRadius: BorderRadius.circular(radius),
           splashColor: p.accent.withValues(alpha: 0.08),
           highlightColor: p.accent.withValues(alpha: 0.04),
@@ -101,7 +116,12 @@ class EvSectionHeader extends StatelessWidget {
     // title collapsed to "MY ADMIT C…" while "2 saved" and "Add" stayed full size.
     // Past 1.4x they stack instead of fighting.
     final scale = MediaQuery.textScalerOf(context).scale(1);
-    final stacked = trailing != null && scale > 1.4;
+    // Wrapping is independent of `stacked`: "WHERE THE DATA COMES FROM" and
+    // "WHY WE NEVER HOST THE PDF" have no trailing action, so `stacked` was
+    // false and they stayed at one line — ellipsised mid-phrase at 320 @2.0x.
+    // Two lines is enough for every label in the app at the 2.0x ceiling.
+    final wrapTitle = scale > 1.4;
+    final stacked = trailing != null && wrapTitle;
 
     final title = Semantics(
       // Header text is a label, never a control — and a *heading*: heading
@@ -115,7 +135,7 @@ class EvSectionHeader extends StatelessWidget {
       child: Text(
         label.toUpperCase(),
         style: context.type.microLabel,
-        maxLines: stacked ? 2 : 1,
+        maxLines: wrapTitle ? 2 : 1,
         overflow: TextOverflow.ellipsis,
       ),
     );
@@ -184,10 +204,14 @@ class EvTextAction extends StatelessWidget {
       container: true,
       // `excludeSemantics` collapses the child Text into this single node, so the
       // action is announced once ("Add, button") instead of twice with a
-      // duplicated label.
+      // duplicated label. It also drops the InkWell's own semantics, so this
+      // wrapper must carry the tap action itself: without `onTap` the node was
+      // announced as "Add, button" with zero actions and TalkBack's double-tap
+      // did nothing.
       excludeSemantics: true,
       button: true,
       label: label,
+      onTap: onPressed,
       child: InkWell(
         onTap: onPressed,
         borderRadius: BorderRadius.circular(EvRadius.pill),
@@ -225,6 +249,52 @@ class EvTextAction extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Synchronous single-flight guard for "open a modal sheet" callbacks.
+///
+/// `showModalBottomSheet` inserts its barrier a frame *after* it is called, so a
+/// fast double tap on the trigger stacked a second sheet on the first — the
+/// About panel, the exam detail sheet and the vault form all did, and the alerts
+/// bell needed the same guard inline (`command_center_screen.dart`,
+/// `_alertsOpen`). The flag is read and set synchronously before the first
+/// await, which is the only window a second tap has.
+///
+/// How many instances depends on the sheet, not on the button:
+///
+///  * **One per trigger** (a `State` field) when different triggers legitimately
+///    open *different* sheets — the About button, the delete confirmation. Two
+///    independent buttons must not block each other.
+///  * **One process-wide instance** when a second instance of the *same* sheet
+///    is never valid, whatever opened it — `showVaultFormSheet` holds a single
+///    module-level guard, because two credential forms on screen is a defect
+///    from any call site.
+class SheetOpenGuard {
+  bool _open = false;
+
+  /// True while the sheet this guard opened is still on screen.
+  bool get isOpen => _open;
+
+  /// Runs [open] unless a sheet from this guard is already open.
+  ///
+  /// Returns `null` when the call was ignored, otherwise the sheet's result.
+  Future<T?> run<T>(Future<T?> Function() open) async {
+    if (_open) return null;
+    _open = true;
+    try {
+      return await open();
+    } finally {
+      _open = false;
+    }
+  }
+
+  /// Clears the flag without waiting for [run]'s future.
+  ///
+  /// For a guard whose sheet may be torn down before its route future resolves
+  /// (a Navigator disposed with the sheet still open). The owning widget calls
+  /// this from `dispose()` so a wedged guard cannot leave the trigger dead.
+  /// Idempotent, and safe alongside [run]'s own `finally`.
+  void release() => _open = false;
 }
 
 /// A vertically centred block that scrolls when it cannot fit.

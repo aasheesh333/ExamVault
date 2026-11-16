@@ -331,10 +331,15 @@ void main() {
     expect(find.descendant(of: bell, matching: find.text('6')), findsNothing);
 
     await tester.tap(bell);
-    await tester.pumpAndSettle();
-    // The loading feed renders as an empty inbox — the misleading copy that
-    // used to trigger the unconditional markSeen.
-    expect(find.text('Nothing needs your attention.'), findsOneWidget);
+    // Bounded pumps, not pumpAndSettle: the loading state now renders an
+    // indeterminate CircularProgressIndicator, and an animation that never
+    // ends never settles.
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    // The loading feed says it is checking. It used to render as an empty
+    // inbox — the misleading copy that triggered the unconditional markSeen.
+    expect(find.text('Checking for updates…'), findsOneWidget);
+    expect(find.text('Nothing needs your attention.'), findsNothing);
 
     await tester.tap(find.byIcon(Icons.close_rounded));
     await tester.pumpAndSettle();

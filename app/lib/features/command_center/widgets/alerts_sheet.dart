@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_theme.dart';
+import '../../../core/theme/theme_tokens.dart';
 import '../../../data/models/live_feed_dto.dart';
+import '../../../data/repositories/live_feed_repository.dart';
 import '../../../domain/entities/live_update.dart';
 import '../../../providers/app_providers.dart';
 import '../../../shared/widgets/ev_surfaces.dart';
@@ -18,10 +20,11 @@ import '../../shell/root_shell.dart';
 /// newest first, with the badge clearing once it has been read.
 ///
 /// Completes with whether the sheet actually rendered a **loaded, non-empty**
-/// alert list. The caller gates `markSeen` on this: while the feed is loading
-/// the sheet shows "Nothing needs your attention.", and opening the bell in
-/// that window used to stamp every already-published alert as seen — the badge
-/// could never come back for them.
+/// alert list. The caller gates `markSeen` on this: opening the bell while the
+/// feed was still loading used to stamp every already-published alert as seen —
+/// the badge could never come back for them. The sheet now says it is checking
+/// in that window instead of claiming an empty inbox, but the contract is
+/// unchanged: only a loaded, non-empty, non-loading list counts as read.
 Future<bool> showAlertsSheet(BuildContext context, WidgetRef ref) async {
   var renderedLoadedAlerts = false;
   await showModalBottomSheet<void>(
@@ -62,12 +65,69 @@ class _AlertsSheet extends ConsumerWidget {
             .toList()
           ..sort((a, b) => b.publishedAt.compareTo(a.publishedAt));
 
+    // "Still asking", "the ask failed" and "the answer was nothing" are three
+    // different facts, and this sheet used to render all of them as the third:
+    // a cold start or a dead edge with nothing cached showed "Nothing needs your
+    // attention." — the most alarming lie the app can tell on result day.
+    //
+    // `AsyncLoading` alone is not enough to detect "still asking". Production
+    // never enters it: `LiveFeedNotifier.build` answers from
+    // `readCached() ?? emptySnapshot()` *synchronously* and refreshes with
+    // `unawaited(...)`, so on a fresh install the provider is
+    // `AsyncData(empty, source: none, error: null)` for the whole first fetch —
+    // the network timeout on result day. `FeedSource.none` is produced only by
+    // `emptySnapshot()`, i.e. only before anything has ever answered; a real
+    // empty answer arrives as `network` (the edge said zero rows) or `cache` (a
+    // stored document says zero rows). So the sentinel is the signal.
+    final snapshot = feedAsync.value;
+    final neverAnswered =
+        // A rejected build is a failed check, not a pending one — without this
+        // guard a retained sentinel would show a spinner forever instead of the
+        // failure card.
+        !feedAsync.hasError &&
+        snapshot?.source == FeedSource.none &&
+        snapshot?.error == null &&
+        (snapshot?.feed.updates.isEmpty ?? true);
+    final checking =
+        (!feedAsync.hasValue && feedAsync.isLoading) || neverAnswered;
+
+    // The provider only rejects when it fails before a snapshot exists (a
+    // storage fault reading the Hive cache); a *network* failure never lands
+    // there, because `LiveFeedRepository.refresh` catches it and returns a
+    // snapshot with `error` set. Both are the same fact to the reader — the
+    // check did not complete — so both resolve to one reason below. Neither
+    // sentence names a cause: a provider rejection is storage, not the network.
+    const providerFailure = 'The live feed could not be read.';
+    final repositoryFailure = snapshot?.error;
+
+    // `hasError` is checked even when a value survived: Riverpod keeps the
+    // previous snapshot inside an error state, and an empty snapshot plus a
+    // rejection is still a failed check, not a quiet inbox.
+    final String? failureReason =
+        feedAsync.hasError && repositoryFailure == null
+        ? providerFailure
+        : repositoryFailure;
+
     // `isLoading` is part of the check: after an invalidate Riverpod keeps the
     // previous value *inside* the loading state, and rows painted from a feed
     // that is still resolving must not count as read.
     if (alerts.isNotEmpty && feedAsync.hasValue && !feedAsync.isLoading) {
       onLoadedAlertsRendered?.call();
     }
+
+    // The subtitle has to describe the body, not the count: "Nothing needs your
+    // attention" above a spinner or a failure was the same lie one line up.
+    // With cached rows the failure is the card's job — the subtitle counts what
+    // the reader can actually see, as the radar's header does.
+    final subtitle = checking
+        ? 'Checking for updates…'
+        : failureReason != null && alerts.isEmpty
+        ? 'Could not check for updates.'
+        : switch (alerts.length) {
+            0 => 'Nothing needs your attention.',
+            1 => '1 update needs a look',
+            final n => '$n updates need a look',
+          };
 
     return Container(
       decoration: BoxDecoration(
@@ -125,11 +185,7 @@ class _AlertsSheet extends ConsumerWidget {
                           Text('Alerts', style: context.type.sectionTitle),
                           const SizedBox(height: 2),
                           Text(
-                            switch (alerts.length) {
-                              0 => 'Nothing needs your attention.',
-                              1 => '1 update needs a look',
-                              final n => '$n updates need a look',
-                            },
+                            subtitle,
                             // Two lines maximum, so a long subtitle can never push
                             // the list out of the sheet.
                             maxLines: 2,
@@ -176,7 +232,11 @@ class _AlertsSheet extends ConsumerWidget {
                 // different left edges in one sheet.
                 padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
                 children: [
-                  if (alerts.isEmpty)
+                  if (checking)
+                    const _CheckingForUpdates()
+                  else if (failureReason != null && alerts.isEmpty)
+                    _FeedFailureCard(reason: failureReason)
+                  else if (alerts.isEmpty)
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 20),
                       child: Text(
@@ -186,7 +246,12 @@ class _AlertsSheet extends ConsumerWidget {
                         style: context.type.bodyMuted,
                       ),
                     )
-                  else
+                  else ...[
+                    // Cached rows survived a failed refresh, so they stay — but
+                    // the sheet says the refresh failed above them instead of
+                    // letting them read as a fresh check.
+                    if (failureReason != null)
+                      _FeedFailureCard(reason: failureReason),
                     EvCard(
                       padding: EdgeInsets.zero,
                       onTap: null,
@@ -210,11 +275,150 @@ class _AlertsSheet extends ConsumerWidget {
                         ],
                       ),
                     ),
+                  ],
                 ],
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _CheckingForUpdates extends StatelessWidget {
+  const _CheckingForUpdates();
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.ev;
+    return Padding(
+      // Vertical only: the ListView already insets its children by 20px, and an
+      // extra horizontal inset here put the spinner at x=40 while the header
+      // and the failure card sit at x=20.
+      padding: const EdgeInsets.symmetric(vertical: EvSpace.x1),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: p.textTertiary,
+            ),
+          ),
+          const SizedBox(width: EvSpace.x3),
+          Expanded(
+            // Deliberately not the subtitle's words again: the header already
+            // says "Checking for updates…", so the body carries the *why*.
+            child: Text(
+              'New results and admit cards appear here as soon as the feed '
+              'answers.',
+              style: context.type.bodyMuted,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The inbox's honest failure surface, mirroring the radar's `_FeedErrorCard`.
+///
+/// `LiveFeedSnapshot.error` is the message the repository attached to a failed
+/// refresh; without this card an empty feed with an error rendered exactly like
+/// a genuinely quiet inbox. A Column, not a Row: at 320px @ 2.0x the reason and
+/// the Retry action cannot share a line with the icon.
+class _FeedFailureCard extends ConsumerWidget {
+  const _FeedFailureCard({required this.reason});
+
+  final String reason;
+
+  /// Imperative verbs that describe a *gesture* this sheet cannot offer.
+  static const _gestureVerbs = ['Pull', 'Swipe', 'Drag'];
+
+  /// The repository's diagnostic, with any gesture instruction dropped.
+  ///
+  /// `LiveFeedRepository.refresh` ends its generic failure with "Pull to
+  /// retry." — true of the radar, which has a `RefreshIndicator`, and false
+  /// here: a modal sheet has nothing to pull, so that sentence described a
+  /// gesture that did nothing.
+  ///
+  /// The split is on the *gesture verb*, not on that exact string, so a
+  /// repository copy change ("Pull down to refresh.", "Swipe down to retry.")
+  /// still cannot start telling a modal reader to pull. The diagnostic
+  /// sentence(s) before it are kept verbatim: they are the only text that knows
+  /// why the check failed, and the honesty rules forbid paraphrasing them.
+  static String diagnosticOf(String reason) {
+    final text = reason.trim();
+    final boundary = text.lastIndexOf('. ');
+    if (boundary < 0) {
+      // A single sentence: keep it, unless it *is* a gesture instruction — in
+      // which case there is no diagnostic to show and the card keeps only its
+      // own heading and the affordance it can honour.
+      return _isGestureInstruction(text) ? '' : text;
+    }
+    if (!_isGestureInstruction(text.substring(boundary + 2))) return text;
+    // Recurse on the head so stacked instructions ("… Pull to retry. Swipe down
+    // to refresh.") are all dropped.
+    return diagnosticOf(text.substring(0, boundary + 1));
+  }
+
+  static bool _isGestureInstruction(String sentence) {
+    final trimmed = sentence.trim();
+    if (trimmed.isEmpty) return false;
+    return _gestureVerbs.contains(trimmed.split(RegExp(r'\s+')).first);
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final p = context.ev;
+    final diagnostic = diagnosticOf(reason);
+    return EvCard(
+      color: p.warning.withValues(alpha: 0.07),
+      borderColor: p.warning.withValues(alpha: 0.35),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.cloud_off_rounded, color: p.warning, size: 20),
+              const SizedBox(width: EvSpace.x3),
+              Expanded(
+                child: Text(
+                  // Not "Could not check for updates." — the header subtitle
+                  // already says exactly that, and two identical sentences in
+                  // one card read as a stutter.
+                  'The check failed',
+                  style: context.type.label.copyWith(color: p.warningText),
+                ),
+              ),
+            ],
+          ),
+          if (diagnostic.isNotEmpty) ...[
+            const SizedBox(height: EvSpace.x2),
+            Text(
+              diagnostic,
+              style: context.type.bodyMuted.copyWith(color: p.warningText),
+            ),
+          ],
+          const SizedBox(height: EvSpace.x1),
+          // The affordance the reader actually has. Without it the only
+          // instruction on screen was the repository's "Pull to retry."
+          Text(
+            'Tap Retry to check again.',
+            style: context.type.bodyMuted.copyWith(color: p.warningText),
+          ),
+          Align(
+            alignment: Alignment.centerRight,
+            child: EvTextAction(
+              label: 'Retry',
+              icon: Icons.refresh_rounded,
+              color: p.warningText,
+              onPressed: () => ref.invalidate(liveFeedProvider),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -247,8 +451,15 @@ class _AlertRow extends StatelessWidget {
           ),
         ),
         child: Row(
+          // spaceBetween so the pill keeps its right edge flush when it does not
+          // need its whole flex share (at 1.0x it is narrower than its share).
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
+            // flex 3 vs 2: the exam name is the row's subject and must always be
+            // the wider of the two. An even split capped it at half the row,
+            // which at 320px @ 2.0x is narrower than the pill.
             Expanded(
+              flex: 3,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -267,7 +478,22 @@ class _AlertRow extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 10),
-            EvStatusPill.status(update.status, compact: true),
+            // Flexible: as a non-flex child at 320px @ 2.0x the "ADMIT CARD
+            // LIVE" pill's intrinsic width (~230 of the 248 available px) ate
+            // the row and collapsed the exam name to a sliver. As a flex child
+            // it gets bounded.
+            Flexible(
+              flex: 2,
+              // scaleDown, right-aligned: the pill lays its label out
+              // unbounded, so its ellipsis never engages; scaling keeps the
+              // label whole and inside the row. Same fix as
+              // `live_radar_tile.dart`.
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerRight,
+                child: EvStatusPill.status(update.status, compact: true),
+              ),
+            ),
           ],
         ),
       ),

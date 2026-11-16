@@ -988,6 +988,3 @@ class _PolicySheet extends ConsumerWidget {
     );
   }
 }
-
-/// Small shortcut used by the top bar.
-void openAbout(BuildContext context) => showAboutSheet(context);

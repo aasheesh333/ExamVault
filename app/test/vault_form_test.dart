@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -13,6 +14,8 @@ import 'package:examvault/features/vault/vault_form_sheet.dart';
 import 'package:examvault/providers/app_providers.dart';
 import 'package:examvault/shared/widgets/ev_controls.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_ce/hive.dart';
@@ -179,6 +182,31 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  /// Captures the messages the form sends to the platform screen reader.
+  List<String> captureAnnouncements() {
+    final messages = <String>[];
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockDecodedMessageHandler<dynamic>(
+      SystemChannels.accessibility,
+      (message) async {
+        final event = message as Map<dynamic, dynamic>;
+        if (event['type'] == 'announce') {
+          final data = event['data'] as Map<dynamic, dynamic>;
+          messages.add(data['message'] as String);
+        }
+        return null;
+      },
+    );
+    addTearDown(
+      () => messenger.setMockDecodedMessageHandler<dynamic>(
+        SystemChannels.accessibility,
+        null,
+      ),
+    );
+    return messages;
+  }
+
   String rollValue(WidgetTester tester) {
     final field = find.byType(TextFormField).at(4);
     return tester
@@ -257,6 +285,99 @@ void main() {
     });
   });
 
+  group('field semantics', () {
+    /// The semantics node a screen reader focuses for the field at [index].
+    SemanticsData nodeFor(WidgetTester tester, int index) => tester
+        .getSemantics(
+          find.descendant(
+            of: find.byType(TextFormField).at(index),
+            matching: find.byType(EditableText),
+          ),
+        )
+        .getSemanticsData();
+
+    testWidgets('every field is named by its label, not its hint', (
+      tester,
+    ) async {
+      // The handle is disposed in the body, not via addTearDown: the
+      // framework's end-of-test check runs before tearDowns.
+      final handle = tester.ensureSemantics();
+      try {
+        useTallViewport(tester);
+        await tester.pumpWidget(harness(const _FormHost()));
+        await tester.tap(find.text('Open form'));
+        await tester.pumpAndSettle();
+
+        // TalkBack used to read the *hint* — "Street, area, city" for the field
+        // labelled "Centre address", "e.g. Gate 2" for "Gate" — so twelve
+        // fields on the credential-entry form sounded identical.
+        expect(nodeFor(tester, 0).label, 'Your name (optional)');
+        expect(nodeFor(tester, 1).label, 'Exam name');
+        expect(nodeFor(tester, 4).label, 'Roll number');
+        expect(nodeFor(tester, 8).label, 'Centre address');
+        expect(nodeFor(tester, 11).label, 'Gate');
+
+        // The label has to merge *onto* the field, not replace it: a wrapper
+        // that took the name but dropped the text-field role would leave the
+        // label readable and the field unusable.
+        final examName = nodeFor(tester, 1);
+        expect(examName.flagsCollection.isTextField, isTrue);
+        await tester.enterText(find.byType(TextFormField).at(1), 'SSC CHSL');
+        await tester.pump();
+        final typed = nodeFor(tester, 1);
+        expect(typed.label, 'Exam name');
+        expect(typed.value, 'SSC CHSL');
+        expect(typed.flagsCollection.isTextField, isTrue);
+      } finally {
+        handle.dispose();
+      }
+    });
+
+    testWidgets('the hint is still rendered under the label', (tester) async {
+      useTallViewport(tester);
+      await tester.pumpWidget(harness(const _FormHost()));
+      await tester.tap(find.text('Open form'));
+      await tester.pumpAndSettle();
+
+      // Naming the field must not cost the example under it: Material's
+      // `labelText` hides `hintText` whenever the label is inline, which would
+      // have blanked every hint on this form.
+      final hint = find.text('Street, area, city');
+      expect(hint, findsOneWidget);
+      final faded = tester
+          .widgetList<AnimatedOpacity>(
+            find.ancestor(of: hint, matching: find.byType(AnimatedOpacity)),
+          )
+          .any((w) => w.opacity == 0);
+      expect(faded, isFalse);
+    });
+
+    testWidgets('the password toggle has a name and a tap action', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      try {
+        useTallViewport(tester);
+        await tester.pumpWidget(harness(const _FormHost()));
+        await tester.tap(find.text('Open form'));
+        await tester.pumpAndSettle();
+
+        // It used to be a bare "Button" on the most sensitive field.
+        final toggle = find.byTooltip('Show password');
+        expect(toggle, findsOneWidget);
+        final data = tester.getSemantics(toggle).getSemanticsData();
+        expect(data.tooltip, 'Show password');
+        expect(data.hasAction(SemanticsAction.tap), isTrue);
+
+        await tester.tap(toggle);
+        await tester.pump();
+        expect(find.byTooltip('Hide password'), findsOneWidget);
+      } finally {
+        handle.dispose();
+      }
+    });
+  });
+
   group('roll number', () {
     testWidgets('accepts an alphanumeric roll and upper-cases it', (
       tester,
@@ -308,10 +429,42 @@ void main() {
       await tester.tap(find.text('Save to vault'));
       await tester.pumpAndSettle();
 
-      expect(
-        find.text('Choose the exam date — tap the field above.'),
-        findsOneWidget,
+      expect(find.text('Choose the exam date before saving.'), findsOneWidget);
+      expect(store.raw['__index'], isNull);
+    });
+
+    testWidgets('a missing date scrolls the date field into view', (
+      tester,
+    ) async {
+      // Phone-sized: the date is a hard save blocker but sits five rows above
+      // Save, so "tap the field above" pointed at nothing.
+      tester.view.physicalSize = const Size(400, 700);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      await tester.pumpWidget(harness(const _FormHost()));
+      await tester.tap(find.text('Open form'));
+      await tester.pumpAndSettle();
+
+      // Name and roll valid: the date is the only thing blocking the save.
+      await fill(tester, ['', 'SSC CHSL 2026', '', '', 'A1234567']);
+      await tester.drag(
+        find.byType(SingleChildScrollView),
+        const Offset(0, -2000),
       );
+      await tester.pumpAndSettle();
+      final date = find.text('Not set — tap to choose');
+      final before = tester.getRect(date).top;
+
+      await tester.tap(find.text('Save to vault'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Choose the exam date before saving.'), findsOneWidget);
+      // The field was not just named, it was scrolled up towards the top of the
+      // sheet (as far as the content below it allows).
+      expect(date.hitTestable(), findsOneWidget);
+      expect(tester.getRect(date).top, lessThan(before));
+      expect(tester.getRect(date).top, lessThan(300));
       expect(store.raw['__index'], isNull);
     });
 
@@ -358,6 +511,74 @@ void main() {
       );
       final index = jsonDecode(store.raw['__index']!) as List<dynamic>;
       expect(index, ['chsl']);
+    });
+
+    testWidgets('waits for the vault to open instead of skipping the check', (
+      tester,
+    ) async {
+      useTallViewport(tester);
+      final gate = Completer<void>();
+      store = _MemoryStore(indexGate: gate);
+      // A card with exactly the exam + roll the form is about to save.
+      await seed(card());
+
+      await tester.pumpWidget(harness(const _FormHost()));
+      await tester.tap(find.text('Open form'));
+      await tester.pumpAndSettle();
+
+      await fill(tester, ['', 'SSC CHSL 2026', '', '', '2201098765']);
+      await pickToday(tester);
+
+      await tester.tap(find.text('Save to vault'));
+      await tester.pump();
+
+      // The vault is still opening: `.value ?? const []` used to read that as
+      // "no cards" and save the duplicate. The button now stays busy while the
+      // check waits.
+      expect(
+        tester.widget<EvPrimaryButton>(find.byType(EvPrimaryButton)).busy,
+        isTrue,
+      );
+      expect(store.raw['__index'], isNotNull);
+
+      gate.complete();
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('You already saved this card — same exam and roll number.'),
+        findsOneWidget,
+      );
+      final index = jsonDecode(store.raw['__index']!) as List<dynamic>;
+      expect(index, ['chsl']);
+    });
+
+    testWidgets('an unreadable vault refuses the save and says so', (
+      tester,
+    ) async {
+      final announced = captureAnnouncements();
+      useTallViewport(tester);
+      // The Keystore read throws: the duplicate check cannot run at all.
+      store = _MemoryStore(failIndex: true);
+
+      await tester.pumpWidget(harness(const _FormHost()));
+      await tester.tap(find.text('Open form'));
+      await tester.pumpAndSettle();
+
+      await fill(tester, ['', 'SSC CHSL 2026', '', '', 'A1234567']);
+      await pickToday(tester);
+      await tester.tap(find.text('Save to vault'));
+      await tester.pumpAndSettle();
+
+      // The refusal names the outcome (not saved) as well as the cause, and it
+      // is spoken, not only painted.
+      expect(find.textContaining('has not been saved yet'), findsOneWidget);
+      expect(
+        announced.any((m) => m.contains('has not been saved yet')),
+        isTrue,
+      );
+      // Nothing was written: an unchecked save is not a save.
+      expect(store.raw, isEmpty);
+      expect(store.attemptedWriteIds, isEmpty);
     });
 
     testWidgets('an optional name survives save', (tester) async {
@@ -439,6 +660,160 @@ void main() {
       expect(find.text('Enter the exam name').hitTestable(), findsOneWidget);
       // Nothing was saved.
       expect(store.raw['__index'], isNull);
+    });
+  });
+
+  group('save bounds', () {
+    testWidgets('a hung write times out into the error path with Retry', (
+      tester,
+    ) async {
+      final announced = captureAnnouncements();
+      useTallViewport(tester);
+      // Writes never complete: the Keystore hang that used to leave the sheet
+      // saving forever.
+      store = _MemoryStore(hangWrites: true);
+
+      await tester.pumpWidget(harness(const _FormHost()));
+      await tester.tap(find.text('Open form'));
+      await tester.pumpAndSettle();
+
+      await fill(tester, ['', 'SSC CHSL 2026', '', '', 'A1234567']);
+      await pickToday(tester);
+      await tester.tap(find.text('Save to vault'));
+      // The busy spinner animates forever, so pumpAndSettle would never settle.
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(
+        tester.widget<EvPrimaryButton>(find.byType(EvPrimaryButton)).busy,
+        isTrue,
+      );
+
+      // A close attempt during the save must say what is happening instead of
+      // hitting `if (_saving) return;` in silence. "Working", not "saving":
+      // the same wait can be the duplicate check reading the vault.
+      await tester.binding.handlePopRoute();
+      await tester.pump();
+      expect(find.text('Still working on your card…'), findsOneWidget);
+      expect(find.text('Add admit card'), findsOneWidget);
+
+      // Past the 15 s ceiling the write is abandoned: an error with Retry, not
+      // a permanent spinner.
+      await tester.pump(const Duration(seconds: 16));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.textContaining('Saving took too long'), findsOneWidget);
+      expect(find.text('Retry'), findsOneWidget);
+      expect(
+        tester.widget<EvPrimaryButton>(find.byType(EvPrimaryButton)).busy,
+        isFalse,
+      );
+      expect(
+        announced.any((m) => m.startsWith('Saving took too long')),
+        isTrue,
+      );
+      expect(store.raw['__index'], isNull);
+    });
+
+    testWidgets('a refused save is announced, not only painted', (
+      tester,
+    ) async {
+      final announced = captureAnnouncements();
+      useTallViewport(tester);
+      await tester.pumpWidget(harness(const _FormHost()));
+      await tester.tap(find.text('Open form'));
+      await tester.pumpAndSettle();
+
+      await fill(tester, ['', 'SSC CHSL 2026', '', '', 'A1234567']);
+      await tester.tap(find.text('Save to vault'));
+      await tester.pumpAndSettle();
+
+      // A screen-reader user tapping Save used to hear nothing at all.
+      expect(announced, contains('Choose the exam date before saving.'));
+    });
+
+    testWidgets('the refusal and the error rows are live regions', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      try {
+        useTallViewport(tester);
+        store = _MemoryStore(hangWrites: true);
+        await tester.pumpWidget(harness(const _FormHost()));
+        await tester.tap(find.text('Open form'));
+        await tester.pumpAndSettle();
+
+        await fill(tester, ['', 'SSC CHSL 2026', '', '', 'A1234567']);
+        await tester.tap(find.text('Save to vault'));
+        await tester.pumpAndSettle();
+        final notice = find.text('Choose the exam date before saving.');
+        expect(
+          tester
+              .getSemantics(notice)
+              .getSemanticsData()
+              .flagsCollection
+              .isLiveRegion,
+          isTrue,
+        );
+
+        await pickToday(tester);
+        await tester.tap(find.text('Save to vault'));
+        await tester.pump();
+        await tester.pump(const Duration(seconds: 16));
+        await tester.pump();
+        final error = find.textContaining('Saving took too long');
+        expect(
+          tester
+              .getSemantics(error)
+              .getSemanticsData()
+              .flagsCollection
+              .isLiveRegion,
+          isTrue,
+        );
+      } finally {
+        handle.dispose();
+      }
+    });
+
+    testWidgets('a retry after a timeout saves one card, not two', (
+      tester,
+    ) async {
+      useTallViewport(tester);
+      store = _MemoryStore();
+      // The first write takes 20 s: the form stops waiting at 15 s, but the
+      // write still lands. This is the race a Retry has to survive — a slow
+      // Keystore write that arrives after the user has tapped again.
+      store.nextWriteDelay = const Duration(seconds: 20);
+
+      await tester.pumpWidget(harness(const _FormHost()));
+      await tester.tap(find.text('Open form'));
+      await tester.pumpAndSettle();
+
+      await fill(tester, ['', 'SSC CHSL 2026', '', '', 'A1234567']);
+      await pickToday(tester);
+      await tester.tap(find.text('Save to vault'));
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 16));
+      await tester.pump();
+
+      expect(find.textContaining('Saving took too long'), findsOneWidget);
+      // The write is still in flight: nothing in the vault yet.
+      expect(store.raw.containsKey('__index'), isFalse);
+
+      // Retry while the first write is still pending, then let it land.
+      await tester.tap(find.text('Retry'));
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 6));
+      await tester.pumpAndSettle();
+
+      final cards = store.raw.keys.where((k) => k != '__index').toList();
+      expect(cards, hasLength(1));
+      // Retry reused the id the first attempt used, so its write overwrote that
+      // card instead of minting a second one for the same exam + roll.
+      expect(store.attemptedWriteIds, hasLength(2));
+      expect(store.attemptedWriteIds.toSet(), {cards.single});
+      expect(jsonDecode(store.raw['__index']!) as List<dynamic>, [
+        cards.single,
+      ]);
     });
   });
 
@@ -546,6 +921,32 @@ void main() {
         expect(saved?.rollNumberVerified, isFalse);
       },
     );
+
+    testWidgets('a hyphenated rename keeps the id but still drops VERIFIED', (
+      tester,
+    ) async {
+      useTallViewport(tester);
+      final verified = card().copyWith(rollNumberVerified: true);
+      await seed(verified);
+
+      await tester.pumpWidget(harness(_FormHost(existing: verified)));
+      await tester.tap(find.text('Open form'));
+      await tester.pumpAndSettle();
+
+      // "SSC CHSL 2026" and "SSC-CHSL 2026" both slug to ssc_chsl_2026, so the
+      // resolved id is unchanged and the roll is untouched. Only the name
+      // comparison can tell this is a different exam, and it must drop the
+      // badge — the old roll was verified against the old exam's list.
+      await tester.enterText(find.byType(TextFormField).at(1), 'SSC-CHSL 2026');
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Save to vault'));
+      await tester.pumpAndSettle();
+
+      final saved = AdmitCardCodec.decode(store.raw['chsl']!);
+      expect(saved?.examName, 'SSC-CHSL 2026');
+      expect(saved?.examId, 'ssc_chsl_2026');
+      expect(saved?.rollNumberVerified, isFalse);
+    });
 
     testWidgets('editing the centre code keeps the id and VERIFIED', (
       tester,
@@ -705,10 +1106,40 @@ class _FormHost extends ConsumerWidget {
 
 /// In-memory stand-in for the Keystore-backed store.
 class _MemoryStore implements SecureVaultStore {
+  _MemoryStore({
+    this.indexGate,
+    this.hangWrites = false,
+    this.failIndex = false,
+  });
+
   final Map<String, String> raw = {};
+
+  /// Blocks every index read until it completes: simulates a Keystore read
+  /// still in flight when the form opens.
+  final Completer<void>? indexGate;
+
+  /// Makes [readIndex] throw: a vault the form cannot read at all.
+  final bool failIndex;
+
+  /// Makes [writeRaw] never complete: simulates the hung Keystore write that
+  /// used to leave the form saving forever. Mutable so a test can let a stalled
+  /// write through on a later attempt.
+  bool hangWrites;
+
+  /// How long the *next* [writeRaw] takes before it lands. A write slower than
+  /// the form's 15 s ceiling: the form gives up waiting but the card still
+  /// reaches the store, which is what a Retry has to cope with.
+  Duration? nextWriteDelay;
+
+  /// Every id [writeRaw] was called with, in order — including calls that never
+  /// completed, so a test can prove a Retry reused the first attempt's id.
+  final List<String> attemptedWriteIds = [];
 
   @override
   Future<List<String>> readIndex() async {
+    if (failIndex) throw StateError('keystore unavailable');
+    final gate = indexGate;
+    if (gate != null) await gate.future;
     final value = raw['__index'];
     if (value == null) return const [];
     return (jsonDecode(value) as List).cast<String>();
@@ -723,7 +1154,16 @@ class _MemoryStore implements SecureVaultStore {
   Future<String?> readRaw(String id) async => raw[id];
 
   @override
-  Future<void> writeRaw(String id, String payload) async => raw[id] = payload;
+  Future<void> writeRaw(String id, String payload) async {
+    attemptedWriteIds.add(id);
+    final delay = nextWriteDelay;
+    if (delay != null) {
+      nextWriteDelay = null;
+      await Future<void>.delayed(delay);
+    }
+    if (hangWrites) return Completer<void>().future;
+    raw[id] = payload;
+  }
 
   @override
   Future<void> deleteRaw(String id) async => raw.remove(id);

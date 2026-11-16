@@ -713,6 +713,57 @@ times the applied transform, or assert no `FittedBox` ancestor and that
 
 ---
 
+## Task 17 — Documentation reconciliation (docs only, no code)
+
+**Why a separate task.** Every remaining documentation item is independent of the
+in-flight code tasks and touches no source file, so it can run in parallel. Task
+13 then becomes purely the final gates plus the release notes.
+
+**Files:** `README.md`, `app/README.md`, `INFRA_STATUS.md`, `docs/PLAY_STORE.md`,
+`docs/PRIVACY.md` (only if a claim is still stale after Task 10).
+
+**Do:**
+
+1. **`README.md`'s Screens table is wrong.** It lists four screens; the app ships
+   five tabs (`root_shell.dart`'s `EvTab`: Home, Vault, Dates, Radar, Share). The
+   Dates / Exam Calendar screen is missing entirely, and the numbering (Checker =
+   3, Share = 4) contradicts the tab order. Rewrite the table from the code, with
+   the tab order and one line per screen describing what it actually does now —
+   including the result checker's honest "not in this list" and the share card's
+   privacy switch.
+2. **Both READMEs document a format command CI does not run.**
+   `README.md` and `app/README.md` say
+   `dart format --output=none --set-exit-if-changed lib test`; CI checks
+   `lib test tool`. Correct both.
+3. **`docs/PLAY_STORE.md:206` is now false.** It says the legacy mirror route
+   "still has `pdfBytes`/`pdfUrl` wrappers" — Task 11 deleted both. Rewrite the
+   claim to what is true: no code path downloads a PDF, and the legacy
+   `resultPdfPath` route has no callers.
+4. **Re-verify every `file:line` citation in `docs/PLAY_STORE.md`** against the
+   merged tree. They were written before Tasks 9, 10 and 11 rewrote
+   `about_sheet.dart`, `app_providers.dart` and deleted API. Fix each one that no
+   longer lands on the construct it names; where a citation is now fragile, cite
+   the symbol name instead of a line number.
+5. **Reconcile the "all exam alerts or none" paragraph** in `docs/PLAY_STORE.md`
+   with Task 10's category picker: the picker now exists, so the release is no
+   longer all-or-nothing. Keep the "single Device-or-other-IDs entry" answer,
+   because a picker only narrows which topics the same token subscribes to.
+6. **State the provenance of the 26-permission merged-manifest table.** It cannot
+   be regenerated in this environment (no Android SDK); say where the numbers came
+   from and that a future build should re-derive them.
+7. **`INFRA_STATUS.md`** — check every claim against the current tree: the row
+   counts, the "17 hashed indexes" figure, and the CI description (which now also
+   builds the App Bundle and runs `dart format`). Correct anything that drifted.
+8. **`AppConfig.resultPdfPath`** is now uncalled. Do **not** delete it in this task
+   (it is source, not docs) — instead add a one-line comment marking it as the
+   legacy/fixture-only path, and note in your report that it is a deletion
+   candidate for a future cleanup.
+
+**Acceptance:** every doc claim in the touched files matches the merged code, every
+citation resolves, and no doc still describes behaviour the app does not have.
+
+---
+
 ## Task 13 — Final verification and release notes
 
 **Do:**

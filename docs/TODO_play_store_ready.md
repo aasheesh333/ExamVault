@@ -116,19 +116,19 @@ Audit: `docs/AUDIT_2026-11-16.md`. Ledger: `.superpowers/sdd/PLAN_play_store_rea
 - [x] Commit `feat(about):`
 
 ## Task 10 — Notification categories: make the promise true
-- [~] `FollowedCategoriesNotifier` persisted (`followed_categories`), default = all five
-- [~] `_bootPush` uses the stored set instead of `ExamCategory.values.toSet()`
-- [~] Toggling re-runs `syncTopics` immediately (optimistic, log-only failure)
-- [~] Empty set allowed, with an explicit "you will not get exam alerts" message
-- [~] About UI: chips under a "Notifications" section + one-line explanation
-- [~] Hide the section when `!pushService.canDeliver`, and say why
-- [~] Update `docs/PRIVACY.md` to describe the picker (remove "no per-category picker")
-- [~] `docs/PRIVACY.md:34`: document the new one-tap "Delete all data" (cards, settings, cached feed/index; token kept, topics dropped)
-- [~] Keep Play "Data safety" wording consistent
-- [~] Tests: default all five; toggle persists across rebuild; boot sync receives the subset; empty set allowed + announced
-- [~] `ExamAlertsNotifier.toggle`: roll back `state` on a failed write and return the rolled-back set (comment claims this; code does not)
-- [~] Test: a throwing settings write leaves the bell OFF and syncs the rolled-back set
-- [~] Commit `feat(push):`
+- [x] `FollowedCategoriesNotifier` persisted (`followed_categories`), default = all five
+- [x] `_bootPush` uses the stored set instead of `ExamCategory.values.toSet()`
+- [x] Toggling re-runs `syncTopics` immediately (optimistic, log-only failure)
+- [x] Empty set allowed, with an explicit "you will not get exam alerts" message
+- [x] About UI: chips under a "Notifications" section + one-line explanation
+- [x] Hide the section when `!pushService.canDeliver`, and say why
+- [x] Update `docs/PRIVACY.md` to describe the picker (remove "no per-category picker")
+- [x] `docs/PRIVACY.md:34`: document the new one-tap "Delete all data" (cards, settings, cached feed/index; token kept, topics dropped)
+- [x] Keep Play "Data safety" wording consistent
+- [x] Tests: default all five; toggle persists across rebuild; boot sync receives the subset; empty set allowed + announced
+- [x] `ExamAlertsNotifier.toggle`: roll back `state` on a failed write and return the rolled-back set (comment claims this; code does not)
+- [x] Test: a throwing settings write leaves the bell OFF and syncs the rolled-back set
+- [x] Commit `feat(push):`
 
 ## Task 11 — Dead code + documentation drift
 - [x] `status_pill.dart`: delete the unnamed constructor (zero callers, null-asserts)
@@ -158,19 +158,19 @@ Audit: `docs/AUDIT_2026-11-16.md`. Ledger: `.superpowers/sdd/PLAN_play_store_rea
 - [x] Commit `docs(play):`
 
 ## Task 14 — Radar "new since last look" divider + Dates grouping
-- [~] Radar: hairline + "NEW" label at the first row newer than `alertsSeenAt`
-- [~] Never draw it when nothing is unseen
-- [~] Never draw it on a fresh install (`alertsSeenAt` == epoch)
-- [~] Test: divider appears with unseen rows, absent when all seen
-- [~] Dates: group under "This week" / "This month" / "Later"
-- [~] Empty groups are not drawn; existing order preserved exactly
-- [~] Each group header is `Semantics(header: true)`
-- [~] Tests: ordering, absent empty groups, headings exposed
-- [~] 320×568 @2.0× render of both, no overflow
-- [~] Vault header: show `1 of 5` while a query or category filter narrows it
-- [~] Vault header: unchanged wording ("N saved") when nothing is filtered
-- [~] Test: filtered fraction matches the rendered card count
-- [~] Commit `feat(ux):`
+- [x] Radar: hairline + "NEW" label at the first row newer than `alertsSeenAt`
+- [x] Never draw it when nothing is unseen
+- [x] Never draw it on a fresh install (`alertsSeenAt` == epoch)
+- [x] Test: divider appears with unseen rows, absent when all seen
+- [x] Dates: group under "This week" / "This month" / "Later"
+- [x] Empty groups are not drawn; existing order preserved exactly
+- [x] Each group header is `Semantics(header: true)`
+- [x] Tests: ordering, absent empty groups, headings exposed
+- [x] 320×568 @2.0× render of both, no overflow
+- [x] Vault header: show `1 of 5` while a query or category filter narrows it
+- [x] Vault header: unchanged wording ("N saved") when nothing is filtered
+- [x] Test: filtered fraction matches the rendered card count
+- [x] Commit `feat(ux):`
 
 ## Task 15 — CI ships an empty app version
 - [x] `.github/workflows/ci.yml`: version grep path `app/pubspec.yaml` → `pubspec.yaml` (job runs in `app/`)
@@ -180,12 +180,12 @@ Audit: `docs/AUDIT_2026-11-16.md`. Ledger: `.superpowers/sdd/PLAN_play_store_rea
 - [x] Commit `fix(ci):`
 
 ## Task 16 — Radar/alerts pill paints below the type floor at 2.0×
-- [~] Above ~1.4× scale, put the status pill + age on their own line with full row width
-- [~] Drop the `FittedBox` on that path so the label keeps its 11 px token size
-- [~] Same rule in `alerts_sheet.dart` so the two lists match
-- [~] Test: at 320×568 @2.0× the pill label is ≥11 logical px (not just "no overflow")
-- [~] Test: the 320@1.0× arrangement is unchanged
-- [~] Commit `fix(a11y):`
+- [x] Above ~1.4× scale, put the status pill + age on their own line with full row width
+- [x] Drop the `FittedBox` on that path so the label keeps its 11 px token size
+- [x] Same rule in `alerts_sheet.dart` so the two lists match
+- [x] Test: at 320×568 @2.0× the pill label is ≥11 logical px (not just "no overflow")
+- [x] Test: the 320@1.0× arrangement is unchanged
+- [x] Commit `fix(a11y):`
 
 ## Task 17 — Documentation reconciliation (docs only)
 - [x] `README.md` Screens table rewritten from `EvTab`: five tabs in tab order

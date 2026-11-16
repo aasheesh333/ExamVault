@@ -123,6 +123,7 @@ Audit: `docs/AUDIT_2026-11-16.md`. Ledger: `.superpowers/sdd/PLAN_play_store_rea
 - [ ] About UI: chips under a "Notifications" section + one-line explanation
 - [ ] Hide the section when `!pushService.canDeliver`, and say why
 - [ ] Update `docs/PRIVACY.md` to describe the picker (remove "no per-category picker")
+- [ ] `docs/PRIVACY.md:34`: document the new one-tap "Delete all data" (cards, settings, cached feed/index; token kept, topics dropped)
 - [ ] Keep Play "Data safety" wording consistent
 - [ ] Tests: default all five; toggle persists across rebuild; boot sync receives the subset; empty set allowed + announced
 - [ ] Commit `feat(push):`

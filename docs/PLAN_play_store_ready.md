@@ -463,6 +463,12 @@ persisted in the settings box, default = all five), `app/lib/main.dart`,
   `!pushService.canDeliver`, and say why (web builds / no credentials).
 - Update `docs/PRIVACY.md` to describe the picker instead of "no per-category
   picker in this release", and keep the Play "Data safety" wording consistent.
+- **Also document "Delete all data"** (shipped in Task 9): `docs/PRIVACY.md:34`
+  currently says only "Deleting an admit card deletes its entry from the encrypted
+  store. Uninstalling the app removes everything." The app now has an explicit
+  one-tap wipe in About, which is exactly what a privacy-conscious reader looks
+  for. Name it, say what it removes (cards, settings, cached feed/index), and say
+  the push token is kept while its topic subscriptions are dropped.
 - Tests: default is all five; a toggle persists and survives a rebuild; boot sync
   receives the stored subset; empty set is allowed and announced.
 

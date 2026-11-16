@@ -207,8 +207,11 @@ header, the radar empty state and the hero count.
 The OneSignal branch cleared the bells; the FCM branch iterated `_subscribed`, which is in-memory
 only — so a bell subscribed on a previous launch survived the wipe on FCM. It also did nothing at
 all inside the boot window before `initialise()` resolved. Fixed by using the same set on both
-branches and bounding an `initialise()` before the wipe.
-*Cost if wrong:* delete-all takes up to 2 s longer.
+branches, and by replacing the `_initialised` boolean with a **shared init future** so a caller
+that awaits initialisation waits for the real answer instead of being told "disabled" while the
+SDK is still starting. (The implementer's shape was better than the bounded timeout I asked for:
+it closes the race at its source rather than hiding it behind a deadline.)
+*Cost if wrong:* a wipe that races boot waits for the SDK instead of returning immediately.
 
 **25. Two Play Store screenshots showed a UI the app no longer had.** They predated the Dates
 grouping and the pill fix, so the listing showed ungrouped dates and the pre-fix radar row —

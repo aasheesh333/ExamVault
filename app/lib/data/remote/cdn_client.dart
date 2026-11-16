@@ -403,12 +403,12 @@ class CdnClient {
     await _cache.deleteAll(oldest.take(excess));
   }
 
-  /// Last-known payload with no freshness requirement — instant boot.
-  CdnPayload? peek(String path) {
-    final url = path.startsWith('http') ? path : '$baseUrl$path';
-    return _readCache(url);
-  }
-
+  /// Drops every cached payload and forgets in-flight reads.
+  ///
+  /// Deliberately kept although nothing calls it yet: the Settings "Delete all
+  /// data" action must clear the CDN cache as well as the vault, and this is the
+  /// only path that does. Removing it would leave that flow with no way to
+  /// honour the promise it makes.
   Future<void> evictAll() async {
     _inflight.clear();
     _generation.clear();

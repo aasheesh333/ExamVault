@@ -145,18 +145,6 @@ class ResultIndexRepository {
     }
   }
 
-  Future<Uint8List> pdfBytes(String examId) async {
-    final payload = await _cdn.get(
-      AppConfig.resultPdfPath(examId),
-      freshWindow: const Duration(days: 1),
-    );
-    return payload.bytes;
-  }
-
-  /// Direct edge URL for the result PDF of [examId].
-  String pdfUrl(String examId) =>
-      '${AppConfig.cdnBase}${AppConfig.resultPdfPath(examId)}';
-
   /// Public web fallback for an exam, or null when no web base is configured.
   ///
   /// Returning null keeps the app from printing a link to a domain it does not
@@ -175,6 +163,4 @@ class ResultIndexRepository {
         : base;
     return '$normalized/r/$examId';
   }
-
-  void clearMemo() => _memo.clear();
 }

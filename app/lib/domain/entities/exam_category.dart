@@ -27,8 +27,3 @@ enum ExamCategory {
     return null;
   }
 }
-
-/// Chips on the Command Center. `null` == "All".
-extension ExamCategoryFilter on ExamCategory {
-  static const all = 'all';
-}

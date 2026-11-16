@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/theme_tokens.dart';
@@ -8,13 +9,21 @@ import '../../../shared/widgets/status_pill.dart';
 
 /// One row of the Live Radar.
 ///
-/// Layout is a 3-column grid inside a 62px row: 36px icon tile, flexible copy,
-/// right-aligned status + age. The age is the quietest element on purpose — it is
-/// context, not content.
+/// Layout: a 36px icon tile, the copy block (headline, then
+/// `context · latency · bell`), and a status line under both — the pill at its
+/// token size on the left, the age flush right on the same line when it fits and
+/// on its own line (still flush right) when it does not. The age is the quietest
+/// element on purpose — it is context, not content, so it always sits against the
+/// row's right edge rather than trailing the pill.
 ///
-/// Above 1.4x text the third column cannot hold the pill at its token size, so
-/// the pill and the age move to their own line under the copy block (see
-/// `stacked` below). At and below 1.4x the grid above is unchanged.
+/// The pill used to share the row with a ~100px right-hand column that could not
+/// hold its 134px intrinsic width even at the **default** 1.0x text size (233px
+/// at 2.0x), so a `FittedBox(scaleDown)` painted the 11px label at 8.25px — under
+/// this app's own 11px floor (`theme_tokens.dart:11`) on the 320dp phones this
+/// design targets, not only for readers who raised their text scale. The column
+/// was the cause, the scale was the symptom. The pill now owns a full-width line
+/// (256px at 320dp) at every scale, so it paints at 11px x the reader's scale with
+/// no `FittedBox` and no per-scale branch: one arrangement from 1.0x through 2.0x.
 class LiveRadarTile extends StatelessWidget {
   const LiveRadarTile({
     super.key,
@@ -46,18 +55,6 @@ class LiveRadarTile extends StatelessWidget {
     // dark grey/amber icon tints. The pill widget itself was fixed in
     // status_pill.dart; this was its last caller.
     final accent = update.status.accentOn(context);
-
-    // Above ~1.4x the right-hand column cannot hold the pill. Measured at a
-    // 320dp viewport with 2.0x text: the pill's intrinsic width is 233px, the
-    // column it is given is ~100px, and the `FittedBox` below scaled the 11px
-    // label to ~9.5px — under this app's own 11px floor (theme_tokens.dart:11)
-    // and *smaller* than at 1.0x, on the exact setting the reader raised because
-    // they could not read it. The scale was the symptom; the column was the
-    // cause. Past 1.4x the pill and the age move onto their own line under the
-    // headline, where they get the row's full content width (256px at 320dp),
-    // and the `FittedBox` is dropped so the label paints at its token size. At
-    // and below 1.4x the single-line row is untouched.
-    final stacked = MediaQuery.textScalerOf(context).scale(1) > 1.4;
 
     final copy = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -101,8 +98,8 @@ class LiveRadarTile extends StatelessWidget {
       ],
     );
 
-    // Shared by both branches: the age is the quietest element on purpose — it
-    // is context, not content.
+    // Shared by both the copy block and the status line: the age is the quietest
+    // element on purpose — it is context, not content.
     final age = Text(
       update.ageLabel(),
       style: context.type.monoMeta.copyWith(
@@ -133,77 +130,48 @@ class LiveRadarTile extends StatelessWidget {
                   : BorderSide(color: context.hairline),
             ),
           ),
-          child: stacked
-              ? Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Row(
-                      // Top-aligned: the icon is a fixed 36px square and the
-                      // copy column grows with the type scale.
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _IconTile(status: update.status, accent: accent),
-                        const SizedBox(width: 11),
-                        Expanded(child: copy),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    // No `FittedBox` on this path: the pill owns the row's full
-                    // content width, so its 11px label paints at 11px x the
-                    // reader's scale instead of being shrunk to fit a column.
-                    // Wrap, not Row: at 2.0x the pill alone measures 233px, so
-                    // the age drops to its own run instead of squeezing the
-                    // pill's label into an ellipsis.
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 2,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        EvStatusPill.status(update.status, compact: true),
-                        age,
-                      ],
-                    ),
-                  ],
-                )
-              : Row(
-                  children: [
-                    _IconTile(status: update.status, accent: accent),
-                    const SizedBox(width: 11),
-                    Expanded(child: copy),
-                    const SizedBox(width: 8),
-                    // Flexible: at 320px and 2.0x text the "ADMIT CARD LIVE"
-                    // pill's intrinsic width exceeded the row's free space and
-                    // pushed the whole row into RenderFlex overflow. As a flex
-                    // child it gets bounded and the pill's label ellipsises
-                    // instead.
-                    Flexible(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          // scaleDown, right-aligned: the pill's own Row lays
-                          // its label out unbounded, so its ellipsis never
-                          // engages and "ADMIT CARD LIVE" overflowed by 80px the
-                          // first time rows rendered on a 360px device. This
-                          // branch is the ≤1.4x path only; past 1.4x the row
-                          // stacks (see `stacked`) instead of scaling the label
-                          // below its token size.
-                          FittedBox(
-                            fit: BoxFit.scaleDown,
-                            alignment: Alignment.centerRight,
-                            child: EvStatusPill.status(
-                              update.status,
-                              compact: true,
-                            ),
-                          ),
-                          const SizedBox(height: 5),
-                          age,
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                // Top-aligned: the icon is a fixed 36px square and the copy
+                // column grows with the type scale.
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _IconTile(status: update.status, accent: accent),
+                  const SizedBox(width: 11),
+                  // Full remaining width: no status column competes with the
+                  // headline or the meta line any more.
+                  Expanded(child: copy),
+                ],
+              ),
+              const SizedBox(height: 8),
+              // No `FittedBox` anywhere above the pill: it owns this line's full
+              // content width (256px at 320dp), so its 11px label paints at 11px
+              // x the reader's scale instead of being shrunk into a column.
+              //
+              // Two columns that degrade, not a `Wrap`: the age must sit on the
+              // line's right edge whether it shares the line with the pill or
+              // drops to its own run beneath it. `Wrap(alignment: spaceBetween)`
+              // applies one alignment to *every* run, and `spaceBetween` with a
+              // lone child falls back to `start` (wrap.dart:111) — measured at
+              // 320dp the age then landed at x=32, directly under the pill's left
+              // edge, with 173.5px of dead space to its right at 2.0x and 181.4px
+              // at 1.8x. That is the opposite of the quiet, column-aligned
+              // timestamp this row has always had.
+              _StatusLine(
+                spacing: EvSpace.x2,
+                // On the 8pt grid: the 2px this used to carry was off-grid, and
+                // the gap only shows when the age drops to its own run.
+                runSpacing: EvSpace.x1,
+                children: [
+                  EvStatusPill.status(update.status, compact: true),
+                  age,
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -267,10 +235,10 @@ class _LatencyChip extends StatelessWidget {
 /// Per-exam notification bell.
 ///
 /// Sits in the row's meta line rather than as a fourth column: the row already
-/// carries a 34px icon tile, two lines of copy and a status/age column, and a
-/// fourth column would either shrink the headline or overflow at 320px @2.0x.
-/// The 44px hit area is kept even though the glyph is 16px — this is a
-/// thumb-target on exam morning, not a decoration.
+/// carries a 36px icon tile, two lines of copy and the status line, and a fourth
+/// column would either shrink the headline or overflow at 320px @2.0x. The 44px
+/// hit area is kept even though the glyph is 16px — this is a thumb-target on exam
+/// morning, not a decoration.
 class _AlertBell extends StatelessWidget {
   const _AlertBell({
     required this.examName,
@@ -322,4 +290,172 @@ class _AlertBell extends StatelessWidget {
       ),
     );
   }
+}
+
+/// A line with a leading and a trailing child: [children] first against the left
+/// edge, last against the right edge, on one line when both fit and on two when
+/// they do not — the trailing child still flush right on its own run.
+///
+/// `Wrap` cannot express this. It applies one alignment to every run, and
+/// `spaceBetween` with a lone child falls back to `start` (wrap.dart:111), so the
+/// moment the age wrapped it left the right edge it belongs to. `OverflowBar`
+/// cannot either: it lays every child out with `constraints.loosen()` in both its
+/// row and column modes, so it can only align the whole column one way.
+///
+/// The pill must never be the child that gives ground: its label is the only
+/// non-colour signal, so this measures both children at their natural size and
+/// moves the trailing one down instead of squeezing either.
+class _StatusLine extends MultiChildRenderObjectWidget {
+  const _StatusLine({
+    required this.spacing,
+    required this.runSpacing,
+    required super.children,
+  });
+
+  /// Gap between the two children while they share a line.
+  final double spacing;
+
+  /// Gap between the lines once the trailing child drops to its own.
+  final double runSpacing;
+
+  @override
+  _RenderStatusLine createRenderObject(BuildContext context) =>
+      _RenderStatusLine(spacing: spacing, runSpacing: runSpacing);
+
+  @override
+  void updateRenderObject(
+    BuildContext context,
+    _RenderStatusLine renderObject,
+  ) {
+    renderObject
+      ..spacing = spacing
+      ..runSpacing = runSpacing;
+  }
+}
+
+class _StatusLineParentData extends ContainerBoxParentData<RenderBox> {}
+
+class _RenderStatusLine extends RenderBox
+    with
+        ContainerRenderObjectMixin<RenderBox, _StatusLineParentData>,
+        RenderBoxContainerDefaultsMixin<RenderBox, _StatusLineParentData> {
+  _RenderStatusLine({required double spacing, required double runSpacing})
+    : _spacing = spacing,
+      _runSpacing = runSpacing;
+
+  double get spacing => _spacing;
+  double _spacing;
+  set spacing(double value) {
+    if (value == _spacing) return;
+    _spacing = value;
+    markNeedsLayout();
+  }
+
+  double get runSpacing => _runSpacing;
+  double _runSpacing;
+  set runSpacing(double value) {
+    if (value == _runSpacing) return;
+    _runSpacing = value;
+    markNeedsLayout();
+  }
+
+  @override
+  void setupParentData(RenderBox child) {
+    if (child.parentData is! _StatusLineParentData) {
+      child.parentData = _StatusLineParentData();
+    }
+  }
+
+  @override
+  void performLayout() {
+    final leading = firstChild;
+    final trailing = leading == null ? null : childAfter(leading);
+    if (leading == null || trailing == null) {
+      size = constraints.smallest;
+      return;
+    }
+
+    // A bounded width is the only sane case for a line; fall back to the
+    // children's own extent rather than an infinite one if a future caller ever
+    // drops this into an unbounded row.
+    final lineWidth = constraints.hasBoundedWidth
+        ? constraints.maxWidth
+        : double.infinity;
+    final childConstraints = BoxConstraints(maxWidth: lineWidth);
+    leading.layout(childConstraints, parentUsesSize: true);
+    trailing.layout(childConstraints, parentUsesSize: true);
+
+    final resolved = _resolve(
+      constraints.hasBoundedWidth
+          ? lineWidth
+          : leading.size.width + spacing + trailing.size.width,
+      leading.size,
+      trailing.size,
+    );
+    (leading.parentData! as _StatusLineParentData).offset = resolved.leading;
+    (trailing.parentData! as _StatusLineParentData).offset = resolved.trailing;
+    size = constraints.constrain(Size(resolved.width, resolved.height));
+  }
+
+  @override
+  Size computeDryLayout(BoxConstraints constraints) {
+    final leading = firstChild;
+    final trailing = leading == null ? null : childAfter(leading);
+    if (leading == null || trailing == null) return constraints.smallest;
+
+    final lineWidth = constraints.hasBoundedWidth
+        ? constraints.maxWidth
+        : double.infinity;
+    final childConstraints = BoxConstraints(maxWidth: lineWidth);
+    final leadingSize = leading.getDryLayout(childConstraints);
+    final trailingSize = trailing.getDryLayout(childConstraints);
+    final resolved = _resolve(
+      constraints.hasBoundedWidth
+          ? lineWidth
+          : leadingSize.width + spacing + trailingSize.width,
+      leadingSize,
+      trailingSize,
+    );
+    return constraints.constrain(Size(resolved.width, resolved.height));
+  }
+
+  /// The line's height and both children's offsets at [width].
+  ({double width, double height, Offset leading, Offset trailing}) _resolve(
+    double width,
+    Size leading,
+    Size trailing,
+  ) {
+    // Clamped: a trailing child wider than the line cannot be flush right
+    // without painting off the left edge. Unreachable today (the age is 82.5px
+    // against a 256px line at 2.0x), but a silent negative offset would clip
+    // rather than fail loudly.
+    final trailingX = width - trailing.width < 0 ? 0.0 : width - trailing.width;
+    if (leading.width + spacing + trailing.width <= width) {
+      // Both fit: same line, each child centred vertically in it.
+      final height = leading.height > trailing.height
+          ? leading.height
+          : trailing.height;
+      return (
+        width: width,
+        height: height,
+        leading: Offset(0, (height - leading.height) / 2),
+        trailing: Offset(trailingX, (height - trailing.height) / 2),
+      );
+    }
+    // The trailing child drops to its own run, still against the right edge.
+    return (
+      width: width,
+      height: leading.height + runSpacing + trailing.height,
+      leading: Offset.zero,
+      trailing: Offset(trailingX, leading.height + runSpacing),
+    );
+  }
+
+  @override
+  void paint(PaintingContext context, Offset offset) =>
+      defaultPaint(context, offset);
+
+  @override
+  bool hitTestChildren(BoxHitTestResult result, {required Offset position}) =>
+      defaultHitTestChildren(result, position: position);
 }

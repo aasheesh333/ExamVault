@@ -193,7 +193,13 @@ void main() {
           env: env,
           cards: cards,
           fullFeed: true,
-          feedRows: 2,
+          // One row, not two: the radar row grew a full-width status line (the
+          // pill at its token size with the age flush right) when Task 19 fixed
+          // its 8.25px label, so two rows now reach under the floating tab bar
+          // and the second one is clipped by it. Framing is the fixture's job —
+          // the assertions below still pin the header and the tab bar — and one
+          // complete row reads as a live radar block instead of a cut-off one.
+          feedRows: 1,
         );
 
         // The MockClient's response only completes on the real event loop (the

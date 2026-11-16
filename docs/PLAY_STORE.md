@@ -156,6 +156,12 @@ by design, so it exists only in the secrets and wherever you store the backup.
   a screen the app does not have — but they also carry no status bar, no device
   chrome and no real network: the feed is the matrix's canned JSON.
 
+  Re-captured on 16 November 2026, after the Dates grouping, the radar pill fix
+  and the age flush right, so `03-dates.png` shows its `NEXT 7 DAYS` /
+  `NEXT 30 DAYS` headings and `01-home.png` the full-width pill line. A UI change
+  that alters any of these five screens means re-running the command above in the
+  same commit — the PNGs are evidence, and stale evidence is worse than none.
+
   470 dp is a **large-Android width** (the app's own matrix tops out at 430 dp),
   chosen because at the 2:1 ceiling the 393 dp reference has only 786 dp of height
   and at that size Vault's floating dock and Share's fixed CTA each cover the last
@@ -170,8 +176,11 @@ by design, so it exists only in the secrets and wherever you store the backup.
     the floating dock. Re-running with a fully-populated card produces a
     different, taller page — that is the fixture, not a broken harness. The state
     is layout-tested by `state_matrix_test.dart`'s `noCentreDetails` case.
-  - the feed is trimmed to two rows so the Home radar block is not cut by the tab
-    bar.
+  - the feed is trimmed to **one** row so the Home radar block is not cut by the
+    tab bar. The row grew a full-width status line when Task 19 fixed its 8.25px
+    pill label, and two rows at this height reach under the floating tab bar.
+    The framing assertions still pin the header and the tab bar, so the trim is
+    a fixture choice, not a relaxed check.
 
   When a physical device is available, re-capture on it and replace these; the
   pipeline above stays a reproducible manual check — nothing runs it in CI, by

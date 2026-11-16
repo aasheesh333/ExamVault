@@ -690,6 +690,18 @@ empty result fails the job.
 - Bump `app/pubspec.yaml` to `1.0.1+2` (the version the About sheet reads via
   `EV_APP_VERSION`), and confirm CI's derived version matches.
 
+**Also in this task — the orientation decision.** Task 11 locked iOS to portrait
+with the comment "a rotated phone got a stretched portrait UI". That claim was
+never tested, and the controller's probe shows the opposite: `RootShell` renders
+at 852×393, 900×500 and 393×852 with **no exception and no overflow**. Locking
+iOS therefore removes working behaviour and, because iPad Split View requires all
+orientations, also removes multitasking. Android has no lock at all, so the two
+platforms currently disagree. Ruling: **allow landscape on iOS again** (restore
+the landscape entries in `Info.plist`) and correct the comment to state what was
+measured. Leave Android unlocked and the web manifest's `portrait-primary`
+alone — that is a PWA display preference, not a restriction. Do not add an
+`android:screenOrientation` lock.
+
 **Acceptance:** every gate green, audit fully dispositioned, version bumped.
 
 ---

@@ -194,6 +194,8 @@ Audit: `docs/AUDIT_2026-11-16.md`. Ledger: `.superpowers/sdd/PLAN_play_store_rea
 - [ ] Reconcile `docs/PLAY_STORE.md`'s "the current release is 'all exam alerts' or 'none'" paragraph with Task 10's category picker
 - [ ] Record that the 26-permission merged-manifest table cannot be regenerated in this environment (no Android SDK); state where it came from
 - [ ] `app/pubspec.yaml` ⇒ `1.0.1+2`
+- [ ] `app/ios/Runner/Info.plist`: restore landscape (probe: 852×393 / 900×500 / 393×852 all render cleanly; iPad Split View needs it) and correct the false "stretched portrait UI" comment
+- [ ] Do NOT add `android:screenOrientation`; leave the web manifest `portrait-primary` (a PWA display preference, not a restriction)
 - [ ] Commit `chore(release):`
 
 ---

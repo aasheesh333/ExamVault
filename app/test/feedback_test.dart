@@ -38,6 +38,16 @@ void main() {
   /// HapticFeedback.* and friends, in call order.
   final platformCalls = <MethodCall>[];
 
+  /// What the fake system clipboard holds, so reads can answer like a phone.
+  ///
+  /// The mock used to answer `null` to *every* call, including
+  /// `Clipboard.getData` — a clipboard that never holds what the app just wrote.
+  /// That made a read-back wipe look like it never fired. A real platform
+  /// echoes the text it was given; and a `null` answer is not "empty", it also
+  /// legitimately means an image is on the clipboard, which is why the wipe
+  /// may not treat it as its own.
+  String? clipboardText;
+
   const urlLauncherChannel = MethodChannel('plugins.flutter.io/url_launcher');
 
   setUpAll(() async {
@@ -51,16 +61,33 @@ void main() {
     settingsBox = await Hive.openBox<dynamic>('fb_settings_$stamp');
     store = FakeVaultStore();
     platformCalls.clear();
+    clipboardText = null;
 
     TestWidgetsFlutterBinding.ensureInitialized();
     final messenger =
         TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
 
-    // Capture clipboard writes; answer every platform call benignly (this
-    // channel also carries the haptics and overlay-style calls).
+    // Capture clipboard writes and echo them back on read, the way a real
+    // platform does; answer every other platform call benignly (this channel
+    // also carries the haptics and overlay-style calls).
     messenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
       platformCalls.add(call);
-      return null;
+      switch (call.method) {
+        case 'Clipboard.setData':
+          clipboardText = (call.arguments as Map)['text'] as String?;
+          return null;
+        case 'Clipboard.getData':
+          // No text on the clipboard at all: a real platform answers null.
+          // (Answering `{'text': null}` would instead trip Clipboard.getData's
+          // non-nullable cast and describe a broken platform, not an empty one.)
+          final text = clipboardText;
+          if (text == null) return null;
+          return <String, Object?>{'text': text};
+        case 'Clipboard.hasStrings':
+          return <String, Object?>{'value': clipboardText?.isNotEmpty ?? false};
+        default:
+          return null;
+      }
     });
 
     // Force every launch to fail. Without a mock the channel *never

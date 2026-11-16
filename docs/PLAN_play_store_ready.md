@@ -539,7 +539,15 @@ contradict the build.
   `app/lib/features/calendar/exam_calendar_screen.dart:392` ship `fontSize: 10`
   for live UI while `theme_tokens.dart:11` sets the floor at 11 px. Raise to 11 and
   re-check those rows at 320@2.0× (bitmap-only `share_infographic.dart` 9 px values
-  are exempt — that is a 3× export).
+  are exempt — that is a 3× export). **Already done in a Task 11 follow-up** — the
+  countdown and the calendar source label now inherit their tokens; verify it and do
+  not redo it.
+- **`DayTickNotifier.build()` leaks an `AppLifecycleListener` on rebuild.**
+  `app_providers.dart` reassigns `_lifecycle` without disposing the previous one,
+  while `LiveFeedNotifier.build()` does `_lifecycle?.dispose()` first. Latent today
+  (nothing invalidates `dayTickProvider`), but it is the exact pattern this file
+  fixes elsewhere, and Task 10 owns the file. Add the dispose and note why it is
+  defensive.
 
 **Acceptance:** `flutter analyze --fatal-infos` clean, full suite green, no
 remaining references to the deleted symbols, and every doc/comment touched now

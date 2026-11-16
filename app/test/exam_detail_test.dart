@@ -6,7 +6,7 @@ import 'package:examvault/features/calendar/exam_detail_sheet.dart';
 import 'package:examvault/providers/app_providers.dart';
 import 'package:examvault/shared/widgets/status_pill.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/semantics.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -225,14 +225,58 @@ void main() {
       // The card's date must not fill this notice's exam date either.
       expect(find.text('Exam date (your card)'), findsNothing);
 
-      // Silently dropping it would look like a lost card, so the sheet says
-      // which exam the saved card belongs to.
+      // Silently dropping it would look like a lost card, so the note keeps the
+      // section header and says which exam the saved card belongs to.
+      expect(find.text('YOUR SAVED CARD'), findsOneWidget);
       expect(
         find.textContaining('SSC CHSL Tier-1 2026'),
         findsOneWidget,
         reason: 'the note must name the exam the hidden card belongs to',
       );
       expect(find.textContaining('a different exam'), findsOneWidget);
+    });
+
+    testWidgets('an unnamed foreign card never renders a blank exam name', (
+      tester,
+    ) async {
+      await open(
+        tester,
+        host(
+          update: row(),
+          // Older cards can carry an empty name; the note must not read
+          // "Your saved card is for  — a different exam".
+          card: card(examId: 'ssc_chsl_tier1_2026', examName: ''),
+        ),
+      );
+      await scrollToEnd(tester);
+
+      expect(find.text('YOUR SAVED CARD'), findsOneWidget);
+      expect(
+        find.textContaining('belongs to a different exam'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('is for  '), findsNothing);
+    });
+
+    testWidgets('a foreign card does not suppress the empty-notice line', (
+      tester,
+    ) async {
+      await open(
+        tester,
+        host(
+          // Nothing at all beyond the headline: both facts are true and both
+          // belong on screen.
+          update: row(pdf: null),
+          card: card(examId: 'ssc_chsl_tier1_2026', examName: 'SSC CHSL'),
+        ),
+      );
+      await scrollToEnd(tester);
+
+      expect(find.text('YOUR SAVED CARD'), findsOneWidget);
+      expect(
+        find.textContaining('This notice states no dates, fee or vacancy'),
+        findsOneWidget,
+      );
     });
 
     testWidgets('a matching card is shown without the note', (tester) async {
@@ -268,58 +312,81 @@ void main() {
       }
     });
 
-    testWidgets('a failed link copy reports on top of the sheet', (
+    testWidgets('a failed link copy reports inside the sheet, not below it', (
       tester,
     ) async {
-      final messenger =
-          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-      // Every launch fails (no browser on a de-Googled phone), and the platform
-      // channel answers clipboard/haptics calls benignly.
-      messenger.setMockMethodCallHandler(
-        const MethodChannel('plugins.flutter.io/url_launcher'),
-        (call) async => false,
-      );
-      messenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
-        return null;
-      });
-      addTearDown(() {
-        messenger.setMockMethodCallHandler(
-          const MethodChannel('plugins.flutter.io/url_launcher'),
-          null,
-        );
-        messenger.setMockMethodCallHandler(SystemChannels.platform, null);
-      });
+      await loadFonts();
+      failEveryLaunch(tester);
+      tester.view.physicalSize = const Size(393, 852);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
 
       await open(tester, host(update: row(page: 'https://ssc.gov.in')));
-      await scrollToEnd(tester);
 
+      // Geometry first, at the sheet's *initial* 72% height: the route
+      // bottom-anchors its child. Wrapping the route child in a Scaffold
+      // instead made it fill the route, so the surface sat at the top edge
+      // with the dimmed page below and the barrier unreachable.
+      final atRest = tester.getRect(find.byType(DraggableScrollableSheet));
+      expect(
+        atRest.bottom,
+        closeTo(852, 1),
+        reason: 'the sheet must sit on the bottom edge of the screen',
+      );
+      expect(
+        atRest.top,
+        greaterThan(100),
+        reason: 'the sheet must not be anchored to the top edge',
+      );
+
+      await scrollToEnd(tester);
       await tester.tap(find.text('Official website'));
       await tester.pumpAndSettle();
 
       final toast = find.textContaining('Official link copied');
       expect(toast, findsOneWidget);
-      // Through the root messenger this painted behind the modal barrier and
-      // the sheet, so the fallback was invisible and the row looked dead.
-      expect(toast.hitTestable(), findsOneWidget);
+
+      // Not merely hit-testable: through the root messenger the toast painted
+      // behind the barrier, and through a top-anchored Scaffold it landed
+      // ~190px *below* the sheet, floating over the dimmed page. Both are
+      // invisible in practice, so assert containment in the sheet's rect.
+      final sheet = tester.getRect(find.byType(DraggableScrollableSheet));
+      final toastRect = tester.getRect(toast);
+      expect(
+        sheet.contains(toastRect.topLeft),
+        isTrue,
+        reason: 'toast top ${toastRect.top} is outside the sheet $sheet',
+      );
+      expect(
+        sheet.contains(toastRect.bottomRight),
+        isTrue,
+        reason: 'toast bottom ${toastRect.bottom} is outside the sheet $sheet',
+      );
     });
   });
 
   group('layout floor', () {
     testWidgets('renders at 320x568 @2.0x with no overflow', (tester) async {
       await loadFonts();
-      tester.view.physicalSize = const Size(393, 852);
+      tester.view.physicalSize = const Size(320, 568);
       tester.view.devicePixelRatio = 1.0;
       tester.platformDispatcher.textScaleFactorTestValue = 2.0;
       addTearDown(tester.view.reset);
       addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
 
+      // Dates relative to now: a fixed 2026-11-20 would turn "IN 4 DAYS" into
+      // "PAST" the day after it passed, and this test must not be a time bomb.
+      final soon = DateTime.now().add(const Duration(days: 4));
+      final later = DateTime.now().add(const Duration(days: 20));
+      final muchLater = DateTime.now().add(const Duration(days: 40));
+
       await open(
         tester,
         host(
           update: row(
-            deadline: DateTime(2026, 11, 20),
-            examDate: DateTime(2026, 12, 1),
-            resultDate: DateTime(2026, 12, 20),
+            deadline: soon,
+            examDate: later,
+            resultDate: muchLater,
             vacancy: 17727,
             fee: '₹100',
             page: 'https://ssc.gov.in',
@@ -333,15 +400,29 @@ void main() {
       // lost its unit. Every pump along the way must stay clean.
       expect(tester.takeException(), isNull);
 
-      // Bring the first date row into view and check the countdown still says
-      // what it counts — at 2.0x the old 76px box ellipsised "IN 4 DAYS".
+      // Bring the date rows into view and prove the countdown says what it
+      // counts. Asserting `textContaining('IN ')` was not enough: "IN 4…" also
+      // contains it. The paragraph must not have needed to ellipsise.
       await tester.scrollUntilVisible(
         find.text('Last date to apply'),
         120,
         scrollable: find.byType(Scrollable).last,
       );
       expect(tester.takeException(), isNull);
-      expect(find.textContaining('IN '), findsWidgets);
+
+      final countdowns = tester
+          .renderObjectList<RenderParagraph>(find.textContaining('IN '))
+          .toList();
+      expect(countdowns, isNotEmpty, reason: 'no countdown was rendered');
+      for (final paragraph in countdowns) {
+        expect(
+          paragraph.didExceedMaxLines,
+          isFalse,
+          reason:
+              '"${paragraph.text.toPlainText()}" was ellipsised at 320@2.0x — '
+              'the countdown lost its unit',
+        );
+      }
 
       for (var i = 0; i < 6; i++) {
         await tester.drag(find.byType(ListView).last, const Offset(0, -400));
@@ -356,6 +437,28 @@ void main() {
 class _EmptyAlerts extends ExamAlertsNotifier {
   @override
   Set<String> build() => const <String>{};
+}
+
+/// Every link launch fails, as on a de-Googled phone with no browser; the
+/// platform channel answers the clipboard and haptic calls benignly.
+void failEveryLaunch(WidgetTester tester) {
+  final messenger =
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+  messenger.setMockMethodCallHandler(
+    const MethodChannel('plugins.flutter.io/url_launcher'),
+    (call) async => false,
+  );
+  messenger.setMockMethodCallHandler(
+    SystemChannels.platform,
+    (call) async => null,
+  );
+  addTearDown(() {
+    messenger.setMockMethodCallHandler(
+      const MethodChannel('plugins.flutter.io/url_launcher'),
+      null,
+    );
+    messenger.setMockMethodCallHandler(SystemChannels.platform, null);
+  });
 }
 
 /// The bundled typefaces, so a 2.0x layout test measures real advances instead

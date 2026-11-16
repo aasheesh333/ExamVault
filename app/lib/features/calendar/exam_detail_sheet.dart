@@ -64,6 +64,11 @@ class _ExamDetailSheet extends ConsumerWidget {
     final cardIsThisExam =
         card != null && examId != null && card!.examId == examId;
     final foreignCard = card != null && !cardIsThisExam;
+    // A saved card whose name was left blank must not render "is for  —": the
+    // note falls back to naming no exam at all.
+    final foreignCardName = foreignCard && card!.examName.trim().isNotEmpty
+        ? card!.examName.trim()
+        : null;
 
     final dates = <_DateRow>[
       if (update?.deadline != null)
@@ -98,30 +103,38 @@ class _ExamDetailSheet extends ConsumerWidget {
         ),
     ];
 
-    return ScaffoldMessenger(
-      // The sheet's own messenger: a SnackBar shown through the root one
-      // renders *under* the modal barrier and the sheet, so the copy fallback
-      // for a link that would not open gave zero feedback — the row looked dead.
-      child: Scaffold(
-        // A messenger with no descendant Scaffold has nothing to present to:
-        // showSnackBar asserted in debug and was a *silent no-op* in release —
-        // the failed-link feedback this messenger exists for never rendered.
-        // Transparent so the sheet surface below keeps its own colour and
-        // rounded corners.
-        backgroundColor: Colors.transparent,
-        body: Container(
-          decoration: BoxDecoration(
-            color: p.surface,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-            border: Border.all(color: p.border),
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: DraggableScrollableSheet(
-            expand: false,
-            initialChildSize: 0.72,
-            minChildSize: 0.4,
-            maxChildSize: 0.94,
-            builder: (context, controller) => Column(
+    return Container(
+      decoration: BoxDecoration(
+        color: p.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        border: Border.all(color: p.border),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.72,
+        minChildSize: 0.4,
+        maxChildSize: 0.94,
+        // The messenger lives *inside* the builder, never around the route
+        // child. The route child is what the modal bottom sheet bottom-anchors
+        // at 72% of the screen; a Scaffold wrapping it fills the route instead,
+        // so the decorated Container shrink-wraps to the top edge and the
+        // surface, its rounded corners and the barrier above it all move to the
+        // top of the screen — with the copy toast landing below the sheet, over
+        // the dimmed page.
+        builder: (context, controller) => ScaffoldMessenger(
+          // The sheet's own messenger: a SnackBar shown through the root one
+          // renders *under* the modal barrier and the sheet, so the copy
+          // fallback for a link that would not open gave zero feedback — the
+          // row looked dead.
+          child: Scaffold(
+            // A messenger with no descendant Scaffold has nothing to present
+            // to: showSnackBar asserted in debug and was a *silent no-op* in
+            // release — the failed-link feedback this messenger exists for
+            // never rendered. Transparent so the sheet surface outside keeps
+            // its own colour and rounded corners.
+            backgroundColor: Colors.transparent,
+            body: Column(
               children: [
                 Padding(
                   padding: const EdgeInsets.only(top: 12),
@@ -331,23 +344,36 @@ class _ExamDetailSheet extends ConsumerWidget {
                       ],
 
                       // The card is hidden rather than mislabelled, but silently
-                      // dropping it would look like the app lost a saved card — so
-                      // say which exam it belongs to.
+                      // dropping it would look like the app lost a saved card —
+                      // so it keeps the section header and says which exam the
+                      // card belongs to. An empty saved name falls back to
+                      // "another exam" instead of rendering "is for  —".
                       if (foreignCard) ...[
+                        const EvSectionHeader(
+                          label: 'Your saved card',
+                          padding: EdgeInsets.zero,
+                        ),
+                        const SizedBox(height: 8),
                         Text(
-                          'Your saved card is for ${card!.examName} — a different '
-                          'exam — so it is not shown here.',
+                          foreignCardName == null
+                              ? 'Your saved card belongs to a different exam, so '
+                                    'it is not shown here.'
+                              : 'Your saved card is for $foreignCardName — a '
+                                    'different exam — so it is not shown here.',
                           style: context.type.bodyMuted,
                         ),
                         const SizedBox(height: 16),
                       ],
 
+                      // Both statements are true when a foreign card is the only
+                      // card: this notice states nothing, and that card is not
+                      // this exam's. Only a card *of this exam* makes the sheet
+                      // non-empty.
                       if (dates.isEmpty &&
                           links.isEmpty &&
                           update?.vacancy == null &&
                           update?.fee == null &&
-                          !cardIsThisExam &&
-                          !foreignCard)
+                          !cardIsThisExam)
                         Text(
                           'This notice states no dates, fee or vacancy. Open the '
                           'official notice to read it in full.',
@@ -435,11 +461,12 @@ class _DateRowView extends StatelessWidget {
       overflow: TextOverflow.ellipsis,
       style: context.type.bodyMuted,
     );
-    // The date and the countdown are the data; the label is the only cell that
-    // yields, and it already did at 320px before this change. So only the label
-    // is `Expanded` here — squeezing the date instead clipped "01 DEC 2026" to
-    // "01 DEC 20…" on a 320px phone. Above 1.4x the row stacks, which is what
-    // keeps the unbounded date from ever meeting a full line.
+    // Which cell yields depends on the branch. In the row (≤1.4x) only the
+    // label is `Expanded`: the date and countdown are the data and the label
+    // already ellipsised at 320px before this change. In the stacked branch the
+    // date does share its line with the countdown, so there it is the flexible
+    // one and does truncate — measured 124.6px against a 164.4px intrinsic
+    // width at 320@2.0x. Stacking is what keeps either branch from overflowing.
     final date = Text(
       text,
       maxLines: 1,
@@ -473,8 +500,8 @@ class _DateRowView extends StatelessWidget {
                   const SizedBox(height: 2),
                   Row(
                     children: [
-                      // On its own line the date still shares the width with
-                      // the countdown, so here it must be the flexible one.
+                      // On its own line the date shares the width with the
+                      // countdown, so here it is the one that truncates.
                       Flexible(child: date),
                       const SizedBox(width: 8),
                       countdownLabel,

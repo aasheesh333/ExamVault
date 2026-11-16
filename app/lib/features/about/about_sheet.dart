@@ -222,41 +222,7 @@ class _AboutSheet extends ConsumerWidget {
                     'stored, what leaves the phone and what does not.',
                   ),
                   const SizedBox(height: 4),
-                  Semantics(
-                    // The bare InkWell exposed no trait at all: TalkBack read a
-                    // flat text run with no hint it was tappable. The child Text is
-                    // the name (codebase rule — a composed label plus un-excluded
-                    // children double-announces).
-                    button: true,
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(EvRadius.inner),
-                      onTap: () => _showPolicy(context),
-                      // Same 44px floor as the commission links.
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(
-                          minHeight: EvSize.minTapTarget,
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 9),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  'Read the privacy policy',
-                                  style: context.type.bodyMuted.copyWith(),
-                                ),
-                              ),
-                              Icon(
-                                Icons.chevron_right_rounded,
-                                size: 14,
-                                color: p.textTertiary,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
+                  const _PolicyLink(),
 
                   const SizedBox(height: 16),
                   Text(
@@ -869,20 +835,86 @@ class _Link extends StatelessWidget {
   }
 }
 
+/// "Read the privacy policy" — the row that opens [_PolicySheet].
+///
+/// Its own [SheetOpenGuard], not a module-level one: this is one trigger in one
+/// sheet, and a guard whose sheet is torn down before its route future resolves
+/// (the whole tree replaced, the app closed) would otherwise stay `_open`
+/// forever and make the row permanently dead. `SheetOpenGuard`'s own doc says
+/// which shape to use — a `State` field when a second instance is a defect from
+/// *this* trigger, which is exactly the case here.
+class _PolicyLink extends StatefulWidget {
+  const _PolicyLink();
+
+  @override
+  State<_PolicyLink> createState() => _PolicyLinkState();
+}
+
+class _PolicyLinkState extends State<_PolicyLink> {
+  /// The modal barrier appears a frame after `showModalBottomSheet` is called,
+  /// so a fast double tap stacked two policy sheets and the back gesture
+  /// dismissed them one at a time. Set synchronously before the first await.
+  final _guard = SheetOpenGuard();
+
+  @override
+  void dispose() {
+    // A Navigator disposed with the sheet still open never resolves `run`'s
+    // future; without this the guard would outlive it and the row would be dead
+    // for the rest of the session.
+    _guard.release();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.ev;
+    return Semantics(
+      // The bare InkWell exposed no trait at all: TalkBack read a flat text run
+      // with no hint it was tappable. The child Text is the name (codebase rule —
+      // a composed label plus un-excluded children double-announces).
+      button: true,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(EvRadius.inner),
+        onTap: () => _guard.run<void>(() => _showPolicy(context)),
+        // Same 44px floor as the commission links.
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: EvSize.minTapTarget),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 9),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Read the privacy policy',
+                    style: context.type.bodyMuted.copyWith(),
+                  ),
+                ),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  size: 14,
+                  color: p.textTertiary,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// The policy, readable offline.
 ///
 /// A store listing needs a hosted URL, but a student on exam morning does not have
 /// one: the text that matters must be in the app they already installed. The
 /// hosted copy at `docs/PRIVACY.md` is generated from the same statements.
-Future<void> _showPolicy(BuildContext context) {
-  return showModalBottomSheet<void>(
-    context: context,
-    isScrollControlled: true,
-    useSafeArea: true,
-    backgroundColor: Colors.transparent,
-    builder: (_) => const _PolicySheet(),
-  );
-}
+Future<void> _showPolicy(BuildContext context) => showModalBottomSheet<void>(
+  context: context,
+  isScrollControlled: true,
+  useSafeArea: true,
+  backgroundColor: Colors.transparent,
+  builder: (_) => const _PolicySheet(),
+);
 
 class _PolicySheet extends ConsumerWidget {
   const _PolicySheet();

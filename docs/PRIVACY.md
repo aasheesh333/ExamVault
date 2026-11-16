@@ -110,10 +110,14 @@ exists solely to route notifications and is not associated with any person by us
 
 ExamVault itself declares exactly **three** permissions. The *merged release
 manifest* — what Android and Play actually see — carries **26**, because the push
-SDKs and AndroidX libraries merge in their own. Regenerated from the merged
-manifest and the manifest-merger blame report
-(`app/build/app/outputs/logs/manifest-merger-release-report.txt`); every row
-below names the component that contributes it.
+SDKs and AndroidX libraries merge in their own. That figure and the attributions
+below were read from a release build's merged manifest and its manifest-merger
+report
+(`app/build/app/outputs/logs/manifest-merger-release-report.txt`) at the time
+this policy was written; they cannot be regenerated in the environment that
+maintained this document (no Android SDK, no release build output), so a future
+build should re-derive them. Every row below names the component that contributes
+it.
 
 **Declared by ExamVault** (`app/android/app/src/main/AndroidManifest.xml`):
 

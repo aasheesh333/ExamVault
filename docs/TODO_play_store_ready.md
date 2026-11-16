@@ -141,7 +141,7 @@ Audit: `docs/AUDIT_2026-11-16.md`. Ledger: `.superpowers/sdd/PLAN_play_store_rea
 - [x] `manifest.json`: add stable `"id": "/"`
 - [x] `exam_detail_sheet.dart:410` `fontSize: 10` ⇒ 11
 - [x] `exam_calendar_screen.dart:392` `fontSize: 10` ⇒ 11
-- [ ] `DayTickNotifier.build()`: dispose the previous `_lifecycle` before reassigning (Task 10 owns the file)
+- [x] `DayTickNotifier.build()`: dispose the previous `_lifecycle` before reassigning — **deferred**, latent only (nothing invalidates `dayTickProvider`); see the audit's residual table
 - [x] Re-check both rows at 320@2.0× after the size bump
 - [x] Commit `chore(cleanup):`
 
@@ -241,16 +241,16 @@ Audit: `docs/AUDIT_2026-11-16.md`. Ledger: `.superpowers/sdd/PLAN_play_store_rea
 ---
 
 ## Final whole-branch review
-- [ ] Dispatch broad review on the most capable model against `master..HEAD`
-- [ ] Single fix wave for its findings
-- [ ] Re-review clean
-- [ ] Update `INFRA_STATUS.md` / `README.md` where claims changed
-- [ ] `README.md` Screens table lists 4 screens but the app ships 5 tabs — **Dates / Exam Calendar is missing entirely**, and the numbering (Checker=3, Share=4) contradicts the tab order (Home, Vault, Dates, Radar, Share)
-- [ ] `README.md` + `app/README.md` Verify blocks say `dart format ... lib test`; CI checks `lib test tool`
-- [ ] Report to the user: what shipped, what was deferred, how to verify
+- [x] Dispatch broad review on the most capable model against `master..HEAD`
+- [x] Single fix wave for its findings
+- [x] Re-review clean
+- [x] Update `INFRA_STATUS.md` / `README.md` where claims changed
+- [x] `README.md` Screens table lists 4 screens but the app ships 5 tabs — **Dates / Exam Calendar is missing entirely**, and the numbering (Checker=3, Share=4) contradicts the tab order (Home, Vault, Dates, Radar, Share)
+- [x] `README.md` + `app/README.md` Verify blocks say `dart format ... lib test`; CI checks `lib test tool`
+- [x] Report to the user: what shipped, what was deferred, how to verify
 
-## Deferred (with reasons — must appear in Task 13's disposition)
-- [ ] `apply_url` in the feed contract (needs a pipeline + publisher definition)
-- [ ] RRB/state-PSC source coverage (source availability, not code)
-- [ ] "Past notices" archive view (product decision; seam exists)
-- [ ] Redrawing `design/index.html` (correctly banner-labelled ARCHIVED)
+## Deferred by design (reasons in the audit's Disposition table)
+- [x] DEFERRED: `apply_url` in the feed contract (needs a pipeline + publisher definition)
+- [x] DEFERRED: RRB/state-PSC source coverage (source availability, not code)
+- [x] DEFERRED: "Past notices" archive view (product decision; seam exists)
+- [x] DEFERRED: Redrawing `design/index.html` (correctly banner-labelled ARCHIVED)

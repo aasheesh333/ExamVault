@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:examvault/core/theme/app_theme.dart';
 import 'package:examvault/core/utils/clipboard_service.dart';
 import 'package:flutter/material.dart';
@@ -28,15 +30,40 @@ void main() {
   /// `null` for it, exactly as it does for an empty clipboard.
   late bool clipboardHoldsNonText;
 
+  /// How many `Clipboard.getData` calls have been made.
+  ///
+  /// Lets a test prove a wipe actually consulted the clipboard, rather than
+  /// passing because no wipe ran at all.
+  late int reads;
+
   /// When true, `Clipboard.setData` fails the way a locked device does.
   late bool refuseWrites;
 
+  /// Blocks `Clipboard.getData` until completed, when set.
+  ///
+  /// Holds a wipe inside its read so a second copy can land mid-flight — the
+  /// window where a wipe must not tear down the newer copy's lifecycle
+  /// listener.
+  Completer<void>? readGate;
+
+  /// The clock the service measures its wipe deadline against.
+  ///
+  /// `tester.pump` advances timers without advancing `DateTime.now()`, so the
+  /// service's clock is overridden to this one and [advance] moves both
+  /// together — otherwise a "re-arm at the original deadline" assertion would
+  /// pass no matter which deadline the implementation used.
+  late DateTime fakeNow;
+
   setUp(() {
     writes = <String?>[];
+    reads = 0;
     clipboardText = null;
     clipboardHoldsNonText = false;
     refuseWrites = false;
+    readGate = null;
     ClipboardService.reset();
+    fakeNow = DateTime(2026, 11, 16, 9);
+    ClipboardService.now = () => fakeNow;
 
     messenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
       switch (call.method) {
@@ -53,15 +80,20 @@ void main() {
           clipboardHoldsNonText = false;
           return null;
         case 'Clipboard.getData':
+          reads++;
+          final gate = readGate;
+          if (gate != null) await gate.future;
           if (clipboardHoldsNonText) return null;
           final text = clipboardText;
           if (text == null) return null;
           return <String, Object?>{'text': text};
         case 'Clipboard.hasStrings':
-          // The real platform answers "no text" for an image and for an empty
-          // clipboard alike — which is why a null read stays ambiguous.
+          // A real platform reports whether the clipboard holds *text*: false
+          // for an image, and false for an empty clip too. Production does not
+          // call this yet; the fixture must not teach a future caller wrong.
           return <String, Object?>{
-            'value': !clipboardHoldsNonText && clipboardText != null,
+            'value':
+                !clipboardHoldsNonText && (clipboardText?.isNotEmpty ?? false),
           };
         default:
           // HapticFeedback.* and friends: benign no-ops.
@@ -115,6 +147,12 @@ void main() {
       ..handleAppLifecycleStateChanged(AppLifecycleState.resumed);
   }
 
+  /// Advances both the fake timer clock and the service's clock by [duration].
+  Future<void> advance(WidgetTester tester, Duration duration) async {
+    fakeNow = fakeNow.add(duration);
+    await tester.pump(duration);
+  }
+
   /// Walks the binding back to `resumed` from wherever a test left it.
   ///
   /// [AppLifecycleListener] asserts on jumps, so this steps one state at a
@@ -151,12 +189,13 @@ void main() {
     expect(writes, ['portal-password']);
     expect(ClipboardService.hasPendingSensitiveClear, isTrue);
 
-    // The user leaves for WhatsApp and copies a flight number. Android lets
-    // our backgrounded timer still *write* the clipboard, so an unconditional
-    // wipe would blank what they are about to paste.
+    // Another app replaces the clipboard. The wipe fires on schedule but the
+    // read-back no longer matches, so it leaves the new value alone. (The
+    // background path is covered by the lifecycle tests below.)
     clipboardText = 'AI-302, seat 14C';
 
-    await tester.pump(
+    await advance(
+      tester,
       ClipboardService.sensitiveClearDelay + const Duration(seconds: 1),
     );
     await tester.pumpAndSettle();
@@ -173,7 +212,8 @@ void main() {
     expect(writes, ['portal-password']);
     expect(ClipboardService.hasPendingSensitiveClear, isTrue);
 
-    await tester.pump(
+    await advance(
+      tester,
       ClipboardService.sensitiveClearDelay + const Duration(seconds: 1),
     );
     await tester.pumpAndSettle();
@@ -193,7 +233,8 @@ void main() {
     // destroying content that is not ours.
     clipboardHoldsNonText = true;
 
-    await tester.pump(
+    await advance(
+      tester,
       ClipboardService.sensitiveClearDelay + const Duration(seconds: 1),
     );
     await tester.pumpAndSettle();
@@ -224,7 +265,8 @@ void main() {
 
       // Nothing was armed, so the timer cannot fire later and blank whatever
       // the user copies in the meantime.
-      await tester.pump(
+      await advance(
+        tester,
         ClipboardService.sensitiveClearDelay + const Duration(seconds: 1),
       );
       await tester.pumpAndSettle();
@@ -232,28 +274,129 @@ void main() {
     },
   );
 
-  testWidgets('going to the background cancels the pending wipe', (
+  testWidgets('backgrounding suspends the wipe and resuming runs it', (
     tester,
   ) async {
     await pumpCopyButton(tester);
+    expect(writes, ['portal-password']);
     expect(ClipboardService.hasPendingSensitiveClear, isTrue);
 
     sendToBackground(tester);
 
     expect(
-      ClipboardService.hasPendingSensitiveClear,
+      ClipboardService.isSensitiveClearArmed,
       isFalse,
       reason: 'a backgrounded app may not blank the clipboard unattended',
     );
+    expect(
+      ClipboardService.hasPendingSensitiveClear,
+      isTrue,
+      reason: 'the wipe is suspended, not abandoned',
+    );
 
-    await tester.pump(
-      ClipboardService.sensitiveClearDelay + const Duration(seconds: 1),
+    // Past the deadline while still backgrounded: still nothing written.
+    await advance(
+      tester,
+      ClipboardService.sensitiveClearDelay + const Duration(seconds: 5),
     );
     await tester.pumpAndSettle();
     expect(writes, ['portal-password']);
     expect(clipboardText, 'portal-password');
 
+    // Back in front of the user, the owed wipe runs at once — the toast
+    // promised the secret would not stay on the clipboard, and it does not.
     returnToForeground(tester);
+    await tester.pumpAndSettle();
+    expect(writes, ['portal-password', '']);
+    expect(clipboardText, '');
+    expect(ClipboardService.hasPendingSensitiveClear, isFalse);
+  });
+
+  testWidgets('resuming re-arms at the original deadline', (tester) async {
+    await pumpCopyButton(tester);
+
+    sendToBackground(tester);
+    await advance(tester, const Duration(seconds: 20));
+    returnToForeground(tester);
+
+    // 40 s are left of the original minute, not a fresh 60 s from the resume:
+    // backgrounding must not extend a secret's life.
+    await advance(tester, const Duration(seconds: 39));
+    await tester.pumpAndSettle();
+    expect(writes, [
+      'portal-password',
+    ], reason: 'the deadline is measured from the copy, not from the resume');
+
+    await advance(tester, const Duration(seconds: 2));
+    await tester.pumpAndSettle();
+    expect(writes, ['portal-password', '']);
+    expect(clipboardText, '');
+  });
+
+  testWidgets('a foreign copy made while backgrounded survives the resume', (
+    tester,
+  ) async {
+    await pumpCopyButton(tester);
+
+    sendToBackground(tester);
+    await advance(tester, const Duration(seconds: 10));
+
+    // Another app owns the clipboard by the time the user comes back.
+    clipboardText = 'AI-302, seat 14C';
+
+    returnToForeground(tester);
+    await advance(tester, ClipboardService.sensitiveClearDelay);
+    await tester.pumpAndSettle();
+
+    expect(
+      reads,
+      1,
+      reason: 'the re-armed wipe must actually consult the clipboard',
+    );
+    expect(writes, [
+      'portal-password',
+    ], reason: 'the read-back guard still holds after a re-arm');
+    expect(clipboardText, 'AI-302, seat 14C');
+    expect(ClipboardService.hasPendingSensitiveClear, isFalse);
+  });
+
+  testWidgets('a copy landing mid-wipe keeps its own lifecycle listener', (
+    tester,
+  ) async {
+    // Hold the first wipe inside `getData` so a second copy can land mid-flight.
+    readGate = Completer<void>();
+    await pumpCopyButton(tester);
+    await advance(
+      tester,
+      ClipboardService.sensitiveClearDelay + const Duration(seconds: 1),
+    );
+    expect(reads, 1, reason: 'the first wipe is now awaiting the read');
+
+    // The new copy owns a fresh timer and listener; the older wipe finishing
+    // must not dispose them.
+    await pumpCopyButton(tester, value: 'second-secret');
+    readGate!.complete();
+    await tester.pumpAndSettle();
+    readGate = null;
+
+    expect(
+      ClipboardService.hasPendingSensitiveClear,
+      isTrue,
+      reason: 'the second secret is still owed its wipe',
+    );
+
+    // Had the old wipe torn down the new copy's listener, nothing would
+    // suspend the second timer and it could fire while backgrounded.
+    sendToBackground(tester);
+    expect(
+      ClipboardService.isSensitiveClearArmed,
+      isFalse,
+      reason: 'the new copy must still be suspendable',
+    );
+    expect(writes, [
+      'portal-password',
+      'second-secret',
+    ], reason: 'the older wipe must not blank the newer copy');
   });
 
   testWidgets('a failed copy does not disarm the previous secret\'s wipe', (
@@ -273,7 +416,8 @@ void main() {
     expect(ClipboardService.hasPendingSensitiveClear, isTrue);
 
     refuseWrites = false;
-    await tester.pump(
+    await advance(
+      tester,
       ClipboardService.sensitiveClearDelay + const Duration(seconds: 1),
     );
     await tester.pumpAndSettle();

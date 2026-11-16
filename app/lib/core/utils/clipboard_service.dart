@@ -17,7 +17,10 @@ abstract final class ClipboardService {
   @visibleForTesting
   static const sensitiveClearDelay = Duration(seconds: 60);
 
-  /// The pending wipe for the last sensitive copy, if one is scheduled.
+  /// The armed timer for the last sensitive copy, if one is running.
+  ///
+  /// Null while the wipe is suspended in the background — see
+  /// [_suspendSensitiveClear].
   static Timer? _pendingSensitiveClear;
 
   /// The exact text [_pendingSensitiveClear] is allowed to remove.
@@ -28,18 +31,44 @@ abstract final class ClipboardService {
   /// clipboard only while it still holds this value.
   static String? _pendingSensitiveValue;
 
+  /// When the wipe owed for [_pendingSensitiveValue] is due.
+  ///
+  /// Measured from the original copy, never from a resume: backgrounding the
+  /// app for five minutes must not buy the secret five more minutes on the
+  /// clipboard. Kept across a pause because the wipe is suspended there, not
+  /// abandoned.
+  static DateTime? _wipeDueAt;
+
+  /// The clock the deadline is measured against.
+  ///
+  /// A seam only because `tester.pump` advances timers without advancing
+  /// `DateTime.now()`; production never replaces it.
+  @visibleForTesting
+  static DateTime Function() now = DateTime.now;
+
   /// Bumped by every [copy]; a wipe only acts for the generation that armed it.
   ///
   /// Guards the window between the wipe reading the clipboard and writing to
   /// it: a copy made in that window supersedes the wipe.
   static int _generation = 0;
 
-  /// Watches the app's lifecycle while a wipe is armed.
+  /// Watches the app's lifecycle while a wipe is armed or owed.
   static AppLifecycleListener? _lifecycle;
 
-  /// True while a sensitive value is waiting to be wiped from the clipboard.
+  /// True while a sensitive value is still owed a wipe.
+  ///
+  /// Also true while the wipe is suspended in the background: the secret has
+  /// not been forgotten, it just cannot be cleared until the app is in front of
+  /// the user again.
   @visibleForTesting
-  static bool get hasPendingSensitiveClear =>
+  static bool get hasPendingSensitiveClear => _pendingSensitiveValue != null;
+
+  /// True while the wipe is actually armed to fire on its own.
+  ///
+  /// False in the background, where the timer is suspended so it cannot blank
+  /// the clipboard while the user is pasting into another app.
+  @visibleForTesting
+  static bool get isSensitiveClearArmed =>
       _pendingSensitiveClear?.isActive ?? false;
 
   /// Cancels any pending wipe and stops watching the lifecycle.
@@ -51,7 +80,9 @@ abstract final class ClipboardService {
     _pendingSensitiveClear?.cancel();
     _pendingSensitiveClear = null;
     _pendingSensitiveValue = null;
+    _wipeDueAt = null;
     _generation++;
+    now = DateTime.now;
     _stopWatchingLifecycle();
   }
 
@@ -104,12 +135,9 @@ abstract final class ClipboardService {
     _generation++;
     if (sensitive) {
       _pendingSensitiveValue = value;
-      final armedFor = _generation;
-      _pendingSensitiveClear = Timer(
-        sensitiveClearDelay,
-        () => _wipeIfStillOurs(armedFor),
-      );
-      _watchLifecycle();
+      final dueAt = now().add(sensitiveClearDelay);
+      _wipeDueAt = dueAt;
+      _armSensitiveClear(dueAt);
     }
 
     if (haptic) {
@@ -142,8 +170,8 @@ abstract final class ClipboardService {
   /// unless a test drives the lifecycle): treat it as foreground rather than
   /// stranding a secret because we never heard otherwise. `inactive` counts as
   /// foreground too — the notification shade or a system dialog leaves the app
-  /// on screen and the timer is cancelled outright on hide/pause, so refusing
-  /// to wipe while merely unfocused would silently drop the wipe.
+  /// on screen, while the wipe is suspended outright on hide/pause. This is the
+  /// fire-time backstop in case a resume event never arrives.
   static bool get _isForeground {
     final state = WidgetsBinding.instance.lifecycleState;
     return state == null ||
@@ -154,11 +182,14 @@ abstract final class ClipboardService {
   static void _watchLifecycle() {
     _lifecycle ??= AppLifecycleListener(
       // A backgrounded app is not allowed to blank the clipboard: Android 10+
-      // still permits background *writes*, so a timer left running would fire
-      // while the user is pasting into another app.
-      onPause: _cancelPendingClear,
-      onHide: _cancelPendingClear,
-      onDetach: _cancelPendingClear,
+      // still permits background *writes*, so a timer left armed would fire
+      // while the user is pasting into another app. Suspending keeps the secret
+      // and its deadline; resuming re-arms the wipe.
+      onPause: _suspendSensitiveClear,
+      onHide: _suspendSensitiveClear,
+      onDetach: _suspendSensitiveClear,
+      onShow: _resumeSensitiveClear,
+      onResume: _resumeSensitiveClear,
     );
   }
 
@@ -167,10 +198,46 @@ abstract final class ClipboardService {
     _lifecycle = null;
   }
 
+  /// Disarms the timer without forgetting the wipe.
+  ///
+  /// The secret and [_wipeDueAt] survive, so a resume can re-arm the wipe at its
+  /// original deadline. Cancelling rather than letting the timer fire is the
+  /// point: a backgrounded app may write the clipboard on Android 10+, and the
+  /// user must never have it blanked while they are pasting elsewhere.
+  static void _suspendSensitiveClear() {
+    if (_pendingSensitiveValue == null) return;
+    _pendingSensitiveClear?.cancel();
+    _pendingSensitiveClear = null;
+  }
+
+  /// Re-arms a wipe that a pause suspended, at its original deadline.
+  ///
+  /// A deadline that already passed fires immediately (clamped to zero), which
+  /// is what makes "copy, switch to the browser, paste, come back" end with the
+  /// secret cleared instead of living on the clipboard forever.
+  static void _resumeSensitiveClear() {
+    final dueAt = _wipeDueAt;
+    if (_pendingSensitiveValue == null || dueAt == null) return;
+    if (_pendingSensitiveClear?.isActive ?? false) return;
+    _armSensitiveClear(dueAt);
+  }
+
+  /// Arms (or re-arms) the timer that runs the wipe at [dueAt].
+  static void _armSensitiveClear(DateTime dueAt) {
+    final remaining = dueAt.difference(now());
+    final armedFor = _generation;
+    _pendingSensitiveClear = Timer(
+      remaining.isNegative ? Duration.zero : remaining,
+      () => _wipeIfStillOurs(armedFor),
+    );
+    _watchLifecycle();
+  }
+
   static void _cancelPendingClear() {
     _pendingSensitiveClear?.cancel();
     _pendingSensitiveClear = null;
     _pendingSensitiveValue = null;
+    _wipeDueAt = null;
     _stopWatchingLifecycle();
   }
 
@@ -178,12 +245,18 @@ abstract final class ClipboardService {
   /// put there.
   static Future<void> _wipeIfStillOurs(int armedFor) async {
     final secret = _pendingSensitiveValue;
+    if (secret == null || armedFor != _generation) return;
+    if (!_isForeground) {
+      // The timer should never have been armed here — the pause suspends it —
+      // but if a resume event never arrives, this is the backstop: never write
+      // from the background, and keep the wipe owed for a later resume.
+      _suspendSensitiveClear();
+      return;
+    }
     _pendingSensitiveClear = null;
     _pendingSensitiveValue = null;
+    _wipeDueAt = null;
     try {
-      if (secret == null || armedFor != _generation) return;
-      if (!_isForeground) return;
-
       String? current;
       try {
         current = (await Clipboard.getData(Clipboard.kTextPlain))?.text;
@@ -216,7 +289,12 @@ abstract final class ClipboardService {
         // user about a minute after the copy, and no timer left to retry.
       }
     } finally {
-      _stopWatchingLifecycle();
+      // Ownership-aware teardown: a sensitive copy that landed while this wipe
+      // was awaiting the read owns a fresh timer and listener, and disposing
+      // them from here would leave that wipe unable to suspend or re-arm.
+      if (_pendingSensitiveValue == null && _pendingSensitiveClear == null) {
+        _stopWatchingLifecycle();
+      }
     }
   }
 

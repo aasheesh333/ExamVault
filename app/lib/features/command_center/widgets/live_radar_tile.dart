@@ -310,7 +310,13 @@ class _StatusLine extends MultiChildRenderObjectWidget {
     required this.spacing,
     required this.runSpacing,
     required super.children,
-  });
+  }) : assert(
+         children.length == 2,
+         '_StatusLine lays out exactly two children (leading, trailing): the '
+         'render object reads firstChild and childAfter(firstChild) and nothing '
+         'else, so a third child would never be laid out and would fail inside '
+         'paint with an unpositioned-box error instead of here.',
+       );
 
   /// Gap between the two children while they share a line.
   final double spacing;

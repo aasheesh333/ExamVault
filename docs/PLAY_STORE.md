@@ -30,15 +30,15 @@ characters per language — re-check the counter at submission):
   now wins, the header names the exam being exported, and the details are read
   from the current feed — so a result that arrived after you tapped no longer
   exports as "update awaited". Dismissing the share sheet says nothing was sent
-  instead of claiming it shared for you. The exported image is also a consistent
-  size on every screen, instead of a huge file on a large one.
-- **The vault form says what each field is.** All twelve fields are announced by
-  their name ("Exam name", "Centre address", "Gate", "Roll number") rather than by
-  their example text, the password toggle is labelled, and a refused save is read
-  aloud instead of only turning red. If the exam date is what is blocking the
-  save, the form scrolls to it. A save that hangs now times out with a message and
-  a Retry instead of leaving the button spinning forever, and Retry cannot create
-  a duplicate card.
+  instead of claiming it shared for you. The exported image is sized from the
+  card rather than the device, so a wide screen no longer produces a huge file.
+- **The vault form says what each field is.** All twelve text fields are
+  announced by their name ("Exam name", "Centre address", "Gate", "Roll number")
+  rather than by their example text, the password toggle is labelled, and a
+  refused save is read aloud instead of only turning red. If the exam date is
+  what is blocking the save, the form scrolls to it. A save that hangs now times
+  out with a message and a Retry instead of leaving the button spinning forever,
+  and Retry cannot create a duplicate card.
 - **"Delete all data" exists.** It is in About, under "Your data", behind a
   confirmation. It removes every admit card, every setting and the cached feed.
   Your push token is kept (it carries no exam or vault data); the per-exam bells
@@ -52,9 +52,10 @@ characters per language — re-check the counter at submission):
   that arrived since your last visit from the rest, so the dot on the tab now
   points at something you can see. It never appears when nothing is new, and never
   on a fresh install.
-- **The Dates tab is grouped.** Entries are under "This week", "This month" and
-  "Later", in the same nearest-first order, and a screen reader can jump between
-  the three headings.
+- **The Dates tab is grouped.** Entries are under "Next 7 days", "Next 30 days"
+  and "Later" — day counts, not calendar weeks or months — in the same
+  nearest-first order as before, and a screen reader can jump between the three
+  headings.
 - **The status pill stays readable.** At large text — and on a narrow phone at the
   normal size — the pill used to be squeezed until its label painted below the
   app's own minimum type size. It now paints at full size at every setting.

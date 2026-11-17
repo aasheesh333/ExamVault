@@ -86,10 +86,12 @@ and one universal APK.
 tagged `v<versionName>-build<versionCode>` (for `version: 1.0.1+2` that is
 `v1.0.1-build2`; the tag spells the build number out because `+` is a special
 character in workflow filter globs). The release is created at the dispatched
-commit, and re-dispatching the same version replaces its assets rather than
-failing. **This is the durable copy of the Play artefact**: release assets do not
-draw on the 500 MB Actions storage allowance and never expire, so a bundle stays
-downloadable however long the Play submission takes.
+commit, and re-dispatching the same version deletes and recreates it so the tag
+always matches the assets beside it — `gh release edit` alone would leave the tag
+on the older commit. **This is the durable copy of the Play artefact**: release
+assets never expire and are publicly downloadable at
+<https://github.com/aasheesh333/ExamVault/releases/tag/v1.0.1-build2>, so a bundle
+stays reachable however long the Play submission takes.
 
 The same files are additionally attached to the run as two workflow artefacts:
 
@@ -105,12 +107,14 @@ The universal APK exists because the split ones require the downloader to know
 their phone's ABI, and a wrong pick fails with "app not compatible". The bundle is
 already universal, so this is only for distribution outside Play.
 
-These upload steps are **best-effort** (`continue-on-error: true`). GitHub's
-500 MB free allowance is account-wide rather than per repository: on 2026-11-17
-this repo held 0 bytes and the upload still failed because a sibling repo held
-2.3 GB. Nothing this workflow can do frees that, so a green build must not depend
-on it — the Release step above is the authoritative copy and resumes working as
-soon as the account is under its limit.
+These upload steps are **best-effort** (`continue-on-error: true`). On a private
+repository the 500 MB free allowance is account-wide rather than per repository: on
+2026-11-17 this repo held 0 bytes and the upload still failed because a sibling repo
+held 2.3 GB. Nothing this workflow could do freed that, so a green build must not
+depend on it. **The repository is now public**, which gives Actions storage without
+that cap, and the uploads succeed (verified: both artefacts present from
+`ca9f86b`). The flag stays because it costs nothing and the Release step is the
+copy that must never be lost.
 
 The release step runs **before** the artefact uploads, and both upload steps carry
 `if: always() && !cancelled()`, so a storage problem can never cost you the
@@ -122,13 +126,13 @@ upload steps still use `if-no-files-found: error`, so a build that produced no
 bundle fails the job instead of quietly shipping nothing.
 
 Workflow artefacts are kept for **3 days**, down from 14. Each run is ~170 MB
-(56.6 MB AAB plus the universal and three split APKs) against a 500 MB
-account-wide allowance. Two things were consuming it, both now addressed: the
-cache, because `cache: true` on `subosito/flutter-action` stores the whole Flutter
-SDK (~1.64 GB at the pinned version), which alone is over three times the
-allowance; and retention, because a fortnight of runs kept ~1.2 GB of old builds
-alive. Losing the cache costs about half a minute of download per job; keeping it
-makes every upload fail. Do not re-enable it without a paid plan.
+(56.6 MB AAB plus the universal and three split APKs). Retention was cut because a
+fortnight of runs kept ~1.2 GB alive against a 500 MB private-repo allowance. The
+cache is switched off for the same reason: `cache: true` on
+`subosito/flutter-action` stores the whole Flutter SDK (~1.64 GB at the pinned
+version). Losing the cache costs about half a minute of download per job. With the
+repository public neither limit binds, but the settings are left conservative
+because they are cheap and the failure they cause is silent.
 (`.github/workflows/ci.yml`, job `build-android`, steps *Build APK*,
 *Publish to GitHub Release*, *Upload App Bundle*, *Upload APKs*.)
 

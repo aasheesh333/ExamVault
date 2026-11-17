@@ -33,6 +33,26 @@ abstract final class AppConfig {
   /// clause instead of guessing one.
   static const appVersion = String.fromEnvironment('EV_APP_VERSION');
 
+  // ------------------------------------------------------------------ policies
+  /// The hosted policy pages.
+  ///
+  /// These are the URLs the Play listing cites, served from GitHub Pages by
+  /// `.github/workflows/pages.yml` and generated from `docs/PRIVACY.md` and
+  /// `docs/TERMS.md`. The in-app sheet stays the primary reading experience —
+  /// a student on exam morning has no network — but a listing needs a URL a
+  /// reviewer can open, and a user is entitled to read the same text outside the
+  /// app before installing it.
+  ///
+  /// Hosted on Pages rather than a free PHP host on purpose: InfinityFree and
+  /// similar answer non-browser clients with a JavaScript challenge, so the Play
+  /// Console's own URL check would see "requires Javascript" instead of the
+  /// policy. Pages returns the file verbatim.
+  static const privacyPolicyUrl =
+      'https://aasheesh333.github.io/ExamVault/privacy.html';
+
+  /// Terms of use, same host and pipeline as [privacyPolicyUrl].
+  static const termsUrl = 'https://aasheesh333.github.io/ExamVault/terms.html';
+
   // -------------------------------------------------------------------- edge
   /// Cloudflare R2 custom domain. Requests hit the nearest PoP and are served
   /// from cache — origin (R2) sees one request per object per TTL window, which

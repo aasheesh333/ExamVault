@@ -1014,6 +1014,17 @@ class _PolicySheet extends ConsumerWidget {
               _Paragraph(body),
               const SizedBox(height: 14),
             ],
+            const SizedBox(height: 6),
+            // The sheet above is the whole policy, readable with no network. These
+            // two rows exist for a different reader: someone deciding whether to
+            // install, and the Play reviewer checking the listing's URL. They open
+            // the hosted copies, which are generated from the same markdown the
+            // sheet's text is written from.
+            const _Link(
+              label: 'Read on the web',
+              url: AppConfig.privacyPolicyUrl,
+            ),
+            const _Link(label: 'Terms of use', url: AppConfig.termsUrl),
           ],
         ),
       ),

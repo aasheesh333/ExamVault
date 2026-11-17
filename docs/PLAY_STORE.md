@@ -371,11 +371,21 @@ removed.
       EV_SCREENSHOTS=1 flutter test test/screenshot_capture_test.dart`). Replace
       with device captures if a phone is available; the widget pipeline is the
       reproducible fallback.
-- [x] Host `docs/PRIVACY.md` at a public URL — the repository is public, so
-      <https://github.com/aasheesh333/ExamVault/blob/master/docs/PRIVACY.md>
-      serves it (verified HTTP 200 unauthenticated). Paste that URL into the Play
-      listing. If you would rather not depend on GitHub, mirror the same file to
-      your own domain — the content is self-contained.
+- [x] Host the privacy policy and terms at a public URL — served by GitHub Pages
+      from `.github/workflows/pages.yml`, which regenerates them from
+      `docs/PRIVACY.md` and `docs/TERMS.md`:
+      - Privacy: <https://aasheesh333.github.io/ExamVault/privacy.html>
+      - Terms: <https://aasheesh333.github.io/ExamVault/terms.html>
+
+      **Paste the privacy URL into the Play listing.** Both were verified with a
+      plain non-JavaScript fetch returning the full document (privacy 18,813
+      bytes, terms 9,029 bytes), which is what the Play Console's own URL checker
+      does. That check is why Pages is the host rather than InfinityFree: the free
+      PHP host answers a non-browser client with a JavaScript anti-bot challenge,
+      so the checker would have seen "This site requires Javascript to work" and
+      the listing would cite a page it could not read. The same files are also
+      mirrored at <https://dhanuk.page.gd/ExamVault/> for humans, which is fine
+      for a browser but not usable as the listing URL.
 - [ ] Decide the licensing stance on any mirrored PDF (currently: link-only, no
       mirroring — see `docs/DATA_PIPELINE.md`)
 - [ ] Create the Play Console app and upload `app-release.aab` to internal testing

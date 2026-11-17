@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:examvault/core/config/app_config.dart';
 import 'package:examvault/core/theme/app_theme.dart';
 import 'package:examvault/data/local/secure_vault_store.dart';
 import 'package:examvault/data/remote/cdn_client.dart';
@@ -323,6 +324,44 @@ void main() {
             .hitTestable(),
         findsOneWidget,
       );
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('the policy sheet links to the hosted policy and terms', (
+      tester,
+    ) async {
+      // The sheet is the offline copy; these two rows are the only way a reader
+      // reaches the hosted text the Play listing cites. They are also the thing
+      // that silently disappears if someone trims the bottom of the list, so the
+      // labels are pinned here rather than trusted to survive an edit.
+      await openAbout(tester);
+      await tester.scrollUntilVisible(
+        find.text('Read the privacy policy'),
+        200,
+        scrollable: find.byType(Scrollable).last,
+      );
+      await tester.ensureVisible(find.text('Read the privacy policy'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Read the privacy policy'));
+      await tester.pumpAndSettle();
+
+      await tester.scrollUntilVisible(
+        find.text('Terms of use'),
+        400,
+        scrollable: find.byType(Scrollable).last,
+      );
+      await tester.ensureVisible(find.text('Terms of use'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Read on the web'), findsOneWidget);
+      expect(find.text('Terms of use'), findsOneWidget);
+
+      // The URLs themselves matter: a listing that cites a dead host is a policy
+      // violation. Cheap to assert, and it fails loudly if a constant is edited.
+      expect(AppConfig.privacyPolicyUrl, startsWith('https://'));
+      expect(AppConfig.termsUrl, startsWith('https://'));
+      expect(AppConfig.privacyPolicyUrl, contains('privacy'));
+      expect(AppConfig.termsUrl, contains('terms'));
       expect(tester.takeException(), isNull);
     });
   });

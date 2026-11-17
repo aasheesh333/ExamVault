@@ -357,7 +357,11 @@ removed.
       EV_SCREENSHOTS=1 flutter test test/screenshot_capture_test.dart`). Replace
       with device captures if a phone is available; the widget pipeline is the
       reproducible fallback.
-- [ ] Host `docs/PRIVACY.md` at a public URL and paste it into the listing
+- [x] Host `docs/PRIVACY.md` at a public URL — the repository is public, so
+      <https://github.com/aasheesh333/ExamVault/blob/master/docs/PRIVACY.md>
+      serves it (verified HTTP 200 unauthenticated). Paste that URL into the Play
+      listing. If you would rather not depend on GitHub, mirror the same file to
+      your own domain — the content is self-contained.
 - [ ] Decide the licensing stance on any mirrored PDF (currently: link-only, no
       mirroring — see `docs/DATA_PIPELINE.md`)
 - [ ] Create the Play Console app and upload `app-release.aab` to internal testing

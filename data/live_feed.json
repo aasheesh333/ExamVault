@@ -1,7 +1,7 @@
 {
-  "revision": 13,
+  "revision": 14,
   "source": "official commission websites",
-  "fetched_at": "2026-11-17T03:45:28.686Z",
+  "fetched_at": "2026-11-17T13:14:53.459Z",
   "sources": [
     {
       "id": "ssc",
@@ -9,20 +9,19 @@
       "category": "ssc",
       "homepage": "https://ssc.gov.in/",
       "status": "ok",
-      "rows": 17,
-      "checked_at": "2026-11-17T03:44:49.239Z",
-      "elapsed_ms": 1413
+      "rows": 16,
+      "checked_at": "2026-11-17T13:12:56.066Z",
+      "elapsed_ms": 1444
     },
     {
       "id": "upsc",
       "label": "UPSC",
       "category": "upsc",
       "homepage": "https://www.upsc.gov.in",
-      "status": "unavailable",
-      "rows": 0,
-      "checked_at": "2026-11-17T03:45:14.240Z",
-      "elapsed_ms": 25001,
-      "reason": "This operation was aborted"
+      "status": "empty",
+      "rows": 6,
+      "checked_at": "2026-11-17T13:14:37.300Z",
+      "elapsed_ms": 101233
     },
     {
       "id": "ibps",
@@ -31,8 +30,8 @@
       "homepage": "https://www.ibps.in",
       "status": "empty",
       "rows": 0,
-      "checked_at": "2026-11-17T03:45:16.585Z",
-      "elapsed_ms": 2345,
+      "checked_at": "2026-11-17T13:14:41.082Z",
+      "elapsed_ms": 3781,
       "note": "TLS chain completed with a pinned GlobalSign intermediate"
     },
     {
@@ -42,8 +41,8 @@
       "homepage": "https://www.tnpsc.gov.in",
       "status": "ok",
       "rows": 10,
-      "checked_at": "2026-11-17T03:45:18.196Z",
-      "elapsed_ms": 1611
+      "checked_at": "2026-11-17T13:14:42.970Z",
+      "elapsed_ms": 1888
     },
     {
       "id": "railways",
@@ -52,12 +51,24 @@
       "homepage": "https://rrbchennai.gov.in",
       "status": "unavailable",
       "rows": 0,
-      "checked_at": "2026-11-17T03:45:28.685Z",
-      "elapsed_ms": 10489,
+      "checked_at": "2026-11-17T13:14:53.458Z",
+      "elapsed_ms": 10488,
       "reason": "fetch failed"
     }
   ],
   "updates": [
+    {
+      "exam_id": "q5zvwlkwna3s17u_i1rgugscddwe9f1o5e2oi",
+      "category": "ssc",
+      "exam_name": "Notice of Grade 'C' Stenographers Limited Departmental Competitive Examination, 2026",
+      "context": "Notice board \u00b7 ssc.gov.in",
+      "status": "awaited",
+      "published_at": "2026-11-17T11:30:22.772Z",
+      "source": "ssc.gov.in",
+      "source_id": "ssc",
+      "official_pdf": "https://ssc.gov.in/api/attachment/uploads/masterData/NoticeBoards/Notice_of_STENO-LDC_2026.pdf",
+      "pdf_size": "2.3 MB"
+    },
     {
       "exam_id": "j2k7sgab6eu9sh6c_6v986pkyn88b6tz1cjjyn",
       "category": "ssc",
@@ -99,7 +110,7 @@
       "index_available": true,
       "index_version": "496699f59fa7",
       "roll_count": 2526,
-      "index_attempted_at": "2026-11-17T03:46:29.690124+00:00",
+      "index_attempted_at": "2026-11-17T13:15:54.935898+00:00",
       "index_skipped": "HTTPError: HTTP Error 504: Gateway Time-out"
     },
     {
@@ -116,7 +127,7 @@
       "index_available": true,
       "index_version": "ebf0b48ddd52",
       "roll_count": 181,
-      "index_attempted_at": "2026-11-17T03:47:31.115584+00:00",
+      "index_attempted_at": "2026-11-17T13:16:56.187329+00:00",
       "index_skipped": "HTTPError: HTTP Error 504: Gateway Time-out"
     },
     {
@@ -133,7 +144,7 @@
       "index_available": true,
       "index_version": "ec7dd2aa1ba9",
       "roll_count": 8956,
-      "index_attempted_at": "2026-11-17T03:48:32.172496+00:00",
+      "index_attempted_at": "2026-11-17T13:17:57.978818+00:00",
       "index_skipped": "HTTPError: HTTP Error 504: Gateway Time-out"
     },
     {
@@ -150,8 +161,7 @@
       "index_available": true,
       "index_version": "9fc461201151",
       "roll_count": 66,
-      "index_attempted_at": "2026-11-17T03:49:33.100497+00:00",
-      "index_skipped": "HTTPError: HTTP Error 504: Gateway Time-out"
+      "index_built_at": "2026-11-17T13:17:59.799125+00:00"
     },
     {
       "exam_id": "upsc_whats_new_combined_section_officers_grade_b_ldce_20",
@@ -167,8 +177,7 @@
       "index_available": true,
       "index_version": "e1da0b22d115",
       "roll_count": 30,
-      "index_attempted_at": "2026-11-17T03:50:34.158756+00:00",
-      "index_skipped": "HTTPError: HTTP Error 504: Gateway Time-out"
+      "index_built_at": "2026-11-17T13:18:00.663195+00:00"
     },
     {
       "exam_id": "upsc_whats_new_national_defence_academy_and_naval_academ",
@@ -184,8 +193,7 @@
       "index_available": true,
       "index_version": "2519ef9780b0",
       "roll_count": 617,
-      "index_attempted_at": "2026-11-17T03:51:35.457547+00:00",
-      "index_skipped": "HTTPError: HTTP Error 504: Gateway Time-out"
+      "index_built_at": "2026-11-17T13:18:01.592036+00:00"
     },
     {
       "exam_id": "ssc_46l1ioei1wmu889jygtld",
@@ -249,32 +257,6 @@
       "official_pdf": "https://ssc.gov.in/api/attachment/uploads/masterData/NoticeBoards/writeup_03112026.pdf",
       "pdf_size": "0.2 MB",
       "index_attempted_at": "2026-11-11T15:21:11.241956+00:00",
-      "index_skipped": "writeup"
-    },
-    {
-      "exam_id": "ssc_n8tz5b1qsch7uibcchn7u",
-      "category": "ssc",
-      "exam_name": "Important Notice-Dates of CGEPT, 2027, Annual Skill Test, 2025 and SI in DP and CAPFs, Exam, \u2026",
-      "context": "Notice board \u00b7 ssc.gov.in",
-      "status": "awaited",
-      "published_at": "2026-11-02T13:35:03.540Z",
-      "source": "ssc.gov.in",
-      "source_id": "ssc",
-      "official_pdf": "https://ssc.gov.in/api/attachment/uploads/masterData/NoticeBoards/Exams_notice_02112026.pdf",
-      "pdf_size": "0.5 MB"
-    },
-    {
-      "exam_id": "j2k7sgab6eu9sh6c_5ufxf0ts6671mcxh451qs",
-      "category": "ssc",
-      "exam_name": "Sub-Inspector in Delhi Police and Central Armed Police Forces Examination, 2025: Declaration \u2026",
-      "context": "Official PDF \u00b7 0.7 MB",
-      "status": "result_out",
-      "published_at": "2026-10-29T09:24:58.805Z",
-      "source": "ssc.gov.in",
-      "source_id": "ssc",
-      "official_pdf": "https://ssc.gov.in/api/attachment/uploads/masterData/NoticeBoards/writeup_29102026.pdf",
-      "pdf_size": "0.7 MB",
-      "index_attempted_at": "2026-11-11T15:22:14.550389+00:00",
       "index_skipped": "writeup"
     },
     {

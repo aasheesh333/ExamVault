@@ -72,7 +72,7 @@ produced for this section. The Android artefacts come from CI
 with `version: 1.0.1+2` in place that value is `1.0.1+2` (verified by running the
 step's own script from `app/` with a stubbed `flutter`). The web release build,
 analyze, format and the full test suite were run locally on this tree: analyze
-`No issues found!`, format 0 changed, `flutter test` 948 passed / 7 skipped /
+`No issues found!`, format 0 changed, `flutter test` 957 passed / 7 skipped /
 0 failed, `node --test` 49/49, `flutter build web --release` succeeded.
 
 ## What CI produces
@@ -80,7 +80,18 @@ analyze, format and the full test suite were run locally on this tree: analyze
 The `build-android` job (`Build release APK`) runs on every push to `master` or
 `main`, on `v*` tags, and on manual `workflow_dispatch` — never on pull requests
 (secrets are unavailable to fork PRs). It builds one App Bundle and three split
-APKs, published as two downloadable workflow artefacts:
+APKs.
+
+**On `workflow_dispatch` the signed build is also published to a GitHub Release**,
+tagged `v<versionName>-build<versionCode>` (for `version: 1.0.1+2` that is
+`v1.0.1-build2`; the tag spells the build number out because `+` is a special
+character in workflow filter globs). The release is created at the dispatched
+commit, and re-dispatching the same version replaces its assets rather than
+failing. **This is the durable copy of the Play artefact**: release assets do not
+draw on the 500 MB Actions storage allowance and never expire, so a bundle stays
+downloadable however long the Play submission takes.
+
+The same files are additionally attached to the run as two workflow artefacts:
 
 | Workflow artefact | File | Path in the build | Use |
 |---|---|---|---|
@@ -89,10 +100,24 @@ APKs, published as two downloadable workflow artefacts:
 | `examvault-apk` | `app-armeabi-v7a-release.apk` | `app/build/app/outputs/flutter-apk/` | older 32-bit devices |
 | `examvault-apk` | `app-x86_64-release.apk` | `app/build/app/outputs/flutter-apk/` | emulators |
 
-Both upload steps use `if-no-files-found: error`, so a build that produced no
-bundle fails the job instead of quietly shipping nothing. Artefacts are kept for
-14 days. (`.github/workflows/ci.yml`, job `build-android`, steps *Build APK*,
-*Upload APKs*, *Upload App Bundle*.)
+The release step runs **before** the artefact uploads, and both upload steps carry
+`if: always() && !cancelled()`, so a storage problem can never cost you the
+bundle. That ordering is earned, not decorative: on 2026-11-17 a run built a
+signed 56.6 MB bundle and three APKs, then `Upload APKs` failed on an exhausted
+artefact-storage quota, and because steps stop at the first failure the Play
+artefact was skipped entirely — a green build with nothing to download. Both
+upload steps still use `if-no-files-found: error`, so a build that produced no
+bundle fails the job instead of quietly shipping nothing.
+
+Workflow artefacts are kept for **3 days**, down from 14. Each run is ~119 MB
+(56.6 MB AAB plus three split APKs) against a 500 MB *total* free-tier allowance.
+The cache is the bigger consumer and is therefore switched off: `cache: true` on
+`subosito/flutter-action` stores the whole Flutter SDK (~1.64 GB at the pinned
+version), which alone is over three times the allowance and was what actually
+exhausted it. Losing that cache costs about half a minute of download per job;
+keeping it makes every upload fail. Do not re-enable it without a paid plan.
+(`.github/workflows/ci.yml`, job `build-android`, steps *Build APK*,
+*Publish to GitHub Release*, *Upload App Bundle*, *Upload APKs*.)
 
 Sizes are not asserted anywhere and drift with the Flutter version — read them
 off the workflow run rather than quoting a number here.

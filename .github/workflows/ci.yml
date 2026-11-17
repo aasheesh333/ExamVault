@@ -5,7 +5,13 @@ on:
     # `master` is this repo's default branch; `main` is kept so a future rename
     # does not silently disable CI.
     branches: [master, main]
-    tags: ['v*']
+    # Release tags are cut by the `Publish to GitHub Release` step itself. They
+    # are named `v1.0.1-build2` rather than `v1.0.1+2` because `+` is a special
+    # character in this filter syntax ("one or more of the preceding"), which
+    # makes the negation below impossible to express. Building a tag the publish
+    # step just created would duplicate that run, so `-build<N>` tags are
+    # excluded. A human-cut tag such as `v1.0.1` still builds.
+    tags: ['v*', '!v*-build*']
   pull_request:
     branches: [master, main]
   workflow_dispatch:
@@ -33,11 +39,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # `cache: true` is deliberately OFF. It caches the whole Flutter SDK, which
+      # on this pin is ~1.64 GB — more than three times the entire 500 MB
+      # artefact+cache allowance a private repo gets on the free plan. With it on,
+      # one CI run filled the quota and every later upload failed with "Artifact
+      # storage quota has been hit", which cost us the Play App Bundle. Losing the
+      # cache costs roughly half a minute of download per job and is the only way
+      # the build artefacts fit. Do not turn it back on without a paid plan.
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
-          cache: true
 
       - name: Resolve dependencies
         run: flutter pub get
@@ -68,6 +80,9 @@ jobs:
     needs: verify
     runs-on: ubuntu-latest
     timeout-minutes: 35
+    # `contents: write` is required by the release-publishing step below.
+    permissions:
+      contents: write
     defaults:
       run:
         working-directory: app
@@ -80,11 +95,13 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      # Cache stays off here for the same reason as in `verify`: the SDK cache
+      # alone is bigger than the whole storage allowance, and this is the job
+      # whose uploads actually need that allowance for the AAB and APKs.
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
-          cache: true
 
       - name: Resolve dependencies
         run: flutter pub get
@@ -191,6 +208,54 @@ jobs:
             --dart-define=EV_FIREBASE_STORAGE_BUCKET="$EV_FIREBASE_STORAGE_BUCKET" \
             --dart-define=EV_ONESIGNAL_APP_ID="$EV_ONESIGNAL_APP_ID" \
             --dart-define=EV_APP_VERSION="${EV_APP_VERSION}"
+
+      # Publishing is deliberately the first thing that touches storage. The
+      # bundle is the only artefact a release is judged by, and a GitHub Release
+      # does not draw on the 500 MB Actions store that the Flutter SDK cache
+      # exhausted (see the `cache` note above). It also never expires, so a
+      # bundle built today is still downloadable when the Play submission is
+      # actually made — which a 3-day workflow artefact cannot promise.
+      #
+      # Gated on `workflow_dispatch` so publishing is a deliberate act, not a
+      # side effect of every push to master. Idempotent: re-dispatching the same
+      # version updates the existing release instead of failing.
+      - name: Publish to GitHub Release
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          VERSION="$(grep -m1 '^version:' pubspec.yaml | awk '{print $2}')"
+          if [ -z "${VERSION}" ]; then
+            echo "::error::Could not derive the app version from app/pubspec.yaml — refusing to publish an unversioned release."
+            exit 1
+          fi
+          # `1.0.1+2` -> `v1.0.1-build2`. The `+` form is what pubspec and Play
+          # use, but `+` is special in workflow filter globs, so the tag spells
+          # the build number out instead.
+          NAME="${VERSION%%+*}"
+          BUILD="${VERSION#*+}"
+          if [ "${BUILD}" = "${VERSION}" ]; then
+            TAG="v${VERSION}"
+          else
+            TAG="v${NAME}-build${BUILD}"
+          fi
+          echo "Publishing ${VERSION} as release ${TAG}"
+          NOTES="Signed Play Store build. Version \`${VERSION}\`, commit ${GITHUB_SHA}."
+          if gh release view "${TAG}" >/dev/null 2>&1; then
+            gh release edit "${TAG}" --notes "${NOTES}"
+          else
+            gh release create "${TAG}" \
+              --target "${GITHUB_SHA}" \
+              --title "ExamVault ${VERSION}" \
+              --notes "${NOTES}"
+          fi
+          # --clobber so a re-dispatch of the same version replaces the assets
+          # rather than erroring on the existing filename.
+          gh release upload "${TAG}" --clobber \
+            build/app/outputs/bundle/release/app-release.aab \
+            build/app/outputs/flutter-apk/*.apk
 
       # The App Bundle goes first, and both uploads run even if the other one
       # fails. The AAB is the Play artefact; on 2026-11-17 an exhausted

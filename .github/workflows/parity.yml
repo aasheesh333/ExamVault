@@ -73,11 +73,12 @@ jobs:
         working-directory: tools
         run: node --test test/*.test.mjs
 
+      # See ci.yml: caching the Flutter SDK costs ~1.64 GB, which exceeds this
+      # repo's whole artefact+cache allowance on the free plan.
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
-          cache: true
 
       - name: Resolve app dependencies
         working-directory: app

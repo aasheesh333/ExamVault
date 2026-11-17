@@ -271,14 +271,21 @@ jobs:
             "- \`app-arm64-v8a-release.apk\` — most phones since ~2017, smallest download" \
             "- \`app-armeabi-v7a-release.apk\` — older 32-bit devices only" \
             "- \`app-x86_64-release.apk\` — emulators only")"
+          # Re-dispatching the same version must REPLACE the release, not edit it.
+          # `gh release edit` leaves the tag pointing at the commit that first
+          # created it, so a re-run would upload assets built from the new commit
+          # under a tag still pointing at the old one — which is exactly what
+          # happened on 2026-11-17 (assets from 7210615, tag on ae03e94).
+          # Deleting and cleaning up the tag first makes the tag always match the
+          # files beside it. The release URL is keyed by tag name, so it survives.
           if gh release view "${TAG}" >/dev/null 2>&1; then
-            gh release edit "${TAG}" --notes "${NOTES}"
-          else
-            gh release create "${TAG}" \
-              --target "${GITHUB_SHA}" \
-              --title "ExamVault ${VERSION}" \
-              --notes "${NOTES}"
+            echo "Release ${TAG} exists — recreating so the tag matches the new assets."
+            gh release delete "${TAG}" --yes --cleanup-tag
           fi
+          gh release create "${TAG}" \
+            --target "${GITHUB_SHA}" \
+            --title "ExamVault ${VERSION}" \
+            --notes "${NOTES}"
           # --clobber so a re-dispatch of the same version replaces the assets
           # rather than erroring on the existing filename.
           gh release upload "${TAG}" --clobber \

@@ -79,8 +79,8 @@ analyze, format and the full test suite were run locally on this tree: analyze
 
 The `build-android` job (`Build release APK`) runs on every push to `master` or
 `main`, on `v*` tags, and on manual `workflow_dispatch` — never on pull requests
-(secrets are unavailable to fork PRs). It builds one App Bundle and three split
-APKs.
+(secrets are unavailable to fork PRs). It builds one App Bundle, three split APKs
+and one universal APK.
 
 **On `workflow_dispatch` the signed build is also published to a GitHub Release**,
 tagged `v<versionName>-build<versionCode>` (for `version: 1.0.1+2` that is
@@ -95,10 +95,22 @@ The same files are additionally attached to the run as two workflow artefacts:
 
 | Workflow artefact | File | Path in the build | Use |
 |---|---|---|---|
-| `examvault-aab` | `app-release.aab` | `app/build/app/outputs/bundle/release/` | **Play upload** |
-| `examvault-apk` | `app-arm64-v8a-release.apk` | `app/build/app/outputs/flutter-apk/` | sideload, most phones |
+| `examvault-aab` | `app-release.aab` | `app/build/app/outputs/bundle/release/` | **Play upload** — universal, all three ABIs |
+| `examvault-apk` | `app-release.apk` | `app/build/app/outputs/flutter-apk/` | **sideload, any device** (universal) |
+| `examvault-apk` | `app-arm64-v8a-release.apk` | `app/build/app/outputs/flutter-apk/` | sideload, most phones — smallest |
 | `examvault-apk` | `app-armeabi-v7a-release.apk` | `app/build/app/outputs/flutter-apk/` | older 32-bit devices |
 | `examvault-apk` | `app-x86_64-release.apk` | `app/build/app/outputs/flutter-apk/` | emulators |
+
+The universal APK exists because the split ones require the downloader to know
+their phone's ABI, and a wrong pick fails with "app not compatible". The bundle is
+already universal, so this is only for distribution outside Play.
+
+These upload steps are **best-effort** (`continue-on-error: true`). GitHub's
+500 MB free allowance is account-wide rather than per repository: on 2026-11-17
+this repo held 0 bytes and the upload still failed because a sibling repo held
+2.3 GB. Nothing this workflow can do frees that, so a green build must not depend
+on it — the Release step above is the authoritative copy and resumes working as
+soon as the account is under its limit.
 
 The release step runs **before** the artefact uploads, and both upload steps carry
 `if: always() && !cancelled()`, so a storage problem can never cost you the
@@ -109,13 +121,14 @@ artefact was skipped entirely — a green build with nothing to download. Both
 upload steps still use `if-no-files-found: error`, so a build that produced no
 bundle fails the job instead of quietly shipping nothing.
 
-Workflow artefacts are kept for **3 days**, down from 14. Each run is ~119 MB
-(56.6 MB AAB plus three split APKs) against a 500 MB *total* free-tier allowance.
-The cache is the bigger consumer and is therefore switched off: `cache: true` on
-`subosito/flutter-action` stores the whole Flutter SDK (~1.64 GB at the pinned
-version), which alone is over three times the allowance and was what actually
-exhausted it. Losing that cache costs about half a minute of download per job;
-keeping it makes every upload fail. Do not re-enable it without a paid plan.
+Workflow artefacts are kept for **3 days**, down from 14. Each run is ~170 MB
+(56.6 MB AAB plus the universal and three split APKs) against a 500 MB
+account-wide allowance. Two things were consuming it, both now addressed: the
+cache, because `cache: true` on `subosito/flutter-action` stores the whole Flutter
+SDK (~1.64 GB at the pinned version), which alone is over three times the
+allowance; and retention, because a fortnight of runs kept ~1.2 GB of old builds
+alive. Losing the cache costs about half a minute of download per job; keeping it
+makes every upload fail. Do not re-enable it without a paid plan.
 (`.github/workflows/ci.yml`, job `build-android`, steps *Build APK*,
 *Publish to GitHub Release*, *Upload App Bundle*, *Upload APKs*.)
 

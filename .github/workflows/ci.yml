@@ -192,20 +192,35 @@ jobs:
             --dart-define=EV_ONESIGNAL_APP_ID="$EV_ONESIGNAL_APP_ID" \
             --dart-define=EV_APP_VERSION="${EV_APP_VERSION}"
 
-      - name: Upload APKs
-        uses: actions/upload-artifact@v4
-        with:
-          name: examvault-apk
-          path: app/build/app/outputs/flutter-apk/*.apk
-          retention-days: 14
-          if-no-files-found: error
-
+      # The App Bundle goes first, and both uploads run even if the other one
+      # fails. The AAB is the Play artefact; on 2026-11-17 an exhausted
+      # artefact-storage quota failed the APK upload, and because steps stop at
+      # the first failure the AAB was never uploaded — a green build that
+      # produced a signed 56.6 MB bundle nobody could download. Ordering plus
+      # `if: always()` means one artefact's storage problem can never cost you
+      # the other one.
       - name: Upload App Bundle
+        if: always() && !cancelled()
         uses: actions/upload-artifact@v4
         with:
           name: examvault-aab
           path: app/build/app/outputs/bundle/release/*.aab
-          retention-days: 14
+          # Short retention on purpose: each run is ~119 MB (56.6 MB AAB plus
+          # three split APKs) and the free tier allows 500 MB *total*, so 14
+          # days of runs blows the quota and every upload starts failing with
+          # "Artifact storage quota has been hit". Three days keeps a handful of
+          # recent builds downloadable; anything older is reproducible from its
+          # commit.
+          retention-days: 3
+          if-no-files-found: error
+
+      - name: Upload APKs
+        if: always() && !cancelled()
+        uses: actions/upload-artifact@v4
+        with:
+          name: examvault-apk
+          path: app/build/app/outputs/flutter-apk/*.apk
+          retention-days: 3
           if-no-files-found: error
 
   # ---------------------------------------------------------------------------

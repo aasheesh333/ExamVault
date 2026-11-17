@@ -146,13 +146,17 @@ channel id (`exam_alerts_v2`) and topic names are already in the app.
 | `EV_WEB_BASE` | **deliberately UNSET** — a workers.dev URL on the share card reads as a dev server; until a real domain is owned the card prints the commission's own URL (see above) |
 | `CLOUDFLARE_API_TOKEN` | set |
 | `CLOUDFLARE_ACCOUNT_ID` | set |
-| `ANDROID_KEYSTORE_BASE64` | set — upload keystore, `CN=ExamVault` |
+| `ANDROID_KEYSTORE_BASE64` | set — upload keystore, `CN=Aasheesh Singh` (backed up in Drive: `My App Key/my-release-key.jks`) |
 | `ANDROID_STORE_PASSWORD` | set |
-| `ANDROID_KEY_ALIAS` | set — `examvault-upload` |
+| `ANDROID_KEY_ALIAS` | set — `mykey` |
 | `ANDROID_KEY_PASSWORD` | set |
 
 Verified: the AAB built by CI is signed with
-`SHA-256 F4:D8:1E:BC:8C:DF:91:D7:15:52:01:CB:4F:77:46:C1:87:1E:32:E4:50:E5:6C:D4:17:53:A3:47:EA:34:E0:EB`.
+`SHA-256 96:D7:6A:02:DC:7D:A1:79:07:06:BD:32:48:68:27:38:63:C8:BF:01:D3:D3:FB:F7:20:48:48:3C:13:3F:77:55`.
+
+> The earlier key (`CN=ExamVault`, `F4:D8:1E:…:E0:EB`) was replaced on 2026-11-17.
+> It had no backup outside this write-only secret, so it could not be recovered.
+> Nothing had reached Play yet, so the swap cost nothing.
 
 > If an `EV_WEB_BASE` secret exists in your environment from the 2026-11-11
 > experiment, delete it: `gh secret delete EV_WEB_BASE`. The `/r/<examId>`

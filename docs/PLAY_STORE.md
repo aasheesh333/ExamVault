@@ -139,15 +139,25 @@ because they are cheap and the failure they cause is silent.
 Sizes are not asserted anywhere and drift with the Flutter version — read them
 off the workflow run rather than quoting a number here.
 
-The bundle is signed with the upload key (`CN=ExamVault, O=ExamVault, C=IN`,
-SHA-256 `F4:D8:1E:…:E0:EB`), materialised in CI from four repository secrets:
+The bundle is signed with the upload key (`CN=Aasheesh Singh, OU=Individual,
+O=Sel, C=IN`, valid until 2053, alias `mykey`), SHA-256
+`96:D7:6A:02:DC:7D:A1:79:07:06:BD:32:48:68:27:38:63:C8:BF:01:D3:D3:FB:F7:20:48:48:3C:13:3F:77:55`,
+materialised in CI from four repository secrets:
 
 ```
 ANDROID_KEYSTORE_BASE64   ANDROID_STORE_PASSWORD
 ANDROID_KEY_ALIAS         ANDROID_KEY_PASSWORD
 ```
 
-**Keep a copy of `upload-keystore.jks` and its password somewhere durable.** Play
+**This key replaced the earlier throwaway one on 2026-11-17.** The previous key
+(`CN=ExamVault`, SHA-256 `F4:D8:1E:…:E0:EB`) existed only inside the GitHub secret,
+which is write-only — it was never backed up anywhere, so losing that secret would
+have permanently blocked updates to `app.examvault`. The current key is backed up
+in Google Drive (`My App Key/my-release-key.jks`) and is the one to protect from
+here on. Nothing had been uploaded to Play at the time of the swap, so no key reset
+was needed; the AAB published after the swap is the first Play-bound artefact.
+
+**Keep a copy of `my-release-key.jks` and its password somewhere durable.** Play
 will not accept an update to `app.examvault` signed with a different key unless you
 enrol in Play App Signing key reset, which takes days. The keystore is git-ignored
 by design, so it exists only in the secrets and wherever you store the backup.
@@ -349,7 +359,11 @@ removed.
 
 ## Before you press publish
 
-- [ ] Replace the throwaway upload keystore with one you have backed up
+- [x] Replace the throwaway upload keystore with one you have backed up — done
+      2026-11-17. The signing key is now `mykey`
+      (`CN=Aasheesh Singh`, SHA-256 `96:D7:6A:…:77:55`), backed up in Google Drive
+      at `My App Key/my-release-key.jks`. The old `CN=ExamVault` key had no copy
+      outside the write-only GitHub secret and is retired.
 - [x] Feature graphic: `design/exports/feature_graphic_1024x500.png` (regen:
       `python3 tools/branding/make_feature_graphic.py`)
 - [x] Screenshots at ≥1080×2340 and ≤2:1: `design/exports/screenshots/` —

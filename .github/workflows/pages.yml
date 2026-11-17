@@ -1,0 +1,70 @@
+name: Publish policy pages
+
+# Hosts the privacy policy and terms at a stable public URL, which the Play
+# listing requires.
+#
+# Why this exists rather than a free PHP host: InfinityFree (and most free shared
+# hosts) answer a request with a JavaScript anti-bot challenge instead of the
+# file, so any non-browser client — including the Play Console's own URL checker
+# and Google's automated review — sees "This site requires Javascript to work"
+# rather than the policy text. A policy URL has to serve its text to a plain
+# fetcher, so it is served from Pages, which returns the file verbatim.
+#
+# The pages are generated from docs/PRIVACY.md and docs/TERMS.md by
+# tools/site/build_policy_pages.py, so the hosted copy cannot drift from the
+# reviewed source.
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'docs/PRIVACY.md'
+      - 'docs/TERMS.md'
+      - 'tools/site/**'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate the pages from the markdown
+        run: python3 tools/site/build_policy_pages.py --out site
+
+      - name: Fail if the generated pages are empty or malformed
+        run: |
+          set -euo pipefail
+          for f in site/index.html site/privacy.html site/terms.html; do
+            if [ ! -s "$f" ]; then
+              echo "::error::$f was not generated"
+              exit 1
+            fi
+          done
+          # A page that lost its <main> would still be valid HTML but would ship a
+          # blank policy, which is worse than a failed deploy.
+          grep -q '<main>' site/privacy.html
+          grep -q '<main>' site/terms.html
+          grep -qi 'privacy policy' site/privacy.html
+          grep -qi 'terms of use' site/terms.html
+          echo "generated pages look complete"
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deployment
+        uses: actions/deploy-pages@v4

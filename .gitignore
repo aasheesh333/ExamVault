@@ -85,3 +85,6 @@ __pycache__/
 
 # SDD scratch workspace (git-ignored)
 .superpowers/
+
+# Generated policy site (tools/site/build_policy_pages.py; deployed by pages.yml)
+site/

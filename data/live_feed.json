@@ -1,7 +1,7 @@
 {
-  "revision": 15,
+  "revision": 16,
   "source": "official commission websites",
-  "fetched_at": "2026-11-17T22:16:48.972Z",
+  "fetched_at": "2026-11-18T04:14:29.094Z",
   "sources": [
     {
       "id": "ssc",
@@ -9,8 +9,8 @@
       "category": "ssc",
       "homepage": "https://ssc.gov.in/",
       "status": "ok",
-      "rows": 16,
-      "checked_at": "2026-11-17T22:14:52.853Z",
+      "rows": 20,
+      "checked_at": "2026-11-18T04:12:33.676Z",
       "elapsed_ms": 1528
     },
     {
@@ -20,8 +20,8 @@
       "homepage": "https://www.upsc.gov.in",
       "status": "empty",
       "rows": 6,
-      "checked_at": "2026-11-17T22:16:34.569Z",
-      "elapsed_ms": 101716
+      "checked_at": "2026-11-18T04:14:14.496Z",
+      "elapsed_ms": 100820
     },
     {
       "id": "ibps",
@@ -30,8 +30,8 @@
       "homepage": "https://www.ibps.in",
       "status": "empty",
       "rows": 0,
-      "checked_at": "2026-11-17T22:16:36.931Z",
-      "elapsed_ms": 2362,
+      "checked_at": "2026-11-18T04:14:16.906Z",
+      "elapsed_ms": 2410,
       "note": "TLS chain completed with a pinned GlobalSign intermediate"
     },
     {
@@ -41,8 +41,8 @@
       "homepage": "https://www.tnpsc.gov.in",
       "status": "ok",
       "rows": 10,
-      "checked_at": "2026-11-17T22:16:38.485Z",
-      "elapsed_ms": 1554
+      "checked_at": "2026-11-18T04:14:18.601Z",
+      "elapsed_ms": 1695
     },
     {
       "id": "railways",
@@ -51,8 +51,8 @@
       "homepage": "https://rrbchennai.gov.in",
       "status": "unavailable",
       "rows": 0,
-      "checked_at": "2026-11-17T22:16:48.971Z",
-      "elapsed_ms": 10486,
+      "checked_at": "2026-11-18T04:14:29.093Z",
+      "elapsed_ms": 10492,
       "reason": "fetch failed"
     }
   ],
@@ -80,6 +80,20 @@
       "source_id": "ssc",
       "official_pdf": "https://ssc.gov.in/api/attachment/uploads/masterData/NoticeBoards/Notice_of_STENO-LDC_2026.pdf",
       "pdf_size": "2.3 MB"
+    },
+    {
+      "exam_id": "s40d16naqchsl25_7vsqx2sb6kurcbydk0841",
+      "category": "ssc",
+      "exam_name": "Combined Higher Secondary (10+2) Level Examination, 2025 (Tier-II): Uploading of Final Answer\u2026",
+      "context": "Answer key released",
+      "status": "result_out",
+      "published_at": "2026-11-17T01:39:17.434Z",
+      "source": "ssc.gov.in",
+      "source_id": "ssc",
+      "official_pdf": "https://ssc.gov.in/api/attachment/uploads/masterData/NoticeBoards/answer_key_17112026.pdf",
+      "pdf_size": "0.2 MB",
+      "index_attempted_at": "2026-11-18T04:14:31.080779+00:00",
+      "index_skipped": "too few rolls"
     },
     {
       "exam_id": "j2k7sgab6eu9sh6c_6v986pkyn88b6tz1cjjyn",
@@ -122,7 +136,7 @@
       "index_available": true,
       "index_version": "496699f59fa7",
       "roll_count": 2526,
-      "index_attempted_at": "2026-11-17T22:17:49.753667+00:00",
+      "index_attempted_at": "2026-11-18T04:15:31.753106+00:00",
       "index_skipped": "HTTPError: HTTP Error 504: Gateway Time-out"
     },
     {
@@ -139,7 +153,7 @@
       "index_available": true,
       "index_version": "ebf0b48ddd52",
       "roll_count": 181,
-      "index_attempted_at": "2026-11-17T22:18:51.115830+00:00",
+      "index_attempted_at": "2026-11-18T04:16:35.243283+00:00",
       "index_skipped": "HTTPError: HTTP Error 504: Gateway Time-out"
     },
     {
@@ -156,7 +170,7 @@
       "index_available": true,
       "index_version": "ec7dd2aa1ba9",
       "roll_count": 8956,
-      "index_attempted_at": "2026-11-17T22:19:52.469328+00:00",
+      "index_attempted_at": "2026-11-18T04:17:39.110875+00:00",
       "index_skipped": "HTTPError: HTTP Error 504: Gateway Time-out"
     },
     {
@@ -258,6 +272,58 @@
       "pdf_size": "0.3 MB"
     },
     {
+      "exam_id": "ctgd1yln49o2026_q5qc0zgw8hg6itzr5jwzv",
+      "category": "ssc",
+      "exam_name": "Constable (GD) in Central Armed Police Forces (CAPFs) and SSF, and Rifleman (GD) in Assam Rif\u2026",
+      "context": "Answer key released",
+      "status": "result_out",
+      "published_at": "2026-11-03T11:37:46.120Z",
+      "source": "ssc.gov.in",
+      "source_id": "ssc",
+      "official_pdf": "https://ssc.gov.in/api/attachment/uploads/masterData/NoticeBoards/writeup_03112026.pdf",
+      "pdf_size": "0.2 MB",
+      "index_attempted_at": "2026-11-18T04:15:33.601502+00:00",
+      "index_skipped": "writeup"
+    },
+    {
+      "exam_id": "ssc_n8tz5b1qsch7uibcchn7u",
+      "category": "ssc",
+      "exam_name": "Important Notice-Dates of CGEPT, 2027, Annual Skill Test, 2025 and SI in DP and CAPFs, Exam, \u2026",
+      "context": "Notice board \u00b7 ssc.gov.in",
+      "status": "awaited",
+      "published_at": "2026-11-02T13:35:03.540Z",
+      "source": "ssc.gov.in",
+      "source_id": "ssc",
+      "official_pdf": "https://ssc.gov.in/api/attachment/uploads/masterData/NoticeBoards/Exams_notice_02112026.pdf",
+      "pdf_size": "0.5 MB"
+    },
+    {
+      "exam_id": "j2k7sgab6eu9sh6c_5ufxf0ts6671mcxh451qs",
+      "category": "ssc",
+      "exam_name": "Sub-Inspector in Delhi Police and Central Armed Police Forces Examination, 2025: Declaration \u2026",
+      "context": "Official PDF \u00b7 0.7 MB",
+      "status": "result_out",
+      "published_at": "2026-10-29T09:24:58.805Z",
+      "source": "ssc.gov.in",
+      "source_id": "ssc",
+      "official_pdf": "https://ssc.gov.in/api/attachment/uploads/masterData/NoticeBoards/writeup_29102026.pdf",
+      "pdf_size": "0.7 MB",
+      "index_attempted_at": "2026-11-18T04:16:37.863284+00:00",
+      "index_skipped": "writeup"
+    },
+    {
+      "exam_id": "ssc_5jfpb0tey9le4bsgd207x",
+      "category": "ssc",
+      "exam_name": "Important Notice - Revised dates for Junior Engineer Examination, 2026 and Sub-Inspector in D\u2026",
+      "context": "Notice board \u00b7 ssc.gov.in",
+      "status": "awaited",
+      "published_at": "2026-10-26T13:07:31.342Z",
+      "source": "ssc.gov.in",
+      "source_id": "ssc",
+      "official_pdf": "https://ssc.gov.in/api/attachment/uploads/masterData/NoticeBoards/Important%20notice_revised_dated_26_10_2026.pdf",
+      "pdf_size": "0.4 MB"
+    },
+    {
       "exam_id": "ctgd1yln49o2026_x3legiaohf967untxcvwd",
       "category": "ssc",
       "exam_name": "Constable (GD) in Central Armed Police Forces (CAPFs) and SSF, and Rifleman (GD) in Assam Rif\u2026",
@@ -282,6 +348,46 @@
       "index_skipped": "multi-part list (2 attachments)"
     },
     {
+      "exam_id": "rhq74fte5xsjy26_bbw0ks6t0zkinggae5ywv",
+      "category": "ssc",
+      "exam_name": "Phase-XIV/2026/Selection Posts Examination - Uploading of Candidate\u2019s Response Sheet(s) along\u2026",
+      "context": "Answer key released",
+      "status": "answer_key",
+      "published_at": "2026-10-09T10:34:40.589Z",
+      "source": "ssc.gov.in",
+      "source_id": "ssc",
+      "official_pdf": "https://ssc.gov.in/api/attachment/uploads/masterData/NoticeBoards/writeup_rhq.pdf",
+      "pdf_size": "0.4 MB"
+    },
+    {
+      "exam_id": "59g9y0svsteno25_wtu0oigqapytu2kei0kp7",
+      "category": "ssc",
+      "exam_name": "Stenographer Grade 'C' and 'D' Examination, 2025: Uploading Marks of CBE and Skill Test",
+      "context": "Notice board \u00b7 ssc.gov.in",
+      "status": "result_out",
+      "published_at": "2026-10-07T13:44:58.738Z",
+      "source": "ssc.gov.in",
+      "source_id": "ssc",
+      "official_pdf": "https://ssc.gov.in/api/attachment/uploads/masterData/NoticeBoards/Final_Marks_Writeup_07102026.pdf",
+      "pdf_size": "0.4 MB",
+      "index_attempted_at": "2026-11-18T04:17:41.534671+00:00",
+      "index_skipped": "writeup"
+    },
+    {
+      "exam_id": "s40d16naqchsl25_032axg8peetdg1f0f8bs1",
+      "category": "ssc",
+      "exam_name": "Combined Higher Secondary (10+2) Level Examination, 2025: Declaration of Final Result",
+      "context": "Official PDF \u00b7 0.6 MB",
+      "status": "result_out",
+      "published_at": "2026-10-07T13:40:47.800Z",
+      "source": "ssc.gov.in",
+      "source_id": "ssc",
+      "official_pdf": "https://ssc.gov.in/api/attachment/uploads/masterData/NoticeBoards/writeup_final_chsl_2025_07102026.pdf",
+      "pdf_size": "0.6 MB",
+      "index_attempted_at": "2026-11-18T04:17:44.563724+00:00",
+      "index_skipped": "writeup"
+    },
+    {
       "exam_id": "s40d16naqchsl25_u24bddx3swn9avs9ibz0t",
       "category": "ssc",
       "exam_name": "Combined Higher Secondary (10+2) Level Examination, 2025 (Final Result): List of Candidates i\u2026",
@@ -294,64 +400,16 @@
       "index_skipped": "multi-part list (2 attachments)"
     },
     {
-      "exam_id": "q5zvwlkwna3s17u_oek19fmpzuiwlk8cwua5g",
+      "exam_id": "ssc_4kl4na9q0to0q2s07qgcx",
       "category": "ssc",
-      "exam_name": "Declaration of Result of Annual Departmental Typewriting Skill Test \u2013 2024: List of the quali\u2026",
-      "context": "Multi-part list \u2014 indexing paused",
+      "exam_name": "Multi Tasking (Non-Technical) Staff, and Havaldar (CBIC and CBN) Examination, 2025: Declarati\u2026",
+      "context": "Official PDF \u00b7 0.3 MB",
       "status": "result_out",
-      "published_at": "2026-09-09T14:44:21.770Z",
+      "published_at": "2026-10-07T07:38:43.958Z",
       "source": "ssc.gov.in",
       "source_id": "ssc",
-      "official_pdf": "https://ssc.gov.in/api/attachment/uploads/masterData/Results/Typing_qualified_candidates_List1_09092026.pdf",
-      "index_skipped": "multi-part list (2 attachments)"
-    },
-    {
-      "exam_id": "q5zvwlkwna3s17u_bbanvl2awoad13b09a21o",
-      "category": "ssc",
-      "exam_name": "Declaration of Result of Annual Departmental Stenography Skill Test \u2013 2024: List of the quali\u2026",
-      "context": "Multi-part list \u2014 indexing paused",
-      "status": "result_out",
-      "published_at": "2026-09-09T14:36:39.599Z",
-      "source": "ssc.gov.in",
-      "source_id": "ssc",
-      "official_pdf": "https://ssc.gov.in/api/attachment/uploads/masterData/Results/Steno_qualified_candidates_09092026.pdf",
-      "index_skipped": "multi-part list (2 attachments)"
-    },
-    {
-      "exam_id": "59g9y0svsteno25_cgyu40w7q3axom3t0lklh",
-      "category": "ssc",
-      "exam_name": "Stenographer Grade 'C' and 'D' Examination, 2025: List of candidates in Roll No. order provis\u2026",
-      "context": "Multi-part list \u2014 indexing paused",
-      "status": "admit_card_live",
-      "published_at": "2026-08-25T12:17:37.209Z",
-      "source": "ssc.gov.in",
-      "source_id": "ssc",
-      "official_pdf": "https://ssc.gov.in/api/attachment/uploads/masterData/Results/Final_Result_Write_up_25082026.pdf",
-      "index_skipped": "multi-part list (2 attachments)"
-    },
-    {
-      "exam_id": "s40d16nackd16h0_gsnhl7k5fqtrfr3zzmtfj",
-      "category": "ssc",
-      "exam_name": "Combined Higher Secondary (10+2) Level Examination, 2025: List of Candidates in Roll Number O\u2026",
-      "context": "Multi-part list \u2014 indexing paused",
-      "status": "result_out",
-      "published_at": "2026-08-17T13:12:01.499Z",
-      "source": "ssc.gov.in",
-      "source_id": "ssc",
-      "official_pdf": "https://ssc.gov.in/api/attachment/uploads/masterData/Results/ROLL_17082026.pdf",
-      "index_skipped": "multi-part list (2 attachments)"
-    },
-    {
-      "exam_id": "wzeujzxj8ts5z9n_kacgiw0ipnr0ug55z7vov",
-      "category": "ssc",
-      "exam_name": "Multi Tasking (Non-Technical) Staff, and Havaldar (CBIC and CBN) Examination, 2025 : List of \u2026",
-      "context": "Multi-part list \u2014 indexing paused",
-      "status": "result_out",
-      "published_at": "2026-08-03T12:57:35.369Z",
-      "source": "ssc.gov.in",
-      "source_id": "ssc",
-      "official_pdf": "https://ssc.gov.in/api/attachment/uploads/masterData/Results/writeup_mts_03082026.pdf",
-      "index_skipped": "multi-part list (2 attachments)"
+      "official_pdf": "https://ssc.gov.in/api/attachment/uploads/masterData/NoticeBoards/writeup_07102026.pdf",
+      "pdf_size": "0.3 MB"
     },
     {
       "exam_id": "tnpsc_13_2024_assistant_public_prosecutor_in_grade_ii",

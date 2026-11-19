@@ -1,7 +1,7 @@
 {
   "revision": 18,
   "source": "official commission websites",
-  "fetched_at": "2026-11-18T21:54:14.167Z",
+  "fetched_at": "2026-11-19T03:19:55.303Z",
   "sources": [
     {
       "id": "ssc",
@@ -10,8 +10,8 @@
       "homepage": "https://ssc.gov.in/",
       "status": "ok",
       "rows": 20,
-      "checked_at": "2026-11-18T21:52:18.423Z",
-      "elapsed_ms": 1250
+      "checked_at": "2026-11-19T03:17:58.224Z",
+      "elapsed_ms": 1287
     },
     {
       "id": "upsc",
@@ -20,8 +20,8 @@
       "homepage": "https://www.upsc.gov.in",
       "status": "empty",
       "rows": 8,
-      "checked_at": "2026-11-18T21:53:59.563Z",
-      "elapsed_ms": 101139
+      "checked_at": "2026-11-19T03:19:39.331Z",
+      "elapsed_ms": 101107
     },
     {
       "id": "ibps",
@@ -30,8 +30,8 @@
       "homepage": "https://www.ibps.in",
       "status": "empty",
       "rows": 0,
-      "checked_at": "2026-11-18T21:54:02.017Z",
-      "elapsed_ms": 2453,
+      "checked_at": "2026-11-19T03:19:43.239Z",
+      "elapsed_ms": 3908,
       "note": "TLS chain completed with a pinned GlobalSign intermediate"
     },
     {
@@ -41,8 +41,8 @@
       "homepage": "https://www.tnpsc.gov.in",
       "status": "ok",
       "rows": 10,
-      "checked_at": "2026-11-18T21:54:03.678Z",
-      "elapsed_ms": 1661
+      "checked_at": "2026-11-19T03:19:44.814Z",
+      "elapsed_ms": 1575
     },
     {
       "id": "railways",
@@ -51,7 +51,7 @@
       "homepage": "https://rrbchennai.gov.in",
       "status": "unavailable",
       "rows": 0,
-      "checked_at": "2026-11-18T21:54:14.166Z",
+      "checked_at": "2026-11-19T03:19:55.302Z",
       "elapsed_ms": 10488,
       "reason": "fetch failed"
     }
@@ -482,7 +482,7 @@
       "index_available": true,
       "index_version": "5647a7f6f8bb",
       "roll_count": 2628,
-      "index_built_at": "2026-11-11T22:33:22.524782+00:00"
+      "index_built_at": "2026-11-19T03:19:59.431304+00:00"
     },
     {
       "exam_id": "tnpsc_09_2024_combined_technical_services_examination_in",
@@ -498,7 +498,7 @@
       "index_available": true,
       "index_version": "9107ff277416",
       "roll_count": 136,
-      "index_built_at": "2026-11-11T22:33:24.935075+00:00"
+      "index_built_at": "2026-11-19T03:20:01.940547+00:00"
     },
     {
       "exam_id": "tnpsc_11_2024_combined_technical_services_examination_in",

@@ -1,7 +1,7 @@
 {
-  "revision": 19,
+  "revision": 20,
   "source": "official commission websites",
-  "fetched_at": "2026-11-19T21:26:21.024Z",
+  "fetched_at": "2026-11-23T12:19:48.483Z",
   "sources": [
     {
       "id": "ssc",
@@ -10,8 +10,8 @@
       "homepage": "https://ssc.gov.in/",
       "status": "ok",
       "rows": 16,
-      "checked_at": "2026-11-19T21:26:04.623Z",
-      "elapsed_ms": 1073
+      "checked_at": "2026-11-23T12:19:02.501Z",
+      "elapsed_ms": 1889
     },
     {
       "id": "upsc",
@@ -20,8 +20,8 @@
       "homepage": "https://www.upsc.gov.in",
       "status": "empty",
       "rows": 8,
-      "checked_at": "2026-11-19T21:26:07.544Z",
-      "elapsed_ms": 2921
+      "checked_at": "2026-11-23T12:19:04.130Z",
+      "elapsed_ms": 1628
     },
     {
       "id": "ibps",
@@ -30,8 +30,8 @@
       "homepage": "https://www.ibps.in",
       "status": "empty",
       "rows": 0,
-      "checked_at": "2026-11-19T21:26:09.531Z",
-      "elapsed_ms": 1987,
+      "checked_at": "2026-11-23T12:19:13.010Z",
+      "elapsed_ms": 8879,
       "note": "TLS chain completed with a pinned GlobalSign intermediate"
     },
     {
@@ -39,10 +39,11 @@
       "label": "TNPSC",
       "category": "state_psc",
       "homepage": "https://www.tnpsc.gov.in",
-      "status": "ok",
-      "rows": 10,
-      "checked_at": "2026-11-19T21:26:11.029Z",
-      "elapsed_ms": 1498
+      "status": "unavailable",
+      "rows": 0,
+      "checked_at": "2026-11-23T12:19:38.012Z",
+      "elapsed_ms": 25002,
+      "reason": "This operation was aborted"
     },
     {
       "id": "railways",
@@ -51,8 +52,8 @@
       "homepage": "https://rrbchennai.gov.in",
       "status": "unavailable",
       "rows": 0,
-      "checked_at": "2026-11-19T21:26:21.023Z",
-      "elapsed_ms": 9994,
+      "checked_at": "2026-11-23T12:19:48.482Z",
+      "elapsed_ms": 10470,
       "reason": "fetch failed"
     }
   ],
@@ -247,7 +248,7 @@
       "source_id": "ssc",
       "official_pdf": "https://ssc.gov.in/api/attachment/uploads/masterData/NoticeBoards/corrigendum_16112026.pdf",
       "pdf_size": "0.3 MB",
-      "index_attempted_at": "2026-11-16T11:01:52.609940+00:00",
+      "index_attempted_at": "2026-11-23T12:19:50.785726+00:00",
       "index_skipped": "too few rolls"
     },
     {
@@ -381,164 +382,6 @@
       "source_id": "ssc",
       "official_pdf": "https://ssc.gov.in/api/attachment/uploads/masterData/Results/writeup_mts_03082026.pdf",
       "index_skipped": "multi-part list (2 attachments)"
-    },
-    {
-      "exam_id": "tnpsc_13_2024_assistant_public_prosecutor_in_grade_ii",
-      "category": "state_psc",
-      "exam_name": "TNPSC 13/2024 \u00b7 ASSISTANT PUBLIC PROSECUTOR IN GRADE II",
-      "context": "Final result list \u00b7 13/2024",
-      "status": "result_out",
-      "published_at": "2026-01-20T00:00:00.000Z",
-      "source": "tnpsc.gov.in",
-      "source_id": "tnpsc",
-      "official_pdf": "https://www.tnpsc.gov.in/document/finalresult/PUB_LIST_APP_13_2024%20updated.pdf",
-      "official_page": null,
-      "index_available": true,
-      "index_version": "04c8689c01e3",
-      "roll_count": 81,
-      "index_built_at": "2026-11-18T21:54:18.421383+00:00"
-    },
-    {
-      "exam_id": "tnpsc_01_2024_combined_civil_services_examination_iv_in_",
-      "category": "state_psc",
-      "exam_name": "TNPSC 01/2024 \u00b7 COMBINED CIVIL SERVICES EXAMINATION-IV IN GROUP-IV SERVICES",
-      "context": "Final result list \u00b7 01/2024",
-      "status": "result_out",
-      "published_at": "2025-12-18T00:00:00.000Z",
-      "source": "tnpsc.gov.in",
-      "source_id": "tnpsc",
-      "official_pdf": "https://www.tnpsc.gov.in/document/finalresult/01_2024_GRP_IV_JA_TYPIST_STENO_TYPIST_PUB_LIST.pdf",
-      "official_page": null,
-      "index_available": true,
-      "index_version": "8ebf9585bc0b",
-      "roll_count": 7664,
-      "index_built_at": "2026-11-18T21:54:26.535608+00:00"
-    },
-    {
-      "exam_id": "tnpsc_08_2024_combined_civil_services_examination_ii_in_",
-      "category": "state_psc",
-      "exam_name": "TNPSC 08/2024 \u00b7 COMBINED CIVIL SERVICES EXAMINATION- II IN GROUP II AND IIA SERVICES",
-      "context": "Final result list \u00b7 08/2024",
-      "status": "result_out",
-      "published_at": "2025-12-11T00:00:00.000Z",
-      "source": "tnpsc.gov.in",
-      "source_id": "tnpsc",
-      "official_pdf": "https://www.tnpsc.gov.in/document/finalresult/08_2024_GR_II_IIA_PUB_LIST.pdf",
-      "official_page": null,
-      "index_available": true,
-      "index_version": "5647a7f6f8bb",
-      "roll_count": 2628,
-      "index_built_at": "2026-11-19T03:19:59.431304+00:00"
-    },
-    {
-      "exam_id": "tnpsc_09_2024_combined_technical_services_examination_in",
-      "category": "state_psc",
-      "exam_name": "TNPSC 09/2024 \u00b7 COMBINED TECHNICAL SERVICES EXAMINATION IN NON-INTERVIEW POSTS",
-      "context": "Final result list \u00b7 09/2024",
-      "status": "result_out",
-      "published_at": "2025-11-21T00:00:00.000Z",
-      "source": "tnpsc.gov.in",
-      "source_id": "tnpsc",
-      "official_pdf": "https://www.tnpsc.gov.in/document/finalresult/09_2024_CTS_DEGREE_PUB_LIST_2_21112025.pdf",
-      "official_page": null,
-      "index_available": true,
-      "index_version": "9107ff277416",
-      "roll_count": 136,
-      "index_built_at": "2026-11-19T03:20:01.940547+00:00"
-    },
-    {
-      "exam_id": "tnpsc_11_2024_combined_technical_services_examination_in",
-      "category": "state_psc",
-      "exam_name": "TNPSC 11/2024 \u00b7 COMBINED TECHNICAL SERVICES EXAMINATION IN DIPLOMA/ITI LEVEL",
-      "context": "Final result list \u00b7 11/2024",
-      "status": "result_out",
-      "published_at": "2025-11-20T00:00:00.000Z",
-      "source": "tnpsc.gov.in",
-      "source_id": "tnpsc",
-      "official_pdf": "https://www.tnpsc.gov.in/document/finalresult/11_2024_CTS_DIP_ITI_PUB_LIST_3_20112025.pdf",
-      "official_page": null,
-      "index_available": true,
-      "index_version": "ed72256aa6bf",
-      "roll_count": 240,
-      "index_built_at": "2026-11-19T12:54:48.784061+00:00"
-    },
-    {
-      "exam_id": "tnpsc_16_2024_combined_civil_services_examination_in_gro",
-      "category": "state_psc",
-      "exam_name": "TNPSC 16/2024 \u00b7 COMBINED CIVIL SERVICES EXAMINATION IN GROUP VA SERVICES",
-      "context": "Final result list \u00b7 16/2024",
-      "status": "result_out",
-      "published_at": "2025-10-09T00:00:00.000Z",
-      "source": "tnpsc.gov.in",
-      "source_id": "tnpsc",
-      "official_pdf": "https://www.tnpsc.gov.in/document/finalresult/16_2024_GROUP_VA_PUBLICATION%20_LIST.pdf",
-      "official_page": null,
-      "index_available": true,
-      "index_version": "9f9babf37b55",
-      "roll_count": 35,
-      "index_built_at": "2026-11-19T12:54:53.387750+00:00"
-    },
-    {
-      "exam_id": "tnpsc_12_2024_combined_technical_services_examination_in",
-      "category": "state_psc",
-      "exam_name": "TNPSC 12/2024 \u00b7 COMBINED TECHNICAL SERVICES EXAMINATION IN INTERVIEW POSTS - II",
-      "context": "Final result list \u00b7 12/2024",
-      "status": "result_out",
-      "published_at": "2025-09-10T00:00:00.000Z",
-      "source": "tnpsc.gov.in",
-      "source_id": "tnpsc",
-      "official_pdf": "https://www.tnpsc.gov.in/document/finalresult/CTS-II_Phase_II-PUB_LIST.pdf",
-      "official_page": null,
-      "index_attempted_at": "2026-11-18T21:54:20.038099+00:00",
-      "index_skipped": "too few rolls"
-    },
-    {
-      "exam_id": "tnpsc_04_2024_combined_civil_services_examination_i_in_g",
-      "category": "state_psc",
-      "exam_name": "TNPSC 04/2024 \u00b7 COMBINED CIVIL SERVICES EXAMINATION-I IN GROUP-I SERVICES",
-      "context": "Final result list \u00b7 04/2024",
-      "status": "result_out",
-      "published_at": "2025-05-15T00:00:00.000Z",
-      "source": "tnpsc.gov.in",
-      "source_id": "tnpsc",
-      "official_pdf": "https://www.tnpsc.gov.in/document/finalresult/PUB_LIST_04_2024.pdf",
-      "official_page": null,
-      "index_available": true,
-      "index_version": "96dc6cea8bdf",
-      "roll_count": 89,
-      "index_built_at": "2026-11-19T12:54:56.364455+00:00"
-    },
-    {
-      "exam_id": "tnpsc_05_2024_combined_civil_services_examination_in_gro",
-      "category": "state_psc",
-      "exam_name": "TNPSC 05/2024 \u00b7 COMBINED CIVIL SERVICES EXAMINATION- IN Group I-B and I-C Services",
-      "context": "Final result list \u00b7 05/2024",
-      "status": "result_out",
-      "published_at": "2025-05-08T00:00:00.000Z",
-      "source": "tnpsc.gov.in",
-      "source_id": "tnpsc",
-      "official_pdf": "https://www.tnpsc.gov.in/document/finalresult/AC_HRCE_Publication_Revised_List.pdf",
-      "official_page": null,
-      "index_available": true,
-      "index_version": "1953aa4c7731",
-      "roll_count": 31,
-      "index_built_at": "2026-11-19T12:54:58.481880+00:00"
-    },
-    {
-      "exam_id": "tnpsc_07_2024_combined_technical_services_examination_in",
-      "category": "state_psc",
-      "exam_name": "TNPSC 07/2024 \u00b7 Combined Technical Services Examination IN Interview Posts",
-      "context": "Final result list \u00b7 07/2024",
-      "status": "result_out",
-      "published_at": "2025-02-27T00:00:00.000Z",
-      "source": "tnpsc.gov.in",
-      "source_id": "tnpsc",
-      "official_pdf": "https://www.tnpsc.gov.in/document/finalresult/PUB_ACC_LEGAL.pdf",
-      "official_page": null,
-      "index_available": true,
-      "index_version": "c0da75a89cac",
-      "roll_count": 44,
-      "index_built_at": "2026-11-19T21:26:23.224572+00:00"
     }
   ]
 }

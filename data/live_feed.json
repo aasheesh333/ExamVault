@@ -1,7 +1,7 @@
 {
   "revision": 21,
   "source": "official commission websites",
-  "fetched_at": "2026-11-24T10:51:19.961Z",
+  "fetched_at": "2026-11-25T15:30:15.820Z",
   "sources": [
     {
       "id": "ssc",
@@ -10,8 +10,8 @@
       "homepage": "https://ssc.gov.in/",
       "status": "ok",
       "rows": 15,
-      "checked_at": "2026-11-24T10:51:02.640Z",
-      "elapsed_ms": 1242
+      "checked_at": "2026-11-25T15:29:58.134Z",
+      "elapsed_ms": 1543
     },
     {
       "id": "upsc",
@@ -20,8 +20,8 @@
       "homepage": "https://www.upsc.gov.in",
       "status": "empty",
       "rows": 8,
-      "checked_at": "2026-11-24T10:51:03.462Z",
-      "elapsed_ms": 822
+      "checked_at": "2026-11-25T15:30:01.288Z",
+      "elapsed_ms": 3154
     },
     {
       "id": "ibps",
@@ -30,8 +30,8 @@
       "homepage": "https://www.ibps.in",
       "status": "empty",
       "rows": 0,
-      "checked_at": "2026-11-24T10:51:07.848Z",
-      "elapsed_ms": 4385,
+      "checked_at": "2026-11-25T15:30:03.127Z",
+      "elapsed_ms": 1839,
       "note": "TLS chain completed with a pinned GlobalSign intermediate"
     },
     {
@@ -41,8 +41,8 @@
       "homepage": "https://www.tnpsc.gov.in",
       "status": "ok",
       "rows": 10,
-      "checked_at": "2026-11-24T10:51:09.470Z",
-      "elapsed_ms": 1622
+      "checked_at": "2026-11-25T15:30:05.331Z",
+      "elapsed_ms": 2204
     },
     {
       "id": "railways",
@@ -51,8 +51,8 @@
       "homepage": "https://rrbchennai.gov.in",
       "status": "unavailable",
       "rows": 0,
-      "checked_at": "2026-11-24T10:51:19.960Z",
-      "elapsed_ms": 10490,
+      "checked_at": "2026-11-25T15:30:15.819Z",
+      "elapsed_ms": 10488,
       "reason": "fetch failed"
     }
   ],
@@ -83,7 +83,9 @@
       "index_available": true,
       "index_version": "925cac9b6eca",
       "roll_count": 2526,
-      "index_built_at": "2026-11-18T13:52:33.458294+00:00"
+      "index_built_at": "2026-11-18T13:52:33.458294+00:00",
+      "index_attempted_at": "2026-11-25T15:30:19.347149+00:00",
+      "index_skipped": "HTTPError: HTTP Error 404: Not Found"
     },
     {
       "exam_id": "upsc_whats_new_civil_services_main_examination_20_aa316b",
@@ -99,7 +101,9 @@
       "index_available": true,
       "index_version": "69124eb1ba08",
       "roll_count": 2526,
-      "index_built_at": "2026-11-18T13:52:44.310147+00:00"
+      "index_built_at": "2026-11-18T13:52:44.310147+00:00",
+      "index_attempted_at": "2026-11-25T15:30:19.770896+00:00",
+      "index_skipped": "HTTPError: HTTP Error 404: Not Found"
     },
     {
       "exam_id": "upsc_whats_new_combined_defence_services_examinat_762546",
@@ -115,7 +119,9 @@
       "index_available": true,
       "index_version": "a7f78aa2e437",
       "roll_count": 8956,
-      "index_built_at": "2026-11-18T13:52:49.530849+00:00"
+      "index_built_at": "2026-11-18T13:52:49.530849+00:00",
+      "index_attempted_at": "2026-11-25T15:30:20.115532+00:00",
+      "index_skipped": "HTTPError: HTTP Error 404: Not Found"
     },
     {
       "exam_id": "upsc_whats_new_combined_defence_services_examinat_9120b2",
@@ -131,7 +137,9 @@
       "index_available": true,
       "index_version": "cc8869a512e9",
       "roll_count": 181,
-      "index_built_at": "2026-11-18T13:52:52.663539+00:00"
+      "index_built_at": "2026-11-18T13:52:52.663539+00:00",
+      "index_attempted_at": "2026-11-25T15:30:20.503747+00:00",
+      "index_skipped": "HTTPError: HTTP Error 404: Not Found"
     },
     {
       "exam_id": "upsc_whats_new_combined_defence_services_examinat_c62d52",
@@ -147,7 +155,9 @@
       "index_available": true,
       "index_version": "b0d23d22572d",
       "roll_count": 8956,
-      "index_built_at": "2026-11-18T13:53:05.137970+00:00"
+      "index_built_at": "2026-11-18T13:53:05.137970+00:00",
+      "index_attempted_at": "2026-11-25T15:30:22.887943+00:00",
+      "index_skipped": "HTTPError: HTTP Error 404: Not Found"
     },
     {
       "exam_id": "upsc_whats_new_combined_geo_scientist_main_examin_fd2790",
@@ -163,7 +173,9 @@
       "index_available": true,
       "index_version": "d6f2938ee575",
       "roll_count": 66,
-      "index_built_at": "2026-11-18T13:53:08.323217+00:00"
+      "index_built_at": "2026-11-18T13:53:08.323217+00:00",
+      "index_attempted_at": "2026-11-25T15:30:23.263496+00:00",
+      "index_skipped": "HTTPError: HTTP Error 404: Not Found"
     },
     {
       "exam_id": "upsc_whats_new_combined_section_officers_grade_b__6a3060",
@@ -179,7 +191,9 @@
       "index_available": true,
       "index_version": "c2d178970830",
       "roll_count": 30,
-      "index_built_at": "2026-11-18T13:53:13.012326+00:00"
+      "index_built_at": "2026-11-18T13:53:13.012326+00:00",
+      "index_attempted_at": "2026-11-25T15:30:23.649629+00:00",
+      "index_skipped": "HTTPError: HTTP Error 404: Not Found"
     },
     {
       "exam_id": "upsc_whats_new_national_defence_academy_and_naval_1885d0",
@@ -232,7 +246,7 @@
       "source_id": "ssc",
       "official_pdf": "https://ssc.gov.in/api/attachment/uploads/masterData/NoticeBoards/answer_key_17112026.pdf",
       "pdf_size": "0.2 MB",
-      "index_attempted_at": "2026-11-18T04:14:31.080779+00:00",
+      "index_attempted_at": "2026-11-25T15:30:18.237009+00:00",
       "index_skipped": "too few rolls"
     },
     {

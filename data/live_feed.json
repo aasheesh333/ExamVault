@@ -1,7 +1,7 @@
 {
   "revision": 23,
   "source": "official commission websites",
-  "fetched_at": "2026-11-28T03:52:10.044Z",
+  "fetched_at": "2026-11-28T12:53:57.926Z",
   "sources": [
     {
       "id": "ssc",
@@ -10,8 +10,8 @@
       "homepage": "https://ssc.gov.in/",
       "status": "ok",
       "rows": 16,
-      "checked_at": "2026-11-28T03:51:53.933Z",
-      "elapsed_ms": 1291
+      "checked_at": "2026-11-28T12:53:38.436Z",
+      "elapsed_ms": 1423
     },
     {
       "id": "upsc",
@@ -20,8 +20,8 @@
       "homepage": "https://www.upsc.gov.in",
       "status": "empty",
       "rows": 8,
-      "checked_at": "2026-11-28T03:51:55.288Z",
-      "elapsed_ms": 1355
+      "checked_at": "2026-11-28T12:53:40.775Z",
+      "elapsed_ms": 2339
     },
     {
       "id": "ibps",
@@ -30,8 +30,8 @@
       "homepage": "https://www.ibps.in",
       "status": "empty",
       "rows": 0,
-      "checked_at": "2026-11-28T03:51:57.669Z",
-      "elapsed_ms": 2380,
+      "checked_at": "2026-11-28T12:53:45.383Z",
+      "elapsed_ms": 4608,
       "note": "TLS chain completed with a pinned GlobalSign intermediate"
     },
     {
@@ -41,8 +41,8 @@
       "homepage": "https://www.tnpsc.gov.in",
       "status": "ok",
       "rows": 10,
-      "checked_at": "2026-11-28T03:51:59.555Z",
-      "elapsed_ms": 1886
+      "checked_at": "2026-11-28T12:53:47.437Z",
+      "elapsed_ms": 2054
     },
     {
       "id": "railways",
@@ -51,8 +51,8 @@
       "homepage": "https://rrbchennai.gov.in",
       "status": "unavailable",
       "rows": 0,
-      "checked_at": "2026-11-28T03:52:10.043Z",
-      "elapsed_ms": 10487,
+      "checked_at": "2026-11-28T12:53:57.926Z",
+      "elapsed_ms": 10489,
       "reason": "fetch failed"
     }
   ],
@@ -108,7 +108,7 @@
       "index_version": "925cac9b6eca",
       "roll_count": 2526,
       "index_built_at": "2026-11-18T13:52:33.458294+00:00",
-      "index_attempted_at": "2026-11-28T03:52:10.970779+00:00",
+      "index_attempted_at": "2026-11-28T12:53:59.290809+00:00",
       "index_skipped": "HTTPError: HTTP Error 404: Not Found"
     },
     {
@@ -126,7 +126,7 @@
       "index_version": "69124eb1ba08",
       "roll_count": 2526,
       "index_built_at": "2026-11-18T13:52:44.310147+00:00",
-      "index_attempted_at": "2026-11-28T03:52:11.301816+00:00",
+      "index_attempted_at": "2026-11-28T12:53:59.730075+00:00",
       "index_skipped": "HTTPError: HTTP Error 404: Not Found"
     },
     {
@@ -144,7 +144,7 @@
       "index_version": "a7f78aa2e437",
       "roll_count": 8956,
       "index_built_at": "2026-11-18T13:52:49.530849+00:00",
-      "index_attempted_at": "2026-11-28T03:52:11.699669+00:00",
+      "index_attempted_at": "2026-11-28T12:54:00.118664+00:00",
       "index_skipped": "HTTPError: HTTP Error 404: Not Found"
     },
     {
@@ -162,7 +162,7 @@
       "index_version": "cc8869a512e9",
       "roll_count": 181,
       "index_built_at": "2026-11-18T13:52:52.663539+00:00",
-      "index_attempted_at": "2026-11-28T03:52:12.001502+00:00",
+      "index_attempted_at": "2026-11-28T12:54:00.491421+00:00",
       "index_skipped": "HTTPError: HTTP Error 404: Not Found"
     },
     {
@@ -180,7 +180,7 @@
       "index_version": "b0d23d22572d",
       "roll_count": 8956,
       "index_built_at": "2026-11-18T13:53:05.137970+00:00",
-      "index_attempted_at": "2026-11-28T03:52:12.318395+00:00",
+      "index_attempted_at": "2026-11-28T12:54:00.898076+00:00",
       "index_skipped": "HTTPError: HTTP Error 404: Not Found"
     },
     {
@@ -198,7 +198,7 @@
       "index_version": "d6f2938ee575",
       "roll_count": 66,
       "index_built_at": "2026-11-18T13:53:08.323217+00:00",
-      "index_attempted_at": "2026-11-28T03:52:12.670916+00:00",
+      "index_attempted_at": "2026-11-28T12:54:01.271423+00:00",
       "index_skipped": "HTTPError: HTTP Error 404: Not Found"
     },
     {
@@ -216,7 +216,7 @@
       "index_version": "c2d178970830",
       "roll_count": 30,
       "index_built_at": "2026-11-18T13:53:13.012326+00:00",
-      "index_attempted_at": "2026-11-28T03:52:12.986586+00:00",
+      "index_attempted_at": "2026-11-28T12:54:01.640766+00:00",
       "index_skipped": "HTTPError: HTTP Error 404: Not Found"
     },
     {
@@ -234,7 +234,7 @@
       "index_version": "a72be242486a",
       "roll_count": 617,
       "index_built_at": "2026-11-18T13:53:16.608795+00:00",
-      "index_attempted_at": "2026-11-28T03:52:13.363079+00:00",
+      "index_attempted_at": "2026-11-28T12:54:02.021515+00:00",
       "index_skipped": "HTTPError: HTTP Error 404: Not Found"
     },
     {
